@@ -44,14 +44,24 @@ function readLayer(filePath: string): PartialConfig {
 
 /**
  * Merges layers per-section, key-by-key: a later layer overrides only the keys
- * it sets within a section. Arrays (e.g. `files.exclude`) are replaced whole
- * rather than concatenated, so a layer can shrink a list, not just grow it.
+ * it sets within a section. Arrays inside a section (e.g. `files.exclude`) are
+ * replaced whole rather than concatenated, so a layer can shrink a list, not
+ * just grow it. `actions` is the deliberate exception: it accumulates across
+ * layers so a personal formatter and a project linter both fire, instead of one
+ * layer masking the other.
  */
 function mergeLayers(...layers: PartialConfig[]): Config {
   const result = structuredClone(DEFAULT_CONFIG);
   for (const layer of layers) {
     for (const section of Object.keys(layer) as (keyof Config)[]) {
-      Object.assign(result[section], layer[section]);
+      if (section === 'actions') {
+        result.actions = [
+          ...result.actions,
+          ...((layer.actions as Config['actions'] | undefined) ?? []),
+        ];
+      } else {
+        Object.assign(result[section], layer[section]);
+      }
     }
   }
   return result;
@@ -84,7 +94,14 @@ export function writeConfig(filePath: string, patch: PartialConfig): FsResult {
     const current = readLayer(filePath);
     const next: PartialConfig = { ...current };
     for (const section of Object.keys(patch) as (keyof Config)[]) {
-      next[section] = { ...current[section], ...patch[section] } as never;
+      const value = patch[section];
+      // Array sections (e.g. `actions`) replace wholesale; object sections
+      // merge key-by-key so unrelated settings in the layer survive.
+      next[section] = (
+        Array.isArray(value)
+          ? value
+          : { ...(current[section] as object), ...(value as object) }
+      ) as never;
     }
 
     fs.mkdirSync(path.dirname(filePath), { recursive: true });

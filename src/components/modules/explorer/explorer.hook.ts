@@ -9,6 +9,7 @@ import {
   renamePath,
   type FsResult,
 } from '~/lib/fs';
+import { triggerActions, ActionEvent } from '~/lib/actions';
 import { useDialog } from '~/components/ui/dialog';
 import { useExplorerStore } from './explorer.store';
 import { useWindowManagerStore } from '~/lib/window/window.store';
@@ -115,6 +116,7 @@ export const useExplorerActions = () => {
         if (!trimmed) return;
         const target = join(dir, trimmed);
         if (!guard(createFile(target))) return;
+        void triggerActions(ActionEvent.CREATE, { path: target });
         expandDir(dir);
         reload();
         setSelected({ path: target, isDir: false });
@@ -136,6 +138,7 @@ export const useExplorerActions = () => {
         if (!trimmed) return;
         const target = join(dir, trimmed);
         if (!guard(createDirectory(target))) return;
+        void triggerActions(ActionEvent.CREATE, { path: target });
         expandDir(dir);
         reload();
         setSelected({ path: target, isDir: true });
@@ -157,6 +160,10 @@ export const useExplorerActions = () => {
         if (!trimmed || trimmed === current) return;
         const target = join(dirname(selected.path), trimmed);
         if (!guard(renamePath(selected.path, target))) return;
+        void triggerActions(ActionEvent.RENAME, {
+          path: target,
+          oldPath: selected.path,
+        });
         // Re-point any open tabs from the old path (or old dir prefix) so they
         // don't dangle after the rename.
         editorFiles
@@ -184,6 +191,7 @@ export const useExplorerActions = () => {
       submitText: 'Delete',
       onSubmit: () => {
         if (!guard(deletePath(path))) return;
+        void triggerActions(ActionEvent.DELETE, { path });
         // Close any open tabs for the deleted file (or files under a deleted dir).
         editorFiles
           .filter((f) => f.file === path || f.file.startsWith(path + '/'))

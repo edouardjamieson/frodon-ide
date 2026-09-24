@@ -3,11 +3,19 @@
  * on-disk layers have been merged over the defaults (see `config.service.ts`).
  * Every field is required here; each on-disk layer is a `PartialConfig`.
  */
+import type { Action } from '../actions/actions.def';
+
 export interface Config {
   files: {
     /** File/directory names hidden from the explorer and search. */
     exclude: string[];
   };
+  /**
+   * Commands bound to filesystem events (save, create, rename, …). Unlike other
+   * sections, actions from every layer accumulate rather than override, so a
+   * personal formatter and a project linter can both fire (see `mergeLayers`).
+   */
+  actions: Action[];
   preferences: {
     displayToolbar: boolean;
     displayIcons: boolean;

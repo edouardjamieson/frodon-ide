@@ -1,0 +1,26 @@
+import { create } from 'zustand';
+import type { ExplorerStore } from './explorer.def';
+
+export const useExplorerStore = create<ExplorerStore>((set, get) => ({
+  toggledDirs: [],
+  toggleDir: (path: string) => {
+    const { toggledDirs } = get();
+
+    if (toggledDirs.includes(path)) {
+      const nextToggled = toggledDirs.filter((p) => p !== path);
+      set({ toggledDirs: nextToggled });
+      return;
+    }
+
+    set({ toggledDirs: [...toggledDirs, path] });
+  },
+  expandDir: (path: string) => {
+    const { toggledDirs } = get();
+    if (!toggledDirs.includes(path)) {
+      set({ toggledDirs: [...toggledDirs, path] });
+    }
+  },
+
+  selected: null,
+  setSelected: (selection) => set({ selected: selection }),
+}));

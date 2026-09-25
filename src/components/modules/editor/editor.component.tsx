@@ -49,6 +49,24 @@ export default function Editor(props: EditorProps) {
   const scrollAccel = useRef<MacOSScrollAccel>(null);
   if (!scrollAccel.current) scrollAccel.current = new MacOSScrollAccel();
 
+  // Pin the vertical scrollbar visible so it always reserves its column.
+  //
+  // The scrollbox's two scrollbars are flex children: the vertical one steals a
+  // column when shown (shrinking viewport width), the horizontal one steals a
+  // row (shrinking viewport height). Because the content is sized `min*: 100%`,
+  // each bar's "needed?" test is `content > viewport`. When a line is ~exactly
+  // the viewport width *and* the line count ~exactly fills the height — the
+  // geometry a 50%-wide window lands on — showing one bar makes the other
+  // needed and vice-versa, so the layout swaps them every frame and the bars
+  // flash endlessly (each recalculation schedules another render). Forcing the
+  // vertical bar on makes viewport width constant, breaking the feedback loop;
+  // the horizontal bar can then no longer oscillate. `visible` locks it against
+  // the auto-hide recalculation (sets the renderable's manual-visibility flag).
+  useEffect(() => {
+    const sb = scrollRef.current;
+    if (sb) sb.verticalScrollBar.visible = true;
+  }, []);
+
   // Gutter is wide enough for the largest line number, plus a padding column.
   const gutterWidth = String(lines.length).length + 1;
 

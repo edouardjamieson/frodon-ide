@@ -10,6 +10,7 @@ import {
   useSpawnWindow,
 } from '~/lib/window/window.hook';
 import { ConfigScope, useConfig } from '~/lib/config';
+import { killAllTerminalProcesses } from '../terminal/terminal.registry';
 
 export const usePalette = () => {
   const { open, setOpen, activeModule, setActiveModule, setSearch } =
@@ -267,6 +268,9 @@ export const usePaletteItems = () => {
           title: 'Quit Exodia',
           shortcut: 'ctrl+shift+q',
           execute: () => {
+            // Tear down terminal process trees while the event loop is still
+            // alive; process.exit() alone would orphan running dev servers.
+            killAllTerminalProcesses();
             process.exit(0);
           },
         },

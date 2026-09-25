@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import type { EmbeddedTerminalRenderable } from '@opentui/core';
 import Logger from '~/lib/logger/logger.service';
+import {
+  registerTerminalProcess,
+  killTerminalProcess,
+} from './terminal.registry';
 
 // A login+interactive shell so profiles load (PATH, aliases) and a prompt
 // shows; falls back to zsh, the macOS default.
@@ -8,8 +12,10 @@ const SHELL = process.env.SHELL ?? 'zsh';
 
 // ETX, the byte the emulator emits for Ctrl+C.
 const CTRL_C = 0x03;
-// Ctrl+E + Ctrl+U: jump to end of line, then kill it — clears the typed input.
-const CLEAR_LINE = new Uint8Array([0x05, 0x15]);
+// The ISIG bit of termios c_lflag — set when the foreground program wants
+// signal-driven interrupt rather than the raw ^C byte. The flag value differs
+// by platform.
+const ISIG = process.platform === 'linux' ? 0x00000001 : 0x00000080;
 
 /**
  * Owns a real pseudo-terminal for one terminal window: spawns the user's shell
@@ -25,6 +31,7 @@ const CLEAR_LINE = new Uint8Array([0x05, 0x15]);
 export function useTerminal(focused: boolean) {
   const terminalRef = useRef<EmbeddedTerminalRenderable>(null);
   const ptyRef = useRef<Bun.Terminal | null>(null);
+  const shellPidRef = useRef<number | null>(null);
   const [exited, setExited] = useState(false);
 
   // Spawn the shell + PTY once, for the lifetime of the window.
@@ -54,6 +61,10 @@ export function useTerminal(focused: boolean) {
         env: { ...process.env, TERM: 'xterm-256color' },
         terminal: pty,
       });
+      shellPidRef.current = proc.pid;
+      // Track the shell so its whole process tree — not just the shell — is torn
+      // down on close and on app quit (see terminal.registry).
+      registerTerminalProcess(proc.pid);
     } catch (error) {
       Logger.log(`terminal: failed to spawn ${SHELL}: ${error}`);
       setExited(true);
@@ -61,13 +72,10 @@ export function useTerminal(focused: boolean) {
 
     return () => {
       disposed = true;
-      try {
-        proc?.kill();
-      } catch (error) {
-        Logger.log(`terminal: failed to kill shell: ${error}`);
-      }
+      if (proc?.pid) killTerminalProcess(proc.pid);
       pty.close();
       ptyRef.current = null;
+      shellPidRef.current = null;
     };
   }, []);
 
@@ -80,18 +88,30 @@ export function useTerminal(focused: boolean) {
     else term.blur();
   }, [focused]);
 
-  // Bytes the emulator wants to send back to the shell. Ctrl+C arrives as a lone
-  // ETX (0x03); rather than forward it as SIGINT, rewrite it to clear whatever
-  // the user is typing. CLEAR_LINE is Ctrl+E (move to end of line) followed by
-  // Ctrl+U (kill the line) so the whole input is discarded regardless of cursor
-  // position, in both zsh and bash.
+  // Bytes the emulator wants to send back to the shell. Ctrl+C needs help:
+  // Bun's PTY ships with the INTR control char disabled, so a lone ETX (0x03)
+  // never becomes SIGINT on its own. Reproduce a real terminal's behaviour by
+  // hand — if the foreground program uses signal-driven interrupt (ISIG on: a
+  // shell prompt, `npm run dev`, `top`), send SIGINT to the shell's process
+  // group; if it's in raw mode (ISIG off: an editor, `claude`, a REPL), forward
+  // the raw byte so the program can react to Ctrl+C itself. Job control is off,
+  // so the whole tree shares the shell's group and the group signal reaches the
+  // running command.
   const handleData = (bytes: Uint8Array) => {
     const pty = ptyRef.current;
     if (!pty) return;
-    if (bytes.length === 1 && bytes[0] === CTRL_C) {
-      pty.write(CLEAR_LINE);
+
+    const pid = shellPidRef.current;
+    const isCtrlC = bytes.length === 1 && bytes[0] === CTRL_C;
+    if (isCtrlC && pid && (pty.localFlags & ISIG) !== 0) {
+      try {
+        process.kill(-pid, 'SIGINT');
+      } catch (error) {
+        Logger.log(`terminal: failed to interrupt group ${pid}: ${error}`);
+      }
       return;
     }
+
     pty.write(bytes);
   };
 

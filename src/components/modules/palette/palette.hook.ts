@@ -1,6 +1,6 @@
 import { useShortcut } from '~/lib/utils';
 import { usePaletteStore } from './palette.store';
-import { useKeyboard } from '@opentui/react';
+import { useKeyboard, useRenderer } from '@opentui/react';
 import { useMemo } from 'react';
 import type { PaletteGroup, PaletteItem } from './palette.def';
 import { useSidebarStore } from '../sidebar/sidebar.store';
@@ -96,6 +96,8 @@ export const usePaletteItems = () => {
   const focusedWindow = windows.find((window) => window.id === focusedWindowId);
   const layout = getLayout(windows);
   const coords = getCoords(layout);
+
+  const renderer = useRenderer();
 
   const items: PaletteGroup[] = [
     {
@@ -271,6 +273,7 @@ export const usePaletteItems = () => {
             // Tear down terminal process trees while the event loop is still
             // alive; process.exit() alone would orphan running dev servers.
             killAllTerminalProcesses();
+            renderer.destroy();
             process.exit(0);
           },
         },

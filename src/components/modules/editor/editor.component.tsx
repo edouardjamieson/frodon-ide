@@ -209,10 +209,22 @@ function EditorLine({
 
   // Column is the click's x offset from the content box's own left edge, which
   // already accounts for the gutter and any horizontal scroll.
-  const handleMouseDown = (event: MouseEvent) => {
+  const columnAt = (event: MouseEvent) => {
     const originX = event.currentTarget?.x ?? event.x;
-    const col = Math.max(0, event.x - originX);
-    onMove(row, col, event.modifiers.shift);
+    return Math.max(0, event.x - originX);
+  };
+
+  const handleMouseDown = (event: MouseEvent) => {
+    onMove(row, columnAt(event), event.modifiers.shift);
+  };
+
+  // A drag extends the selection to the pointer. OpenTUI dispatches drag events
+  // to the line currently under the cursor, so `row` is the dragged-to row;
+  // extending from the anchor set on mouse-down builds the editor's own
+  // selection (without this the drag only paints the terminal's native
+  // highlight, which the editor can't act on — e.g. backspace to delete it).
+  const handleMouseDrag = (event: MouseEvent) => {
+    onMove(row, columnAt(event), true);
   };
 
   return (
@@ -220,7 +232,12 @@ function EditorLine({
       <text fg={theme.colors.neutral[600]}>{lineNumber}</text>
 
       {/* Content layer with cursor / selection overlays positioned by column. */}
-      <box position="relative" flexGrow={1} onMouseDown={handleMouseDown}>
+      <box
+        position="relative"
+        flexGrow={1}
+        onMouseDown={handleMouseDown}
+        onMouseDrag={handleMouseDrag}
+      >
         {selection && (
           <box
             position="absolute"

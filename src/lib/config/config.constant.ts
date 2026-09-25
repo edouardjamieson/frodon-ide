@@ -20,6 +20,7 @@ export const DEFAULT_CONFIG: Config = {
   files: {
     exclude: ['node_modules', '.git', 'dist', 'out', '.DS_Store'],
   },
+  actions: [],
   preferences: {
     displayIcons: true,
     displayToolbar: true,

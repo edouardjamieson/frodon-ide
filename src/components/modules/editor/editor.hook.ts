@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { refractor } from 'refractor';
-import { useKeyboard } from '@opentui/react';
+import { useKeyboard, useRenderer } from '@opentui/react';
 import Logger from '~/lib/logger/logger.service';
 import { resolveLanguageId, useLanguageStore } from '~/lib/language';
 import { readClipboard, writeClipboard } from '~/lib/clipboard';
+import { triggerActions, ActionEvent } from '~/lib/actions';
 import type {
   EditorProps,
   EditorState,
@@ -350,6 +351,7 @@ const EMPTY_STATE: EditorState = { value: '', cursor: 0, selection: null };
 export const useEditor = (props: EditorProps) => {
   const { filePath, focused = true, onDirtyChange } = props;
   const { open: paletteOpen } = usePaletteStore();
+  const renderer = useRenderer();
 
   const [state, setState] = useState<EditorState>(EMPTY_STATE);
   const stateRef = useRef(state);
@@ -438,6 +440,9 @@ export const useEditor = (props: EditorProps) => {
   const applyEdit = (next: EditorState, kind: 'type' | 'other') => {
     const prev = stateRef.current;
     if (next.value !== prev.value) {
+      // Drop OpenTUI's native selection highlight so it doesn't linger over the
+      // now-changed text (our own overlay is driven by `state.selection`).
+      renderer.clearSelection();
       const coalesce = kind === 'type' && lastKind.current === 'type';
       if (!coalesce) {
         past.current.push(prev);
@@ -477,6 +482,39 @@ export const useEditor = (props: EditorProps) => {
     return s.value.slice(selMin(s), selMax(s));
   };
 
+  /**
+   * Re-reads the file from disk and adopts it as the buffer. Called after
+   * on-save actions settle so a blocking formatter's output shows up live.
+   * Skips if the user has typed since the save (don't clobber fresh edits) or
+   * if disk already matches the buffer. The pre-format state is pushed to
+   * history so the reformat can be undone.
+   */
+  const adoptDiskChanges = () => {
+    if (!filePath) return;
+    if (stateRef.current.value !== baseline.current) return; // edited since save
+    let disk: string;
+    try {
+      disk = readFileSync(filePath, 'utf-8');
+    } catch (error) {
+      Logger.log(`editor: reload after actions failed for ${filePath}: ${error}`);
+      return;
+    }
+    if (disk === stateRef.current.value) return;
+
+    past.current.push(stateRef.current);
+    if (past.current.length > HISTORY_LIMIT) past.current.shift();
+    future.current = [];
+    lastKind.current = 'none';
+    baseline.current = disk;
+    const next: EditorState = {
+      value: disk,
+      cursor: Math.min(stateRef.current.cursor, disk.length),
+      selection: null,
+    };
+    stateRef.current = next;
+    setState(next);
+  };
+
   const save = () => {
     if (!filePath || !meta) return;
     try {
@@ -484,6 +522,11 @@ export const useEditor = (props: EditorProps) => {
       baseline.current = stateRef.current.value;
       setState((s) => ({ ...s })); // re-render so `dirty` recomputes
       Logger.log(`editor: saved ${filePath}`);
+      // Fire on-save actions (linters, formatters). Blocking formatters may
+      // rewrite the file on disk; once they settle, adopt their output.
+      void triggerActions(ActionEvent.SAVE, { path: filePath }).then(
+        adoptDiskChanges
+      );
     } catch (error) {
       Logger.log(`editor: save failed for ${filePath}: ${error}`);
     }

@@ -1,0 +1,25 @@
+{
+  "files": {
+    "exclude": ["node_modules", ".git", "dist", "out", ".DS_Store", "test.log"]
+  },
+  "actions": [
+    {
+      "on": "save",
+      "run": "bunx prettier --write {{filePath}}",
+      "match": "**/*.{ts,tsx,js,jsx,json,md}",
+      "blocking": true
+    },
+    {
+      "on": "save",
+      "run": "bunx eslint --fix {{filePath}}",
+      "match": "src/**/*.{ts,tsx}",
+      "blocking": true
+    }
+  ],
+  "windowLayouts": [
+    {
+      "name": "Editor + terminal",
+      "layout": [[0], [1]]
+    }
+  ]
+}

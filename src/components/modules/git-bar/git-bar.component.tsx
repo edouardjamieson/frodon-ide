@@ -16,6 +16,10 @@ export default function GitStatusBar() {
     behind,
   } = useGitStore();
 
+  const showStatuses = useMemo(() => {
+    return unstagedFiles.length > 0 || untrackedFiles.length > 0;
+  }, [unstagedFiles.length, untrackedFiles.length]);
+
   const aheadBehindStr = useMemo(() => {
     if (ahead === 0 && behind === 0) return null;
     const strings: string[] = [];
@@ -40,11 +44,11 @@ export default function GitStatusBar() {
       {aheadBehindStr && (
         <text attributes={TextAttributes.DIM}>({aheadBehindStr})</text>
       )}
-      <text attributes={TextAttributes.DIM}>{'|'}</text>
+      {showStatuses && <text attributes={TextAttributes.DIM}>{'|'}</text>}
       {stagedFiles.length > 0 && (
         <text fg="green">{stagedFiles.length} staged files</text>
       )}
-      {(unstagedFiles.length > 0 || untrackedFiles.length > 0) && (
+      {showStatuses && (
         <text fg="yellow">
           {unstagedFiles.length + untrackedFiles.length} files changed
         </text>

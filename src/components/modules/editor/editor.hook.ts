@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { refractor } from 'refractor';
-import { useKeyboard } from '@opentui/react';
+import { useKeyboard, useRenderer } from '@opentui/react';
 import Logger from '~/lib/logger/logger.service';
 import { resolveLanguageId, useLanguageStore } from '~/lib/language';
 import { readClipboard, writeClipboard } from '~/lib/clipboard';
@@ -351,6 +351,7 @@ const EMPTY_STATE: EditorState = { value: '', cursor: 0, selection: null };
 export const useEditor = (props: EditorProps) => {
   const { filePath, focused = true, onDirtyChange } = props;
   const { open: paletteOpen } = usePaletteStore();
+  const renderer = useRenderer();
 
   const [state, setState] = useState<EditorState>(EMPTY_STATE);
   const stateRef = useRef(state);
@@ -439,6 +440,9 @@ export const useEditor = (props: EditorProps) => {
   const applyEdit = (next: EditorState, kind: 'type' | 'other') => {
     const prev = stateRef.current;
     if (next.value !== prev.value) {
+      // Drop OpenTUI's native selection highlight so it doesn't linger over the
+      // now-changed text (our own overlay is driven by `state.selection`).
+      renderer.clearSelection();
       const coalesce = kind === 'type' && lastKind.current === 'type';
       if (!coalesce) {
         past.current.push(prev);

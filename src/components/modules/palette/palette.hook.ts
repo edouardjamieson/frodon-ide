@@ -258,6 +258,20 @@ export const usePaletteItems = () => {
         },
       ],
     },
+    {
+      name: 'Other',
+      items: [
+        {
+          id: 'quit',
+          type: 'ACTION',
+          title: 'Quit Exodia',
+          shortcut: 'ctrl+shift+q',
+          execute: () => {
+            process.exit(0);
+          },
+        },
+      ],
+    },
   ];
 
   const executeAction = (item: PaletteItem) => {

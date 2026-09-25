@@ -63,6 +63,13 @@ export default function PaletteModuleHome() {
                   key={j}
                   item={item}
                   selected={index !== null && itemsFlat[index]?.id === item.id}
+                  onClick={() => {
+                    if (item.type === 'MODULE') {
+                      setOpen(true, item.id);
+                    } else {
+                      executeAction(item);
+                    }
+                  }}
                 />
               ))}
             </Fragment>

@@ -78,9 +78,11 @@ export function CommandPaletteBody({
 export function CommandPaletteMenuItem({
   item,
   selected,
+  onClick,
 }: {
   item: PaletteItem;
   selected?: boolean;
+  onClick?: () => void;
 }) {
   return (
     <box
@@ -88,6 +90,7 @@ export function CommandPaletteMenuItem({
       paddingY={1}
       paddingX={2}
       marginBottom={1}
+      onMouseDown={() => onClick?.()}
     >
       <box flexDirection="row" gap={1} alignItems="center">
         {item.icon && <text>{item.icon}</text>}

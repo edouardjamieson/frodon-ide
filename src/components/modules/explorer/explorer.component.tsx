@@ -85,7 +85,7 @@ function ToolbarButton({
 }
 
 function ExplorerNode({ file, level }: { file: File; level: number }) {
-  const { isToggled, isSelected, onMouseDown, isFileOpened } =
+  const { isToggled, isSelected, onMouseDown, isFileOpened, gitStatus } =
     useExplorerNode(file);
   const { showIcons } = useSidebarStore();
 
@@ -94,6 +94,20 @@ function ExplorerNode({ file, level }: { file: File; level: number }) {
     : isFileOpened
       ? theme.colors.neutral[700]
       : undefined;
+
+  // Git status colors take precedence so a changed file stays visibly marked
+  // even when open or selected.
+  const gitColor =
+    gitStatus === 'staged'
+      ? 'green'
+      : gitStatus === 'changed'
+        ? 'yellow'
+        : null;
+  const fg =
+    gitColor ??
+    (isFileOpened || isToggled || isSelected
+      ? 'white'
+      : theme.colors.neutral[300]);
 
   return (
     <box
@@ -115,11 +129,7 @@ function ExplorerNode({ file, level }: { file: File; level: number }) {
         <text
           wrapMode="none"
           attributes={isToggled ? TextAttributes.BOLD : undefined}
-          fg={
-            isFileOpened || isToggled || isSelected
-              ? 'white'
-              : theme.colors.neutral[300]
-          }
+          fg={fg}
         >
           {file.name}
         </text>

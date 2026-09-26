@@ -20,6 +20,12 @@ export const useExplorerStore = create<ExplorerStore>((set, get) => ({
       set({ toggledDirs: [...toggledDirs, path] });
     }
   },
+  expandDirs: (paths: string[]) => {
+    const { toggledDirs } = get();
+    const missing = paths.filter((p) => !toggledDirs.includes(p));
+    if (missing.length === 0) return;
+    set({ toggledDirs: [...toggledDirs, ...missing] });
+  },
 
   selected: null,
   setSelected: (selection) => set({ selected: selection }),

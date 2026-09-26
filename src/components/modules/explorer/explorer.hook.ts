@@ -1,7 +1,8 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { dirname, join, relative } from 'node:path';
 import type { File } from '~/lib/fs/fs.def';
-import { useProject } from '~/lib/project';
+import { useProject, useProjectStore } from '~/lib/project';
+import { useGitStore } from '~/lib/git';
 import {
   createDirectory,
   createFile,
@@ -17,6 +18,30 @@ import { useWindowManagerStore } from '~/lib/window/window.store';
 export const useExplorer = () => {
   const { project } = useProject();
   const toggledDirs = useExplorerStore((s) => s.toggledDirs);
+  const expandDirs = useExplorerStore((s) => s.expandDirs);
+  const editorFiles = useWindowManagerStore((s) => s.editorFiles);
+
+  // Keep the full path to every open file expanded in the tree, so an open
+  // file is always visible where it lives (even after opening it via search).
+  useEffect(() => {
+    const root = project?.path;
+    if (!root) return;
+
+    const dirs = new Set<string>();
+    for (const { file } of editorFiles) {
+      const rel = relative(root, file);
+      if (rel.startsWith('..')) continue; // outside the project tree
+      const parts = rel.split('/');
+      parts.pop(); // drop the filename, keep its ancestor dirs
+      let cur = root;
+      for (const part of parts) {
+        cur = join(cur, part);
+        dirs.add(cur);
+      }
+    }
+
+    if (dirs.size > 0) expandDirs([...dirs]);
+  }, [editorFiles, project?.path, expandDirs]);
 
   const maxDeepness = useMemo(() => {
     if (!project) return 0;
@@ -59,7 +84,36 @@ export const useExplorerNode = (file: File) => {
     return editorFiles.find((f) => f.file === file.path);
   }, [editorFiles]);
 
-  return { isToggled, isSelected, toggleDir, onMouseDown, isFileOpened };
+  const projectPath = useProjectStore((s) => s.path);
+  const { stagedFiles, unstagedFiles, untrackedFiles } = useGitStore();
+
+  // Mirror the git status bar: staged files read green, unstaged/untracked
+  // read yellow. Git reports paths relative to the repo root (the project
+  // root the `git` subprocess runs in), so match against that.
+  const gitStatus = useMemo<'staged' | 'changed' | null>(() => {
+    if (file.isDir || !projectPath) return null;
+    const rel = relative(projectPath, file.path);
+    if (stagedFiles.includes(rel)) return 'staged';
+    if (unstagedFiles.includes(rel) || untrackedFiles.includes(rel))
+      return 'changed';
+    return null;
+  }, [
+    file.isDir,
+    file.path,
+    projectPath,
+    stagedFiles,
+    unstagedFiles,
+    untrackedFiles,
+  ]);
+
+  return {
+    isToggled,
+    isSelected,
+    toggleDir,
+    onMouseDown,
+    isFileOpened,
+    gitStatus,
+  };
 };
 
 /**

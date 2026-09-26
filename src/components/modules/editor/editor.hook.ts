@@ -6,6 +6,7 @@ import Logger from '~/lib/logger/logger.service';
 import { resolveLanguageId, useLanguageStore } from '~/lib/language';
 import { readClipboard, writeClipboard } from '~/lib/clipboard';
 import { triggerActions, ActionEvent } from '~/lib/actions';
+import { watchFile } from '~/lib/fs';
 import type {
   EditorProps,
   EditorState,
@@ -143,6 +144,14 @@ function positionToOffset(value: string, row: number, col: number): number {
 
 const clamp = (n: number, min: number, max: number) =>
   Math.max(min, Math.min(n, max));
+
+/** Offset of the first character at which `a` and `b` differ. */
+function firstDivergence(a: string, b: string): number {
+  const len = Math.min(a.length, b.length);
+  let i = 0;
+  while (i < len && a[i] === b[i]) i++;
+  return i;
+}
 
 // --- pure editing / navigation transitions -------------------------------
 
@@ -363,7 +372,7 @@ export const useEditor = (props: EditorProps) => {
   // word-ish chunk at a time rather than character by character.
   const past = useRef<EditorState[]>([]);
   const future = useRef<EditorState[]>([]);
-  const lastKind = useRef<'type' | 'other' | 'none'>('none');
+  const lastKind = useRef<'type' | 'other' | 'external' | 'none'>('none');
 
   // In-editor find: a small overlay box that highlights matches in the doc.
   const [searchOpen, setSearchOpen] = useState(false);
@@ -484,12 +493,19 @@ export const useEditor = (props: EditorProps) => {
 
   /**
    * Re-reads the file from disk and adopts it as the buffer. Called after
-   * on-save actions settle so a blocking formatter's output shows up live.
-   * Skips if the user has typed since the save (don't clobber fresh edits) or
-   * if disk already matches the buffer. The pre-format state is pushed to
-   * history so the reformat can be undone.
+   * on-save actions settle so a blocking formatter's output shows up live, and
+   * by the file watcher so external rewrites (e.g. an AI agent editing the file
+   * from the terminal) stream into the open editor. Skips if the user has typed
+   * since the last baseline (don't clobber fresh edits) or if disk already
+   * matches the buffer.
+   *
+   * `follow` reveals where the change landed by moving the cursor to the first
+   * divergence — used for watcher-driven external edits so an unfocused editor
+   * scrolls to the live edit. It's suppressed while the editor is focused so a
+   * background rewrite (or an on-save formatter reflow) never yanks the cursor
+   * out from under the user; the pre-change state stays undoable either way.
    */
-  const adoptDiskChanges = () => {
+  const adoptDiskChanges = (follow = false) => {
     if (!filePath) return;
     if (stateRef.current.value !== baseline.current) return; // edited since save
     let disk: string;
@@ -501,19 +517,40 @@ export const useEditor = (props: EditorProps) => {
     }
     if (disk === stateRef.current.value) return;
 
-    past.current.push(stateRef.current);
-    if (past.current.length > HISTORY_LIMIT) past.current.shift();
+    // Consecutive external rewrites coalesce into a single undo step, the way a
+    // run of typing does, so a burst of streamed edits undoes as one action.
+    const coalesce = lastKind.current === 'external';
+    if (!coalesce) {
+      past.current.push(stateRef.current);
+      if (past.current.length > HISTORY_LIMIT) past.current.shift();
+    }
     future.current = [];
-    lastKind.current = 'none';
+    lastKind.current = 'external';
     baseline.current = disk;
-    const next: EditorState = {
-      value: disk,
-      cursor: Math.min(stateRef.current.cursor, disk.length),
-      selection: null,
-    };
+
+    const doFollow = follow && !focused;
+    const cursor = doFollow
+      ? Math.min(firstDivergence(stateRef.current.value, disk), disk.length)
+      : Math.min(stateRef.current.cursor, disk.length);
+
+    const next: EditorState = { value: disk, cursor, selection: null };
     stateRef.current = next;
     setState(next);
   };
+
+  // Stream external edits into the buffer: watch the open file and adopt disk
+  // changes as they land. This is the live-editing view for AI agents rewriting
+  // the file from the terminal. `adoptDiskChanges` guards against clobbering
+  // unsaved local edits, and a self-write from `save()` re-reads to the same
+  // content and no-ops. Held in a ref so the watcher, armed once per file,
+  // always calls the latest closure.
+  const adoptRef = useRef(adoptDiskChanges);
+  adoptRef.current = adoptDiskChanges;
+
+  useEffect(() => {
+    if (!filePath) return;
+    return watchFile(filePath, () => adoptRef.current(true));
+  }, [filePath]);
 
   const save = () => {
     if (!filePath || !meta) return;
@@ -524,8 +561,8 @@ export const useEditor = (props: EditorProps) => {
       Logger.log(`editor: saved ${filePath}`);
       // Fire on-save actions (linters, formatters). Blocking formatters may
       // rewrite the file on disk; once they settle, adopt their output.
-      void triggerActions(ActionEvent.SAVE, { path: filePath }).then(
-        adoptDiskChanges
+      void triggerActions(ActionEvent.SAVE, { path: filePath }).then(() =>
+        adoptDiskChanges()
       );
     } catch (error) {
       Logger.log(`editor: save failed for ${filePath}: ${error}`);

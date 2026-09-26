@@ -66,6 +66,54 @@ export function deletePath(targetPath: string): FsResult {
   }
 }
 
+/**
+ * Watches a single file for external modifications, invoking `onChange`
+ * (debounced) whenever it changes on disk. Returns a disposer that stops
+ * watching. Used to stream external edits — e.g. an AI agent rewriting the
+ * file from the terminal — into the open editor live.
+ *
+ * Many tools write atomically (write a temp file, then rename it over the
+ * target), which swaps the inode out from under `fs.watch` and ends the watch.
+ * That surfaces as a `rename` event, on which we re-arm the watcher so we keep
+ * following the path rather than a now-orphaned inode.
+ */
+export function watchFile(filePath: string, onChange: () => void): () => void {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let watcher: fs.FSWatcher | null = null;
+  let disposed = false;
+
+  const schedule = () => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => {
+      if (!disposed) onChange();
+    }, 40);
+  };
+
+  const arm = () => {
+    try {
+      watcher = fs.watch(filePath, (eventType) => {
+        schedule();
+        if (eventType === 'rename') {
+          watcher?.close();
+          setTimeout(() => {
+            if (!disposed && fs.existsSync(filePath)) arm();
+          }, 20);
+        }
+      });
+    } catch (error) {
+      Logger.log(`fs: watchFile failed for ${filePath}: ${error}`);
+    }
+  };
+
+  arm();
+
+  return () => {
+    disposed = true;
+    if (timer) clearTimeout(timer);
+    watcher?.close();
+  };
+}
+
 export function readFilesFromDir(path: string): File[] {
   const list: File[] = [];
 

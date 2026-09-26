@@ -10,6 +10,14 @@ export interface TerminalProps {
    * to true.
    */
   active?: boolean;
+  /**
+   * Asked for when the user clicks inside the terminal, so the owning window can
+   * take focus. The click can't reach the window's own focus handler by
+   * bubbling: a foreground program with mouse reporting on (e.g. Claude) makes
+   * the embedded terminal consume the event, so this is bridged from the
+   * renderable's own mouse-down instead.
+   */
+  onFocusRequest?: () => void;
 }
 
 /**

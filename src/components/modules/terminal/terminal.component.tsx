@@ -12,9 +12,12 @@ extend({ embeddedTerminal: EmbeddedTerminalRenderable });
 export default function Terminal({
   focused = true,
   active = true,
+  onFocusRequest,
 }: TerminalProps) {
-  const { terminalRef, exited, handleData, handleResize } =
-    useTerminal(focused);
+  const { terminalRef, exited, handleData, handleResize } = useTerminal(
+    focused,
+    onFocusRequest
+  );
 
   const { open: paletteOpen } = usePaletteStore();
 

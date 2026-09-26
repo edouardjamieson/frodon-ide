@@ -9,8 +9,13 @@ import { useShortcut } from '~/lib/utils';
 
 export default function WindowTerminal(props: WindowModuleProps) {
   const { window, isFocused } = props;
-  const { getWindowTerminals, addWindowTerminal, closeWindowTerminal, destroy } =
-    useWindowManagerStore();
+  const {
+    getWindowTerminals,
+    addWindowTerminal,
+    closeWindowTerminal,
+    destroy,
+    setFocusedWindowId,
+  } = useWindowManagerStore();
   const sessions = getWindowTerminals(window.id);
 
   const [activeSession, setActiveSession] = useState<string | null>(null);
@@ -112,6 +117,7 @@ export default function WindowTerminal(props: WindowModuleProps) {
                 key={session}
                 active={isActive}
                 focused={isFocused && isActive}
+                onFocusRequest={() => setFocusedWindowId(window.id)}
               />
             );
           })}

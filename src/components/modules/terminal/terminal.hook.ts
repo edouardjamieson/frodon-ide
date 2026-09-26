@@ -28,11 +28,29 @@ const ISIG = process.platform === 'linux' ? 0x00000001 : 0x00000080;
  *  - screen → shell: the emulator's `onData` (keystrokes it encoded, plus VT
  *    responses like cursor-position reports) is written back to the PTY.
  */
-export function useTerminal(focused: boolean) {
+export function useTerminal(focused: boolean, onFocusRequest?: () => void) {
   const terminalRef = useRef<EmbeddedTerminalRenderable>(null);
   const ptyRef = useRef<Bun.Terminal | null>(null);
   const shellPidRef = useRef<number | null>(null);
   const [exited, setExited] = useState(false);
+
+  // Bridge clicks into window focus. Clicking the terminal focuses the embedded
+  // renderable for keyboard input, but when the foreground program has mouse
+  // reporting on (e.g. Claude) the renderable consumes the mouse-down and stops
+  // it propagating — so it never reaches the window box's own focus handler and
+  // the window doesn't become focused, leaving the editor still receiving keys.
+  // `onMouse` is a catch-all listener the renderable fires for every mouse event
+  // before its per-type handlers, so hooking it requests focus without touching
+  // the built-in mouse-down that forwards the click to the PTY.
+  const onFocusRef = useRef(onFocusRequest);
+  onFocusRef.current = onFocusRequest;
+  useEffect(() => {
+    const term = terminalRef.current;
+    if (!term) return;
+    term.onMouse = (event) => {
+      if (event.type === 'down') onFocusRef.current?.();
+    };
+  }, []);
 
   // Spawn the shell + PTY once, for the lifetime of the window.
   useEffect(() => {

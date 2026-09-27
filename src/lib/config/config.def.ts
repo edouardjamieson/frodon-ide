@@ -17,8 +17,12 @@ export interface Config {
    */
   actions: Action[];
   preferences: {
+    // Toolbar & explorer
     displayToolbar: boolean;
     displayIcons: boolean;
+
+    // Git
+    expandedGitbar: boolean;
   };
   windowLayouts: {
     name: string;

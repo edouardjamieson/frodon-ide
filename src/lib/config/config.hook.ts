@@ -10,7 +10,7 @@ import {
 import { ConfigScope, type Config, type PartialConfig } from './config.def';
 import { useSidebarStore } from '~/components/modules/sidebar/sidebar.store';
 import { useCallback, useEffect } from 'react';
-import Logger from '../logger/logger.service';
+import { useGitStore } from '../git';
 
 export const useConfig = () => {
   const store = useConfigStore();
@@ -70,10 +70,12 @@ export const useConfig = () => {
 
 export const useConfigStoreUpdater = () => {
   const { load: loadSidebar } = useConfigSidebarStoreUpdater();
+  const { load: loadGitBar } = useConfigGitBarStoreUpdater();
 
   const load = useCallback(
     (config: Config) => {
       loadSidebar(config);
+      loadGitBar(config);
     },
     [loadSidebar]
   );
@@ -87,6 +89,16 @@ const useConfigSidebarStoreUpdater = () => {
   const load = (config: Config) => {
     setShowIcons(config.preferences.displayIcons);
     setShowToolbar(config.preferences.displayToolbar);
+  };
+
+  return { load };
+};
+
+const useConfigGitBarStoreUpdater = () => {
+  const { expanded, setExpanded } = useGitStore();
+
+  const load = (config: Config) => {
+    setExpanded(config.preferences.expandedGitbar);
   };
 
   return { load };

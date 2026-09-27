@@ -11,6 +11,7 @@ import {
 } from '~/lib/window/window.hook';
 import { ConfigScope, useConfig } from '~/lib/config';
 import { killAllTerminalProcesses } from '../terminal/terminal.registry';
+import { useGitStore } from '~/lib/git';
 
 export const usePalette = () => {
   const { open, setOpen, activeModule, setActiveModule, setSearch } =
@@ -92,6 +93,9 @@ export const usePaletteItems = () => {
   const { spawn } = useSpawnWindow();
   const { getCoords } = useGetFirstAvailableCoords();
   const { update } = useConfig();
+
+  const gitBarExpanded = useGitStore((s) => s.expanded);
+  const setGitBarExpanded = useGitStore((s) => s.setExpanded);
 
   const focusedWindow = windows.find((window) => window.id === focusedWindowId);
   const layout = getLayout(windows);
@@ -256,6 +260,18 @@ export const usePaletteItems = () => {
             setShowToolbar(!showToolbar);
             update(ConfigScope.USER, {
               preferences: { displayToolbar: !showToolbar },
+            });
+          },
+        },
+        {
+          id: 'toggle-expanded-git-bar',
+          type: 'ACTION',
+          title: 'Expand git bar',
+          description: 'Shows more information in the git bar',
+          execute: () => {
+            setGitBarExpanded(!gitBarExpanded);
+            update(ConfigScope.USER, {
+              preferences: { expandedGitbar: !gitBarExpanded },
             });
           },
         },

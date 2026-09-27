@@ -9,11 +9,15 @@ export interface GitStore {
   unstagedFiles: string[];
   untrackedFiles: string[];
 
+  // Styling of the component
+  expanded: boolean;
+
   setBranch: (branch: string) => void;
   setAheadBehind: (ahead: number, behind: number) => void;
   setStagedFiles: (files: string[]) => void;
   setUnstagedFiles: (files: string[]) => void;
   setUntrackedFiles: (files: string[]) => void;
   setRepoStatus: (inRepo: boolean) => void;
+  setExpanded: (expanded: boolean) => void;
   reset: () => void;
 }

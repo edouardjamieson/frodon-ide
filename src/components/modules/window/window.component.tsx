@@ -68,6 +68,11 @@ function Window({ window }: { window?: Window }) {
   const focusedWindow = windows.find((w) => w.id === focusedWindowId);
   const focusedWindowName = focusedWindow?.title ?? 'Untitled window';
 
+  // Effects that run when the window gets focused
+  useEffect(() => {
+    if (!isFocused) setMoveButtonsVisible(false);
+  }, [isFocused]);
+
   const renderModule = () => {
     switch (window.type) {
       case WindowType.CODE_EDITOR:

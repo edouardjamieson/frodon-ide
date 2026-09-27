@@ -55,4 +55,6 @@ export interface WindowManagerStore {
 
   spawn: (newWindow: Window) => void;
   destroy: (windowId: string) => void;
+  /** Swaps the grid positions (row/col) of two windows. */
+  swapWindows: (idA: string, idB: string) => void;
 }

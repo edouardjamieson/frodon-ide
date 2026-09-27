@@ -5,6 +5,7 @@ export interface TooltipProps {
   children: ReactNode;
   align?: Tooltip['align'];
   shortcut?: string;
+  disabled?: boolean;
 }
 
 export interface Tooltip {

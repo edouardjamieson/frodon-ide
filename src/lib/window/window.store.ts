@@ -89,6 +89,24 @@ export const useWindowManagerStore = create<WindowManagerStore>((set, get) => ({
     });
   },
 
+  swapWindows: (idA, idB) => {
+    set((state: WindowManagerStore) => {
+      const a = state.windows.find((w) => w.id === idA);
+      const b = state.windows.find((w) => w.id === idB);
+      if (!a || !b || a.id === b.id) return state;
+
+      return {
+        windows: state.windows.map((w) => {
+          if (w.id === idA)
+            return { ...w, rowIndex: b.rowIndex, colIndex: b.colIndex };
+          if (w.id === idB)
+            return { ...w, rowIndex: a.rowIndex, colIndex: a.colIndex };
+          return w;
+        }),
+      };
+    });
+  },
+
   setWindowType: (id, type) => {
     const { windows } = get();
 

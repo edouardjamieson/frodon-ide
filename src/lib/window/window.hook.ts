@@ -50,10 +50,45 @@ export const useCalculateLayout = () => {
     return borders;
   };
 
+  const getPossibleMoveDirections = (window: Window) => {
+    // null = cannot move, 0 = can move in both directions, -1 = can go left (x) and top (y), 1 = can go right (x) and bottom (y)
+    let x: number | null = null;
+    let y: number | null = null;
+
+    // Down
+    if (
+      window.rowIndex < MAX_ROWS &&
+      layout.length > 1 &&
+      layout.length - 1 !== window.rowIndex
+    ) {
+      if (!y) y = 1;
+      else y++;
+    }
+    // Up
+    if (window.rowIndex > 0 && layout.length > 1) {
+      if (!y) y = -1;
+      else y--;
+    }
+
+    // Left
+    if (window.colIndex > 0 && layout[window.rowIndex]! > 1) {
+      if (!x) x = -1;
+      else x--;
+    }
+    // Right
+    if (window.colIndex < MAX_COLS && layout[window.rowIndex]! > 1) {
+      if (!x) x = 1;
+      else x++;
+    }
+
+    return { x, y };
+  };
+
   return {
     layout,
     getWindowLayout,
     getWindowBorders,
+    getPossibleMoveDirections,
     getFirstAvailableCoords: getCoords,
   };
 };
@@ -108,4 +143,42 @@ export const useGetFirstAvailableCoords = () => {
   };
 
   return { getCoords };
+};
+
+export const useMoveWindow = (window: Window) => {
+  const { windows, getLayout, swapWindows, setFocusedWindowId } =
+    useWindowManagerStore();
+  const layout = getLayout(windows);
+
+  const findWindowAt = (row: number, col: number) =>
+    windows.find((w) => w.rowIndex === row && w.colIndex === col);
+
+  // Moving swaps the window with its neighbour in the requested direction,
+  // which keeps every row's column count intact so the grid stays packed.
+  const moveWindow = (direction: 'up' | 'down' | 'left' | 'right') => {
+    let target: Window | undefined;
+
+    if (direction === 'left' || direction === 'right') {
+      const targetCol = window.colIndex + (direction === 'left' ? -1 : 1);
+      // Stay within the current row's existing columns.
+      const colsInRow = layout[window.rowIndex] ?? 1;
+      if (targetCol < 0 || targetCol > colsInRow - 1) return;
+      target = findWindowAt(window.rowIndex, targetCol);
+    } else {
+      const targetRow = window.rowIndex + (direction === 'up' ? -1 : 1);
+      const colsInTargetRow = layout[targetRow];
+      // Bail if there's no row to move into.
+      if (targetRow < 0 || !colsInTargetRow) return;
+      // Rows can differ in width, so land on the nearest existing column.
+      const targetCol = Math.min(window.colIndex, colsInTargetRow - 1);
+      target = findWindowAt(targetRow, targetCol);
+    }
+
+    if (!target || target.id === window.id) return;
+
+    swapWindows(window.id, target.id);
+    setFocusedWindowId(window.id);
+  };
+
+  return { moveWindow };
 };

@@ -6,7 +6,7 @@ import { theme } from '~/lib/theme';
 import Logger from '~/lib/logger/logger.service';
 
 export default function Tooltip(props: TooltipProps) {
-  const { title, children, align, shortcut } = props;
+  const { title, children, align, shortcut, disabled } = props;
   const { setTooltip, destroy } = useTooltipStore();
   const boxRef = useRef<BoxRenderable>(null);
 
@@ -50,7 +50,7 @@ export default function Tooltip(props: TooltipProps) {
 
   const onMouseOver = () => {
     const position = getTooltipPosition();
-    if (!position) return;
+    if (!position || disabled) return;
     setTooltip({
       x: position.x,
       y: position.y,

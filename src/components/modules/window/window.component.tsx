@@ -3,6 +3,7 @@ import Button from '~/components/ui/button';
 import {
   useCalculateLayout,
   useSpawnWindow,
+  useMoveWindow,
 } from '../../../lib/window/window.hook';
 import { WindowType, type Window } from '~/lib/window';
 import { theme } from '~/lib/theme';
@@ -11,6 +12,8 @@ import { TextAttributes } from '@opentui/core';
 import { useDialog } from '~/components/ui/dialog';
 import { WindowWelcomePage, WindowEditor, WindowTerminal } from './modules';
 import { useShortcut } from '~/lib/utils';
+import { useEffect, useState } from 'react';
+import Logger from '~/lib/logger/logger.service';
 
 export default function WindowsManager() {
   const { windows } = useWindowManagerStore();
@@ -30,7 +33,12 @@ export default function WindowsManager() {
 
 function Window({ window }: { window?: Window }) {
   if (!window) return null;
-  const { getWindowLayout, getWindowBorders, layout } = useCalculateLayout();
+  const {
+    getWindowLayout,
+    getWindowBorders,
+    layout,
+    getPossibleMoveDirections,
+  } = useCalculateLayout();
   const {
     focusedWindowId,
     setFocusedWindowId,
@@ -39,9 +47,13 @@ function Window({ window }: { window?: Window }) {
     destroy,
   } = useWindowManagerStore();
   const { spawn } = useSpawnWindow();
+  const { moveWindow } = useMoveWindow(window);
   const { openDialog } = useDialog();
   const { left, top, width, height } = getWindowLayout(window);
   const showWelcomePage = !window.type;
+
+  const possibleMoveDirections = getPossibleMoveDirections(window);
+  const [moveButtonsVisible, setMoveButtonsVisible] = useState(false);
 
   // Typed windows close their active tab from within their module; an untyped
   // (welcome) window has nothing to close, so Ctrl+W destroys it outright.
@@ -82,12 +94,12 @@ function Window({ window }: { window?: Window }) {
       border={getWindowBorders(window)}
       borderColor={theme.colors.neutral[700]}
     >
-      <box flexShrink={0} paddingX={1} flexDirection="row" gap={2}>
+      <box flexShrink={0} paddingX={1} flexDirection="row" gap={2} zIndex={10}>
         <text attributes={isFocused ? TextAttributes.BOLD : TextAttributes.DIM}>
           {windowName}
         </text>
         {isFocused && (
-          <box flexDirection="row" alignItems="center" gap={1}>
+          <box flexDirection="row" alignItems="center" gap={1} flexGrow={1}>
             {/* Split horizontal */}
             <Tooltip title="Split horizontal" align="bottom">
               <Button
@@ -143,6 +155,83 @@ function Window({ window }: { window?: Window }) {
                 }}
               />
             </Tooltip>
+
+            {/* Move */}
+            {(possibleMoveDirections.x !== null ||
+              possibleMoveDirections.y !== null) && (
+              <box marginLeft={'auto'}>
+                <Tooltip
+                  title={moveButtonsVisible ? 'Cancel' : 'Move window'}
+                  align="bottom"
+                  disabled={moveButtonsVisible}
+                >
+                  <box position="relative" zIndex={10}>
+                    <Button
+                      text={moveButtonsVisible ? '⛔️' : '⏺️'}
+                      size="sm"
+                      onClick={() => setMoveButtonsVisible((prev) => !prev)}
+                    />
+                    {moveButtonsVisible && (
+                      <>
+                        {possibleMoveDirections.x !== null &&
+                          possibleMoveDirections.x <= 0 && (
+                            <text
+                              position="absolute"
+                              right={'100%'}
+                              onMouseDown={() => {
+                                moveWindow('left');
+                                setMoveButtonsVisible(false);
+                              }}
+                            >
+                              ◀️
+                            </text>
+                          )}
+                        {possibleMoveDirections.x !== null &&
+                          possibleMoveDirections.x >= 0 && (
+                            <text
+                              position="absolute"
+                              left={'100%'}
+                              onMouseDown={() => {
+                                moveWindow('right');
+                                setMoveButtonsVisible(false);
+                              }}
+                            >
+                              ▶️
+                            </text>
+                          )}
+                        {possibleMoveDirections.y !== null &&
+                          possibleMoveDirections.y <= 0 && (
+                            <text
+                              position="absolute"
+                              bottom={'100%'}
+                              onMouseDown={() => {
+                                moveWindow('up');
+                                setMoveButtonsVisible(false);
+                              }}
+                            >
+                              🔼
+                            </text>
+                          )}
+
+                        {possibleMoveDirections.y !== null &&
+                          possibleMoveDirections.y >= 0 && (
+                            <text
+                              position="absolute"
+                              top={'100%'}
+                              onMouseDown={() => {
+                                moveWindow('down');
+                                setMoveButtonsVisible(false);
+                              }}
+                            >
+                              🔽
+                            </text>
+                          )}
+                      </>
+                    )}
+                  </box>
+                </Tooltip>
+              </box>
+            )}
           </box>
         )}
       </box>

@@ -3,6 +3,7 @@ import React, { useMemo } from 'react';
 import Button from '~/components/ui/button';
 import Tooltip from '~/components/ui/tooltip';
 import { useGit, useGitStore } from '~/lib/git';
+import { useGitBranchDialog } from '~/components/modules/git-branch-dialog';
 import { useProject, useProjectStore } from '~/lib/project';
 import { theme } from '~/lib/theme';
 
@@ -44,16 +45,18 @@ function GitBarSeparator() {
 
 function GitBarBranch() {
   const { branch } = useGitStore();
+  const { openBranchDialog } = useGitBranchDialog();
 
   return (
     <Tooltip align="top" title="Switch branch">
-      <Button text={branch} />
+      <Button text={branch} onClick={openBranchDialog} />
     </Tooltip>
   );
 }
 
 function GitBarPushPull() {
   const { ahead, behind } = useGitStore();
+  const { pull, push } = useGit();
   if (ahead === 0 && behind === 0) return null;
 
   return (
@@ -65,7 +68,7 @@ function GitBarPushPull() {
             align="top"
             title={`Push ${ahead} ${ahead === 1 ? 'commit' : 'commits'}`}
           >
-            <Button text={`${ahead} ⬆️`} size="sm" />
+            <Button text={`${ahead} ⬆️`} size="sm" onClick={() => push()} />
           </Tooltip>
         )}
         {behind > 0 && (
@@ -73,7 +76,7 @@ function GitBarPushPull() {
             align="top"
             title={`Pull ${behind} ${behind === 1 ? 'commit' : 'commits'}`}
           >
-            <Button text={`${behind} ⬇️`} size="sm" />
+            <Button text={`${behind} ⬇️`} size="sm" onClick={() => pull()} />
           </Tooltip>
         )}
       </box>

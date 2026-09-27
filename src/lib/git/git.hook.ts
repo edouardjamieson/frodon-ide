@@ -2,9 +2,12 @@ import { useEffect, useRef } from 'react';
 import { useProjectStore } from '../project';
 import Logger from '../logger/logger.service';
 import { useGitStore } from './git.store';
+import { useDialog } from '~/components/ui/dialog';
+import type { GitOpResult } from './git.def';
 
 export const useGit = () => {
   const store = useGitStore();
+  const { openDialog } = useDialog();
 
   const run = async (args: string[]) => {
     // Read `path` lazily so callers (e.g. polling) never close over a stale
@@ -98,7 +101,99 @@ export const useGit = () => {
     }
   };
 
-  return { init, refresh };
+  /**
+   * Runs a git operation that mutates the repo (pull/push/checkout/…). Guards
+   * against overlapping runs via the `operating` flag, refreshes state on
+   * success, and surfaces failures through the shared error dialog so every
+   * feature reports errors the same way.
+   */
+  const runOp = async (
+    args: string[],
+    { errorTitle }: { errorTitle: string }
+  ): Promise<GitOpResult> => {
+    if (useProjectStore.getState().path.length === 0) {
+      return { ok: false, error: 'No project is open.' };
+    }
+    if (useGitStore.getState().operating) {
+      return { ok: false, error: 'Another git operation is already running.' };
+    }
+
+    store.setOperating(true);
+    try {
+      const { exitCode, stdout, stderr } = await run(args);
+      if (exitCode !== 0) {
+        const message =
+          stderr.trim() || stdout.trim() || `git exited with code ${exitCode}`;
+        Logger.log(`git: ${args.join(' ')} failed: ${message}`);
+        openDialog({
+          title: errorTitle,
+          description: message,
+          disableCancel: true,
+          submitText: 'Close',
+        });
+        return { ok: false, error: message };
+      }
+      return { ok: true };
+    } catch (error) {
+      const message = `${error}`;
+      Logger.log(`git: ${args.join(' ')} threw: ${message}`);
+      openDialog({
+        title: errorTitle,
+        description: message,
+        disableCancel: true,
+        submitText: 'Close',
+      });
+      return { ok: false, error: message };
+    } finally {
+      store.setOperating(false);
+      await refresh();
+    }
+  };
+
+  const pull = () => runOp(['pull'], { errorTitle: 'Failed to pull' });
+
+  const push = () => runOp(['push'], { errorTitle: 'Failed to push' });
+
+  const checkout = (branch: string) =>
+    runOp(['checkout', branch], { errorTitle: 'Failed to switch branch' });
+
+  const createBranch = (branch: string) =>
+    runOp(['checkout', '-b', branch], {
+      errorTitle: 'Failed to create branch',
+    });
+
+  /** Lists local branch names, current branch first. */
+  const fetchBranches = async (): Promise<string[]> => {
+    if (useProjectStore.getState().path.length === 0) return [];
+
+    try {
+      const { exitCode, stdout } = await run([
+        'branch',
+        '--format=%(refname:short)',
+      ]);
+      if (exitCode !== 0) return [];
+
+      const branches = stdout
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+
+      const current = useGitStore.getState().branch;
+      branches.sort((a, b) => {
+        if (a === current) return -1;
+        if (b === current) return 1;
+        return a.localeCompare(b);
+      });
+
+      store.setBranches(branches);
+      return branches;
+    } catch (error) {
+      Logger.log(`git: failed to list branches: ${error}`);
+      return [];
+    }
+  };
+
+  return { init, refresh, pull, push, checkout, createBranch, fetchBranches };
 };
 
 /**

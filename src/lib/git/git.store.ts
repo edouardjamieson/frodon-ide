@@ -9,6 +9,8 @@ export const useGitStore = create<GitStore>((set, get) => ({
   stagedFiles: [],
   unstagedFiles: [],
   untrackedFiles: [],
+  branches: [],
+  operating: false,
   expanded: true,
 
   setBranch(branch) {
@@ -26,6 +28,12 @@ export const useGitStore = create<GitStore>((set, get) => ({
   setUntrackedFiles(files) {
     set({ untrackedFiles: files });
   },
+  setBranches(branches) {
+    set({ branches });
+  },
+  setOperating(operating) {
+    set({ operating });
+  },
   setRepoStatus(inRepo) {
     set({ inRepo });
   },
@@ -41,6 +49,8 @@ export const useGitStore = create<GitStore>((set, get) => ({
       stagedFiles: [],
       unstagedFiles: [],
       untrackedFiles: [],
+      branches: [],
+      operating: false,
       // We don't include "expanded" in the reset because it's part of the UI,
       // not the state of the git repository.
     });

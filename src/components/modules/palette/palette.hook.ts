@@ -11,7 +11,8 @@ import {
 } from '~/lib/window/window.hook';
 import { ConfigScope, useConfig } from '~/lib/config';
 import { killAllTerminalProcesses } from '../terminal/terminal.registry';
-import { useGitStore } from '~/lib/git';
+import { useGit, useGitStore } from '~/lib/git';
+import { useGitBranchDialog } from '../git-branch-dialog';
 
 export const usePalette = () => {
   const { open, setOpen, activeModule, setActiveModule, setSearch } =
@@ -96,6 +97,8 @@ export const usePaletteItems = () => {
 
   const gitBarExpanded = useGitStore((s) => s.expanded);
   const setGitBarExpanded = useGitStore((s) => s.setExpanded);
+  const { pull, push } = useGit();
+  const { openBranchDialog } = useGitBranchDialog();
 
   const focusedWindow = windows.find((window) => window.id === focusedWindowId);
   const layout = getLayout(windows);
@@ -202,7 +205,7 @@ export const usePaletteItems = () => {
           type: 'ACTION',
           title: 'Git pull',
           execute: () => {
-            console.log('Git pull');
+            pull();
           },
           icon: '⏬️',
         },
@@ -211,16 +214,16 @@ export const usePaletteItems = () => {
           type: 'ACTION',
           title: 'Git push',
           execute: () => {
-            console.log('Git push');
+            push();
           },
           icon: '⏫️',
         },
         {
           id: 'git-change-branch',
-          type: 'MODULE',
+          type: 'ACTION',
           title: 'Switch branch',
           execute: () => {
-            console.log('Git change branch');
+            openBranchDialog();
           },
           icon: '🪾',
         },

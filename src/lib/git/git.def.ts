@@ -1,3 +1,10 @@
+/** Result of a git operation (pull/push/checkout/…). */
+export interface GitOpResult {
+  ok: boolean;
+  /** Combined stderr/stdout to surface in the error dialog when `ok` is false. */
+  error?: string;
+}
+
 export interface GitStore {
   inRepo: boolean;
   branch: string;
@@ -8,6 +15,10 @@ export interface GitStore {
   stagedFiles: string[];
   unstagedFiles: string[];
   untrackedFiles: string[];
+  /** Local branch names, refreshed when the branch dialog opens. */
+  branches: string[];
+  /** True while a pull/push/checkout is in flight, to disable duplicate runs. */
+  operating: boolean;
 
   // Styling of the component
   expanded: boolean;
@@ -17,6 +28,8 @@ export interface GitStore {
   setStagedFiles: (files: string[]) => void;
   setUnstagedFiles: (files: string[]) => void;
   setUntrackedFiles: (files: string[]) => void;
+  setBranches: (branches: string[]) => void;
+  setOperating: (operating: boolean) => void;
   setRepoStatus: (inRepo: boolean) => void;
   setExpanded: (expanded: boolean) => void;
   reset: () => void;

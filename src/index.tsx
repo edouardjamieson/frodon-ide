@@ -15,6 +15,7 @@ import { theme } from './lib/theme';
 import Sidebar from './components/modules/sidebar';
 import WindowsManager from './components/modules/window';
 import GitStatusBar from './components/modules/git-bar';
+import GitBranchDialog from './components/modules/git-branch-dialog';
 import Logger from './lib/logger/logger.service';
 
 function App() {
@@ -77,6 +78,7 @@ function App() {
           <GitStatusBar />
         </box>
         <TooltipManager />
+        <GitBranchDialog />
         <Dialogs />
         <CommandPalette />
       </>

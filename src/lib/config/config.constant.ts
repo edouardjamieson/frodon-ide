@@ -24,6 +24,7 @@ export const DEFAULT_CONFIG: Config = {
   preferences: {
     displayIcons: true,
     displayToolbar: true,
+    expandedGitbar: true,
   },
   windowLayouts: [],
 };

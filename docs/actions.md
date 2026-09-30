@@ -91,5 +91,7 @@ Built:
 
 Not built yet:
 
-- `change` event — needs an `fs.watch` on open files (the live-streaming work).
+- `change` event. The `fs.watch` it needs now exists — open buffers already
+  adopt external edits live (`watchFile` in `editor.hook.ts`) — but that seam
+  doesn't fire an action trigger yet.
 - A results panel surfacing `ActionRun` output.

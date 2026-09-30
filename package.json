@@ -2,6 +2,25 @@
   "name": "exodia-tui",
   "version": "0.1.0",
   "description": "Exodia — a terminal-based IDE built with OpenTUI, React, and Bun.",
+  "license": "MIT",
+  "author": "Edouard Jamieson <edouard@volume7.io>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/edouardjamieson/exodia-ide.git"
+  },
+  "bugs": {
+    "url": "https://github.com/edouardjamieson/exodia-ide/issues"
+  },
+  "homepage": "https://github.com/edouardjamieson/exodia-ide#readme",
+  "keywords": [
+    "ide",
+    "editor",
+    "tui",
+    "terminal",
+    "cli",
+    "opentui",
+    "bun"
+  ],
   "type": "module",
   "bin": {
     "exodia": "./dist/index.js"

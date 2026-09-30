@@ -4,10 +4,12 @@ import Button from '~/components/ui/button';
 import { WindowType } from '~/lib/window';
 import { useKeyboard } from '@opentui/react';
 import AsciiAnimation, {
+  CAT_ANIMATION,
   FRODON_LOGO_ANIMATION,
   SPINNING_GLOBE_ANIMATION,
 } from '~/components/ui/ascii-animation';
 import { TextAttributes } from '@opentui/core';
+import { theme } from '~/lib/theme';
 
 export default function WindowWelcomePage(props: WindowModuleProps) {
   const { window, isFocused } = props;
@@ -28,11 +30,12 @@ export default function WindowWelcomePage(props: WindowModuleProps) {
   return (
     <box
       flexGrow={1}
-      backgroundColor={'#000'}
+      backgroundColor={theme.colors.neutral[900]}
       alignItems="center"
       justifyContent="center"
       gap={2}
     >
+      <AsciiAnimation animation={CAT_ANIMATION} />
       <AsciiAnimation animation={FRODON_LOGO_ANIMATION} />
       <text attributes={TextAttributes.DIM}>
         Open a code editor or a terminal to get started

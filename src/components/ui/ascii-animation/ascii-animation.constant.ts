@@ -55,15 +55,15 @@ const GLOBE_CONTINENTS: {
   wlon: number;
   wlat: number;
 }[] = [
-  { lon: -100, lat: 45, wlon: 32, wlat: 26 }, // North America
-  { lon: -42, lat: 72, wlon: 16, wlat: 10 }, // Greenland
-  { lon: -60, lat: -20, wlon: 17, wlat: 34 }, // South America
-  { lon: 18, lat: 6, wlon: 24, wlat: 34 }, // Africa
-  { lon: 12, lat: 52, wlon: 26, wlat: 12 }, // Europe
-  { lon: 90, lat: 48, wlon: 55, wlat: 26 }, // Asia
-  { lon: 80, lat: 22, wlon: 12, wlat: 16 }, // India
-  { lon: 135, lat: -25, wlon: 19, wlat: 13 }, // Australia
-];
+    { lon: -100, lat: 45, wlon: 32, wlat: 26 }, // North America
+    { lon: -42, lat: 72, wlon: 16, wlat: 10 }, // Greenland
+    { lon: -60, lat: -20, wlon: 17, wlat: 34 }, // South America
+    { lon: 18, lat: 6, wlon: 24, wlat: 34 }, // Africa
+    { lon: 12, lat: 52, wlon: 26, wlat: 12 }, // Europe
+    { lon: 90, lat: 48, wlon: 55, wlat: 26 }, // Asia
+    { lon: 80, lat: 22, wlon: 12, wlat: 16 }, // India
+    { lon: 135, lat: -25, wlon: 19, wlat: 13 }, // Australia
+  ];
 
 /** Picks an outline glyph for a border cell from its angle around the center. */
 function globeBorderChar(angle: number): string {
@@ -144,4 +144,141 @@ export const SPINNING_GLOBE_ANIMATION: AsciiAnimation = {
   frameDuration: 90,
   loop: true,
   frames: GLOBE_FRAMES,
+};
+
+/* --- Cat ------------------------------------------------------------------ */
+
+/**
+ * The cat's resting pose (asciiart.eu, artist unknown). Every other pose is
+ * this same art with a handful of characters swapped, so the body, head and
+ * paws never drift between frames — only the parts that are meant to move do.
+ */
+const CAT_BASE = [
+  ' ,_     _',
+  ' |\\\\_,-~/',
+  ' / _  _ |    ,--.',
+  "(  @  @ )   / ,-'",
+  ' \\  _T_/-._( (',
+  ' /         `. \\',
+  '|         _  \\ |',
+  ' \\ \\ ,  /      |',
+  '  || |-_\\__   /',
+  " ((_/`(____,-'",
+];
+
+/** A run of characters stamped over {@link CAT_BASE} at a fixed position. */
+interface CatPatch {
+  row: number;
+  col: number;
+  text: string;
+}
+
+/** Eye poses, stamped over columns 1-7 of the face row. */
+const CAT_EYES = {
+  open: '  @  @ ',
+  shut: '  -  - ',
+  half: '  o  o ',
+  squint: '  ^  ^ ',
+  wink: '  @  - ',
+} as const;
+
+/** Nose/mouth poses, stamped over columns 4-6 of the muzzle row. */
+const CAT_MOUTH = {
+  rest: '_T_',
+  ajar: '_o_',
+  yawn: '_O_',
+} as const;
+
+/**
+ * Tail poses. The loop the tail makes widens and tightens as it swishes; the
+ * base stays pinned to the body so only the curl moves.
+ */
+const CAT_TAIL = {
+  curl: [' ,--. ', "/ ,-' "],
+  wide: [' ,---.', "/ ,--'"],
+  tight: [' ,-.  ', "/ ,'  "],
+} as const;
+
+/**
+ * Every row is padded to this width so the rendered block keeps a constant
+ * bounding box — otherwise the widening tail would shunt the centered art
+ * sideways from frame to frame.
+ */
+const CAT_WIDTH = 18;
+
+const CAT_EYES_COL = 1;
+const CAT_EYES_ROW = 3;
+const CAT_MOUTH_COL = 4;
+const CAT_MOUTH_ROW = 4;
+const CAT_TAIL_COL = 12;
+const CAT_TAIL_ROW = 2;
+
+/** Stamps each patch over the base art, padding short rows as needed. */
+function buildCatFrame(...patches: CatPatch[]): string {
+  const rows = [...CAT_BASE];
+
+  for (const { row, col, text } of patches) {
+    const padded = (rows[row] ?? '').padEnd(col + text.length, ' ');
+    rows[row] = padded.slice(0, col) + text + padded.slice(col + text.length);
+  }
+
+  return rows.map((row) => row.trimEnd().padEnd(CAT_WIDTH, ' ')).join('\n');
+}
+
+/** Builds one frame from a named pose for each moving part. */
+function catPose(
+  eyes: keyof typeof CAT_EYES,
+  mouth: keyof typeof CAT_MOUTH,
+  tail: keyof typeof CAT_TAIL,
+  duration: number
+): AsciiFrame {
+  const [top, bottom] = CAT_TAIL[tail];
+
+  return {
+    text: buildCatFrame(
+      { row: CAT_EYES_ROW, col: CAT_EYES_COL, text: CAT_EYES[eyes] },
+      { row: CAT_MOUTH_ROW, col: CAT_MOUTH_COL, text: CAT_MOUTH[mouth] },
+      { row: CAT_TAIL_ROW, col: CAT_TAIL_COL, text: top },
+      { row: CAT_TAIL_ROW + 1, col: CAT_TAIL_COL, text: bottom }
+    ),
+    duration,
+  };
+}
+
+/**
+ * An idling cat: it sits still, blinks, swishes its tail, yawns and throws a
+ * wink before settling back down. Text-mode art — one long loop rather than a
+ * short cycle, so the motion stays unpredictable enough to feel alive.
+ */
+export const CAT_ANIMATION: AsciiAnimation = {
+  render: 'text',
+  font: 'tiny', // unused in text mode; satisfies the shared type
+  color: theme.colors.neutral[600],
+  frameDuration: 200,
+  loop: true,
+  frames: [
+    catPose('open', 'rest', 'curl', 1800),
+    // Double blink.
+    catPose('shut', 'rest', 'curl', 110),
+    catPose('open', 'rest', 'curl', 150),
+    catPose('shut', 'rest', 'curl', 110),
+    catPose('open', 'rest', 'curl', 900),
+    // Tail swish.
+    catPose('open', 'rest', 'wide', 320),
+    catPose('open', 'rest', 'tight', 320),
+    catPose('open', 'rest', 'curl', 700),
+    // Yawn.
+    catPose('half', 'ajar', 'curl', 160),
+    catPose('squint', 'yawn', 'curl', 750),
+    catPose('half', 'ajar', 'curl', 160),
+    catPose('shut', 'rest', 'curl', 200),
+    catPose('open', 'rest', 'curl', 1400),
+    // Wink.
+    catPose('wink', 'rest', 'curl', 520),
+    catPose('open', 'rest', 'curl', 800),
+    // Settling swish.
+    catPose('open', 'rest', 'tight', 300),
+    catPose('open', 'rest', 'wide', 300),
+    catPose('open', 'rest', 'curl', 1200),
+  ],
 };

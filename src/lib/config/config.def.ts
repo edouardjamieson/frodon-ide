@@ -7,7 +7,16 @@ import type { Action } from '../actions/actions.def';
 
 export interface Config {
   files: {
-    /** File/directory names hidden from the explorer and search. */
+    /**
+     * Paths hidden everywhere Exodia walks the project -- the explorer tree,
+     * project-wide search, and the open-file palette.
+     *
+     * A bare name (`node_modules`) matches at any depth. A pattern containing
+     * a `/` or a glob character is matched against the project-relative path
+     * instead, so `src/generated` anchors at the root. Excluded directories
+     * are never descended into, so this is also the main lever on how long
+     * opening a large project takes.
+     */
     exclude: string[];
   };
   /**

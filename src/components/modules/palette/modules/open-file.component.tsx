@@ -2,7 +2,7 @@ import { useProject } from '~/lib/project';
 import { usePaletteStore } from '../palette.store';
 import { useWindowManagerStore } from '~/lib/window/window.store';
 import { useMemo } from 'react';
-import type { File } from '~/lib/fs/fs.def';
+import { flattenFiles } from '~/lib/fs';
 import { useUpDownActions } from '~/lib/utils';
 import { theme } from '~/lib/theme';
 import { TextAttributes } from '@opentui/core';
@@ -18,35 +18,11 @@ export default function PaletteModuleOpenFile() {
   const files = project?.files ?? [];
   const { addWindowFile, windows, focusedWindowId } = useWindowManagerStore();
 
+  // The tree arrives already filtered by `files.exclude`, so this is a flatten
+  // and nothing more -- the ignore list this used to carry is gone.
   const searchKeys: Record<string, string> = useMemo(() => {
-    const dirsToIgnore = ['node_modules', '.git', 'build', '.next', '.vercel'];
-    let records: Record<string, string> = {};
-
-    const traverse = (files: File[]) => {
-      let keys: Record<string, string> = {};
-      for (const file of files) {
-        if (dirsToIgnore.includes(file.name)) continue;
-
-        if (file.isDir && file.children) {
-          keys = { ...keys, ...traverse(file.children) };
-        } else {
-          keys[file.path] = file.name;
-        }
-      }
-
-      return keys;
-    };
-
-    for (const file of files) {
-      if (dirsToIgnore.includes(file.name)) continue;
-
-      if (file.isDir && file.children) {
-        records = { ...records, ...traverse(file.children) };
-      } else {
-        records[file.path] = file.name;
-      }
-    }
-
+    const records: Record<string, string> = {};
+    for (const file of flattenFiles(files)) records[file.path] = file.name;
     return records;
   }, [files]);
 

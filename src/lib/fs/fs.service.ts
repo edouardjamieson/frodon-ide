@@ -2,7 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import Logger from '../logger/logger.service';
 import type { File } from './fs.def';
-import { DIRS_TO_IGNORE, FILES_TO_IGNORE } from './fs.constant';
+import {
+  createIgnoreMatcher,
+  toRelativePath,
+  type IgnoreMatcher,
+} from '../ignore';
 
 /** Outcome of a filesystem mutation; `error` is a user-facing message. */
 export interface FsResult {
@@ -114,53 +118,86 @@ export function watchFile(filePath: string, onChange: () => void): () => void {
   };
 }
 
-export function readFilesFromDir(path: string): File[] {
-  const list: File[] = [];
+/** Directories first, then alphabetical -- the order the explorer renders. */
+function byDirThenName(a: File, b: File): number {
+  if (a.isDir && !b.isDir) return -1;
+  if (!a.isDir && b.isDir) return 1;
+  return a.name.localeCompare(b.name);
+}
 
-  let items: string[] = [];
+/**
+ * Reads `rootPath` into a nested `File` tree.
+ *
+ * `isIgnored` is applied as the tree is built, not after: an excluded
+ * directory is never descended into, which is what keeps opening a project
+ * with a large `node_modules` from costing seconds of blocking I/O. Callers
+ * get the matcher from `files.exclude` (see `useProject`); the default matcher
+ * still drops OS junk.
+ */
+export function readFilesFromDir(
+  rootPath: string,
+  isIgnored: IgnoreMatcher = createIgnoreMatcher()
+): File[] {
+  const read = (dirPath: string): File[] => {
+    const list: File[] = [];
 
-  // Get path content
-  try {
-    items = fs.readdirSync(path);
-  } catch (error) {
-    Logger.log(error);
-  }
-
-  // Build files
-  for (let index = 0; index < items.length; index++) {
-    const name = items[index]!;
-
-    // Skip system files
-    if (FILES_TO_IGNORE.includes(name)) continue;
-
-    const p = `${path}/${name}`;
-    const stats = fs.statSync(p);
-
-    const listItem: File = {
-      name,
-      path: p,
-      isDir: stats.isDirectory(),
-    };
-
-    // Scan directory recursively
-    if (listItem.isDir) {
-      try {
-        const children = readFilesFromDir(listItem.path);
-        if (children)
-          listItem.children = children.sort((a, b) => {
-            if (a.isDir && !b.isDir) return -1;
-            if (!a.isDir && b.isDir) return 1;
-            return a.name.localeCompare(b.name);
-          });
-      } catch (error) {}
+    let entries: fs.Dirent[];
+    try {
+      // `withFileTypes` carries the kind on the directory entry itself, so the
+      // common case needs no extra `stat` syscall per file.
+      entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    } catch (error) {
+      Logger.log(`fs: cannot read ${dirPath}: ${error}`);
+      return list;
     }
 
-    list.push(listItem);
-  }
+    for (const entry of entries) {
+      const name = entry.name;
+      const entryPath = path.join(dirPath, name);
 
-  return list.sort((a, b) => {
-    if (a.isDir && !b.isDir) return -1;
-    if (!a.isDir && b.isDir) return 1;
-    return a.name.localeCompare(b.name);
-  });
+      // A symlink's Dirent reports neither file nor directory, so resolve just
+      // those through `stat` -- matching how this behaved before, when every
+      // entry was stat'ed.
+      let isDir = entry.isDirectory();
+      if (entry.isSymbolicLink()) {
+        try {
+          isDir = fs.statSync(entryPath).isDirectory();
+        } catch {
+          // Broken link: list it as a plain file rather than dropping it.
+          isDir = false;
+        }
+      }
+
+      const relativePath = toRelativePath(rootPath, entryPath);
+      if (isIgnored({ name, relativePath, isDir })) continue;
+
+      const file: File = { name, path: entryPath, isDir };
+      if (isDir) file.children = read(entryPath).sort(byDirThenName);
+
+      list.push(file);
+    }
+
+    return list;
+  };
+
+  return read(rootPath).sort(byDirThenName);
+}
+
+/**
+ * Every non-directory in a tree, depth-first. The tree is already filtered by
+ * `readFilesFromDir`, so callers needing a flat file list -- search, the
+ * open-file palette -- must not re-apply their own exclusions on top.
+ */
+export function flattenFiles(files: File[]): File[] {
+  const flat: File[] = [];
+
+  const walk = (nodes: File[]) => {
+    for (const node of nodes) {
+      if (node.isDir) walk(node.children ?? []);
+      else flat.push(node);
+    }
+  };
+
+  walk(files);
+  return flat;
 }

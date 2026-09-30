@@ -18,7 +18,18 @@ export const USER_CONFIG_FILE = 'config.json';
 /** The baseline every layer is merged on top of. */
 export const DEFAULT_CONFIG: Config = {
   files: {
-    exclude: ['node_modules', '.git', 'dist', 'out', '.DS_Store'],
+    // The union of what the explorer, search, and the open-file palette each
+    // used to hardcode separately. OS junk isn't listed here -- it lives in
+    // `ALWAYS_IGNORED`, which this list can't switch off.
+    exclude: [
+      'node_modules',
+      '.git',
+      'dist',
+      'out',
+      'build',
+      '.next',
+      '.vercel',
+    ],
   },
   actions: [],
   preferences: {

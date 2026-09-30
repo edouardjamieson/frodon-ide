@@ -28,21 +28,18 @@ function App() {
   } = useConfig();
   useGitSync();
 
+  // Config resolves first: the project scan filters on `files.exclude`, so
+  // reading it afterwards would mean walking `node_modules` anyway. The config
+  // layers are keyed to the project root (`.exodia/`), but that root is just
+  // `cwd` — finding it doesn't need the tree, only the scan does.
   useEffect(() => {
-    load();
+    loadConfig();
   }, []);
 
-  // Resolve the layered config once the project path is known — it's keyed to
-  // the project root (`.exodia/`), so it has to wait for the project to load.
   useEffect(() => {
-    if (isInit) loadConfig();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isInit]);
-
-  useEffect(() => {
-    if (loaded) {
-      applyDefaultsToStores();
-    }
+    if (!loaded) return;
+    applyDefaultsToStores();
+    load();
   }, [loaded]);
 
   if (loading || !isInit)

@@ -1,1 +1,2 @@
-export * from './fs.service'
+export * from './fs.def';
+export * from './fs.service';

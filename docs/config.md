@@ -1,6 +1,6 @@
 # Configuration
 
-Exodia reads plain JSON. Nothing has to be configured — every key has a built-in
+Frodon reads plain JSON. Nothing has to be configured — every key has a built-in
 default — but four layers are available so personal habits, team conventions and
 one-off machine overrides can coexist without fighting.
 
@@ -11,9 +11,9 @@ Resolved lowest to highest; a later layer wins.
 | Scope     | File                             | For                                        |
 | --------- | -------------------------------- | ------------------------------------------ |
 | `default` | built-in                         | the baseline; not writable                 |
-| `user`    | `~/.config/exodia/config.json`   | your habits, across every project          |
-| `project` | `<root>/.exodia/config.json`     | team conventions — commit this             |
-| `local`   | `<root>/.exodia/config.local.json` | this machine only — git-ignored           |
+| `user`    | `~/.config/frodon/config.json`   | your habits, across every project          |
+| `project` | `<root>/.frodon/config.json`     | team conventions — commit this             |
+| `local`   | `<root>/.frodon/config.local.json` | this machine only — git-ignored           |
 
 Project settings deliberately beat personal ones, so a team can pin shared
 behaviour in git; `config.local.json` is the escape hatch when your machine
@@ -35,7 +35,7 @@ format-on-save and a team linter both fire instead of one masking the other. See
 { "files": { "exclude": ["node_modules", ".git", "dist", "src/generated"] } }
 ```
 
-Paths hidden everywhere Exodia walks the project: the explorer tree,
+Paths hidden everywhere Frodon walks the project: the explorer tree,
 project-wide search, and the open-file palette.
 
 - A **bare name** (`node_modules`) matches an entry at any depth.
@@ -103,7 +103,7 @@ window arrangements:
 
 - A **missing** config file is normal and contributes nothing.
 - A **malformed** one is logged to `./test.log` and treated as empty, so a stray
-  comma can't stop Exodia from opening.
+  comma can't stop Frodon from opening.
 - Config is read **once at startup**, before the project tree is scanned — the
   scan needs `files.exclude`. Editing a config file has no effect until restart.
 - `.jsonc`-style comments are *not* supported; the files are parsed with

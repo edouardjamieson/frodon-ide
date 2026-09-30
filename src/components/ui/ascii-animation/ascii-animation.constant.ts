@@ -2,31 +2,31 @@ import { theme } from '~/lib/theme';
 import type { AsciiAnimation, AsciiFrame } from './ascii-animation.def';
 
 /**
- * The "Exodia" logo intro: a typewriter reveal (with a trailing `_` cursor)
+ * The "Frodon" logo intro: a typewriter reveal (with a trailing `_` cursor)
  * that powers up from a dim neutral into the lime brand color once complete.
  */
-export const EXODIA_LOGO_ANIMATION: AsciiAnimation = {
+export const FRODON_LOGO_ANIMATION: AsciiAnimation = {
   font: 'tiny',
   color: theme.colors.neutral[500],
   frameDuration: 150,
   loop: true,
   frames: [
     { text: '_' },
-    { text: 'E_' },
-    { text: 'Ex_' },
-    { text: 'Exo_' },
-    { text: 'Exod_' },
-    { text: 'Exodi_' },
-    { text: 'Exodia' },
-    { text: 'Exodia', color: theme.colors.neutral[600], duration: 120 },
-    { text: 'Exodia', color: theme.colors.neutral[700], duration: 120 },
-    { text: 'Exodia', color: 'white', duration: 2000 },
-    { text: 'Exodia' },
-    { text: 'Exodi_' },
-    { text: 'Exod_' },
-    { text: 'Exo_' },
-    { text: 'Ex_' },
-    { text: 'E_' },
+    { text: 'F_' },
+    { text: 'Fr_' },
+    { text: 'Fro_' },
+    { text: 'Frod_' },
+    { text: 'Frodo_' },
+    { text: 'Frodon' },
+    { text: 'Frodon', color: theme.colors.neutral[600], duration: 120 },
+    { text: 'Frodon', color: theme.colors.neutral[700], duration: 120 },
+    { text: 'Frodon', color: 'white', duration: 2000 },
+    { text: 'Frodon' },
+    { text: 'Frodo_' },
+    { text: 'Frod_' },
+    { text: 'Fro_' },
+    { text: 'Fr_' },
+    { text: 'F_' },
     { text: '_' },
   ],
 };

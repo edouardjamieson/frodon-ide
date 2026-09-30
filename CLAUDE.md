@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A terminal-based IDE ("Exodia") built with [OpenTUI](https://github.com/msmps/create-tui) and React, running on Bun. The UI is rendered to the terminal — JSX intrinsics like `<box>`, `<text>`, `<scrollbox>`, and `<ascii-font>` come from `@opentui/react` (configured via `jsxImportSource` in `tsconfig.json`), not the DOM. There is no browser.
+A terminal-based IDE ("Frodon") built with [OpenTUI](https://github.com/msmps/create-tui) and React, running on Bun. The UI is rendered to the terminal — JSX intrinsics like `<box>`, `<text>`, `<scrollbox>`, and `<ascii-font>` come from `@opentui/react` (configured via `jsxImportSource` in `tsconfig.json`), not the DOM. There is no browser.
 
 ## Commands
 

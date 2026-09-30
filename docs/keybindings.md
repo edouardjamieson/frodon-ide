@@ -1,6 +1,6 @@
 # Keybindings
 
-Everything Exodia currently binds, and — just as important — the shortcuts it
+Everything Frodon currently binds, and — just as important — the shortcuts it
 *advertises* but doesn't bind yet.
 
 Keys are not configurable.
@@ -12,10 +12,10 @@ Keys are not configurable.
 | `Ctrl+K` | Open the command palette                    |
 | `Ctrl+W` | Close the focused editor tab, terminal tab, or an empty (welcome) window |
 
-`Ctrl+C` is deliberately **not** a quit binding. Exodia disables OpenTUI's
+`Ctrl+C` is deliberately **not** a quit binding. Frodon disables OpenTUI's
 `exitOnCtrlC` so the keypress reaches the focused terminal and becomes `SIGINT`
 for whatever is running there. Quit from the palette instead
-(**Other → Quit Exodia**), which tears down every shell's process tree before
+(**Other → Quit Frodon**), which tears down every shell's process tree before
 exiting so nothing is orphaned.
 
 ## Command palette
@@ -72,7 +72,7 @@ than editing the buffer.
 
 Keys are forwarded to the PTY, so the running program decides what they mean —
 `Ctrl+C`, `Ctrl+D`, `Ctrl+R` and curses apps all behave normally. The one key
-Exodia keeps is `Ctrl+W`, which closes the focused terminal tab.
+Frodon keeps is `Ctrl+W`, which closes the focused terminal tab.
 
 ## Welcome screen
 
@@ -105,7 +105,7 @@ one. Use the palette to reach them.
 | `ctrl+p`           | Open a file            |
 | `ctrl+shift+f`     | Search                 |
 | `ctrl+b`           | Toggle explorer        |
-| `ctrl+shift+q`     | Quit Exodia            |
+| `ctrl+shift+q`     | Quit Frodon            |
 
 The gap is structural rather than an oversight in any one command:
 `useShortcut` in `src/lib/utils/shortcut.hook.ts` parses only

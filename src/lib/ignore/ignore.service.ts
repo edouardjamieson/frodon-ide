@@ -1,5 +1,5 @@
 /**
- * The single place that decides whether a path is hidden from Exodia.
+ * The single place that decides whether a path is hidden from Frodon.
  *
  * Everything that walks the project — the explorer scan, the open-file list,
  * project-wide search — filters through one matcher built from

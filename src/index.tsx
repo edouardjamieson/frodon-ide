@@ -9,7 +9,7 @@ import { useEffect } from 'react';
 import { useGitSync } from './lib/git';
 import Loader from './components/ui/loader';
 import AsciiAnimation, {
-  EXODIA_LOGO_ANIMATION,
+  FRODON_LOGO_ANIMATION,
 } from './components/ui/ascii-animation';
 import { theme } from './lib/theme';
 import Sidebar from './components/modules/sidebar';
@@ -32,7 +32,7 @@ function App() {
 
   // Config resolves first: the project scan filters on `files.exclude`, so
   // reading it afterwards would mean walking `node_modules` anyway. The config
-  // layers are keyed to the project root (`.exodia/`), but that root is just
+  // layers are keyed to the project root (`.frodon/`), but that root is just
   // `cwd` — finding it doesn't need the tree, only the scan does.
   useEffect(() => {
     loadConfig();
@@ -53,7 +53,7 @@ function App() {
         backgroundColor={'#000'}
       >
         <box justifyContent="center" alignItems="center" gap={1}>
-          <AsciiAnimation animation={EXODIA_LOGO_ANIMATION} />
+          <AsciiAnimation animation={FRODON_LOGO_ANIMATION} />
           <box flexDirection="row" alignItems="center" gap={2}>
             <Loader />
             <text attributes={TextAttributes.DIM}>Opening project</text>
@@ -98,7 +98,7 @@ const renderer = await createCliRenderer({ exitOnCtrlC: false });
 installCrashHandlers(renderer);
 
 createRoot(renderer).render(
-  <ErrorBoundary fatal label="Exodia hit an unrecoverable error">
+  <ErrorBoundary fatal label="Frodon hit an unrecoverable error">
     <App />
   </ErrorBoundary>
 );

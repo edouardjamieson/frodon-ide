@@ -1,7 +1,7 @@
 /**
  * Fatal-error handling for a process that owns the terminal.
  *
- * Exodia runs on the alternate screen with stdin in raw mode, so a crash that
+ * Frodon runs on the alternate screen with stdin in raw mode, so a crash that
  * skips teardown doesn't just lose the session — it hands the user back a shell
  * with no echo, no prompt, and no cursor. `exitOnCtrlC` is off too, so there
  * isn't even an escape hatch short of killing the process from another window.
@@ -64,7 +64,7 @@ export function reportFatal(renderer: CliRenderer, origin: string, error: unknow
   restoreTerminal(renderer);
 
   process.stderr.write(
-    `\nExodia crashed (${origin}).\n\n${describe(error)}\n\n` +
+    `\nFrodon crashed (${origin}).\n\n${describe(error)}\n\n` +
       `The full log is in ./test.log.\n`
   );
   process.exit(1);

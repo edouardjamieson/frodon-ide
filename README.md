@@ -1,11 +1,11 @@
-# Exodia
+# Frodon
 
 A terminal IDE. Tiling windows, a real editor, embedded shells, git, and
 project-wide search — rendered entirely in the terminal, on
 [Bun](https://bun.sh) and [OpenTUI](https://github.com/anomalyco/opentui).
 
-Exodia doesn't reimplement your toolchain. Formatters, linters and codegen stay
-whatever they already are; you bind them to filesystem events and Exodia runs
+Frodon doesn't reimplement your toolchain. Formatters, linters and codegen stay
+whatever they already are; you bind them to filesystem events and Frodon runs
 them. See [docs/actions.md](docs/actions.md).
 
 > **Status: early.** The core loop — open a project, split windows, edit, save,
@@ -14,24 +14,22 @@ them. See [docs/actions.md](docs/actions.md).
 
 ## Requirements
 
-Bun 1.3.0 or later. Exodia is compiled for the Bun runtime and its binary is
+Bun 1.3.0 or later. Frodon is compiled for the Bun runtime and its binary is
 launched through a `#!/usr/bin/env bun` shebang, so Bun has to be on your PATH —
 `npx` alone won't do.
 
 ## Install
 
 ```bash
-bunx exodia-tui
+bunx frodon
 ```
 
-The package is `exodia-tui`; the command it installs is `exodia`.
-
-Exodia opens the **current working directory** as the project, so `cd` to it
+Frodon opens the **current working directory** as the project, so `cd` to it
 first:
 
 ```bash
 cd ~/code/my-project
-bunx exodia-tui
+bunx frodon
 ```
 
 There's no path argument yet.
@@ -39,8 +37,8 @@ There's no path argument yet.
 To install it permanently:
 
 ```bash
-bun add -g exodia-tui
-exodia
+bun add -g frodon
+frodon
 ```
 
 ## What's in front of you
@@ -68,7 +66,7 @@ by something else on disk — a formatter, a codegen step, an agent writing to
 your repo — stream into the open buffer live, and remain undoable.
 
 **Terminals** are real PTYs, so `vim`, `top` and a dev server all behave. Ctrl+C
-reaches the running command instead of killing Exodia. Every shell and its whole
+reaches the running command instead of killing Frodon. Every shell and its whole
 process tree is torn down when the tab, the window or the app closes, so nothing
 is orphaned.
 
@@ -102,7 +100,7 @@ In an editor:
 | `Ctrl+F`                | Find in file; `Enter` / `Shift+Enter` to step, `Esc` to close |
 | Arrows, `Home`, `End`   | Move; hold `Shift` to select             |
 
-Quit from the palette (**Quit Exodia**). `Ctrl+C` is deliberately *not* a quit
+Quit from the palette (**Quit Frodon**). `Ctrl+C` is deliberately *not* a quit
 binding — it belongs to whatever is running in the focused terminal.
 
 ## Configuration
@@ -110,7 +108,7 @@ binding — it belongs to whatever is running in the focused terminal.
 Config is JSON, resolved in layers, lowest to highest:
 
 ```
-built-in defaults  <  ~/.config/exodia/config.json  <  .exodia/config.json  <  .exodia/config.local.json
+built-in defaults  <  ~/.config/frodon/config.json  <  .frodon/config.json  <  .frodon/config.local.json
                             per user                    per project (git)      per machine (git-ignored)
 ```
 
@@ -150,7 +148,7 @@ bun run build    # bundles dist/index.js for publishing
 
 ### There is no console
 
-Exodia owns the terminal, so **`console.log` corrupts the render**. Use the file
+Frodon owns the terminal, so **`console.log` corrupts the render**. Use the file
 logger and tail it from another shell:
 
 ```ts
@@ -218,7 +216,7 @@ Built:
 
 Not built yet:
 
-- A path argument (`exodia ~/some/project`) — it always opens `cwd`
+- A path argument (`frodon ~/some/project`) — it always opens `cwd`
 - Most of the shortcuts the palette advertises
 - The `change` action event
 - A results panel for action output (runs are recorded, nothing renders them)

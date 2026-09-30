@@ -286,7 +286,7 @@ export const usePaletteItems = () => {
         {
           id: 'quit',
           type: 'ACTION',
-          title: 'Quit Exodia',
+          title: 'Quit Frodon',
           shortcut: 'ctrl+shift+q',
           execute: () => {
             // Tear down terminal process trees while the event loop is still

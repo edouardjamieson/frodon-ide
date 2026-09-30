@@ -1,5 +1,5 @@
 /**
- * Exodia's fully-resolved settings — the shape the app actually reads after the
+ * Frodon's fully-resolved settings — the shape the app actually reads after the
  * on-disk layers have been merged over the defaults (see `config.service.ts`).
  * Every field is required here; each on-disk layer is a `PartialConfig`.
  */
@@ -8,7 +8,7 @@ import type { Action } from '../actions/actions.def';
 export interface Config {
   files: {
     /**
-     * Paths hidden everywhere Exodia walks the project -- the explorer tree,
+     * Paths hidden everywhere Frodon walks the project -- the explorer tree,
      * project-wide search, and the open-file palette.
      *
      * A bare name (`node_modules`) matches at any depth. A pattern containing
@@ -60,11 +60,11 @@ export type PartialConfig = {
 export enum ConfigScope {
   /** Built-in baseline (`DEFAULT_CONFIG`); not writable. */
   DEFAULT = 'default',
-  /** Per-user, per-machine — `~/.config/exodia/config.json`. */
+  /** Per-user, per-machine — `~/.config/frodon/config.json`. */
   USER = 'user',
-  /** Per-project, git-tracked, shared with the team — `<root>/.exodia/config.json`. */
+  /** Per-project, git-tracked, shared with the team — `<root>/.frodon/config.json`. */
   PROJECT = 'project',
-  /** Per-project, git-ignored machine override — `<root>/.exodia/config.local.json`. */
+  /** Per-project, git-ignored machine override — `<root>/.frodon/config.local.json`. */
   LOCAL = 'local',
 }
 

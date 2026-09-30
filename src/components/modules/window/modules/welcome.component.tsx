@@ -4,7 +4,7 @@ import Button from '~/components/ui/button';
 import { WindowType } from '~/lib/window';
 import { useKeyboard } from '@opentui/react';
 import AsciiAnimation, {
-  EXODIA_LOGO_ANIMATION,
+  FRODON_LOGO_ANIMATION,
   SPINNING_GLOBE_ANIMATION,
 } from '~/components/ui/ascii-animation';
 import { TextAttributes } from '@opentui/core';
@@ -33,7 +33,7 @@ export default function WindowWelcomePage(props: WindowModuleProps) {
       justifyContent="center"
       gap={2}
     >
-      <AsciiAnimation animation={EXODIA_LOGO_ANIMATION} />
+      <AsciiAnimation animation={FRODON_LOGO_ANIMATION} />
       <text attributes={TextAttributes.DIM}>
         Open a code editor or a terminal to get started
       </text>

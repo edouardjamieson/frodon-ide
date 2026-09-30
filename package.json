@@ -1,17 +1,17 @@
 {
-  "name": "exodia-tui",
+  "name": "frodon",
   "version": "0.1.0",
-  "description": "Exodia — a terminal-based IDE built with OpenTUI, React, and Bun.",
+  "description": "Frodon — a terminal-based IDE built with OpenTUI, React, and Bun.",
   "license": "MIT",
   "author": "Edouard Jamieson <edouard@volume7.io>",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/edouardjamieson/exodia-ide.git"
+    "url": "git+https://github.com/edouardjamieson/frodon.git"
   },
   "bugs": {
-    "url": "https://github.com/edouardjamieson/exodia-ide/issues"
+    "url": "https://github.com/edouardjamieson/frodon/issues"
   },
-  "homepage": "https://github.com/edouardjamieson/exodia-ide#readme",
+  "homepage": "https://github.com/edouardjamieson/frodon#readme",
   "keywords": [
     "ide",
     "editor",
@@ -23,7 +23,7 @@
   ],
   "type": "module",
   "bin": {
-    "exodia": "./dist/index.js"
+    "frodon": "./dist/index.js"
   },
   "files": [
     "dist"

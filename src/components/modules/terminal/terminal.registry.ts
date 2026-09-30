@@ -2,7 +2,7 @@ import Logger from '~/lib/logger/logger.service';
 
 /**
  * Tracks the shell spawned for each terminal window so its *entire* process
- * tree can be torn down — both when the window/tab closes and when Exodia
+ * tree can be torn down — both when the window/tab closes and when Frodon
  * itself quits.
  *
  * Killing only the shell isn't enough: long-running commands it launched (a

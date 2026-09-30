@@ -3,7 +3,7 @@
 User-configured shell commands bound to filesystem events. The point (per the
 product vision) is to lean on the user's real toolchain — linters, formatters,
 codegen — instead of reimplementing IDE features natively. You declare commands
-in the `.exodia` config and Exodia runs them when files are saved, created,
+in the `.frodon` config and Frodon runs them when files are saved, created,
 renamed, or deleted.
 
 ## Configuring
@@ -43,8 +43,8 @@ An unknown `{{variable}}` doesn't run; the action is recorded as an error.
 
 Config resolves `defaults < user < project (git) < local (git-ignored)`.
 Unlike other sections (which override key-by-key), **`actions` accumulate across
-layers** — a personal format-on-save in `~/.config/exodia/config.json` and a
-team linter in `.exodia/config.json` both fire.
+layers** — a personal format-on-save in `~/.config/frodon/config.json` and a
+team linter in `.frodon/config.json` both fire.
 
 ### Execution semantics
 

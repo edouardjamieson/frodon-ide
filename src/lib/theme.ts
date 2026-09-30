@@ -7,6 +7,12 @@ export const theme = {
       dark: '#5ea500',
       darker: '#497d00',
     },
+    red: {
+      main: '#e7000b',
+      light: '#ff6467',
+      lighter: '#ffe2e2',
+      dark: '#9f0712',
+    },
     neutral: {
       900: '#0a0a0a',
       800: '#171717',

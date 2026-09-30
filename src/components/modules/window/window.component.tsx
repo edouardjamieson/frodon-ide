@@ -11,6 +11,7 @@ import Tooltip from '~/components/ui/tooltip';
 import { TextAttributes } from '@opentui/core';
 import { useDialog } from '~/components/ui/dialog';
 import { WindowWelcomePage, WindowEditor, WindowTerminal } from './modules';
+import ErrorBoundary from '~/components/ui/error-boundary';
 import { useShortcut } from '~/lib/utils';
 import { useEffect, useState } from 'react';
 import Logger from '~/lib/logger/logger.service';
@@ -74,16 +75,27 @@ function Window({ window }: { window?: Window }) {
   }, [isFocused]);
 
   const renderModule = () => {
-    switch (window.type) {
-      case WindowType.CODE_EDITOR:
-        return <WindowEditor window={window} isFocused={isFocused} />;
+    const module = () => {
+      switch (window.type) {
+        case WindowType.CODE_EDITOR:
+          return <WindowEditor window={window} isFocused={isFocused} />;
 
-      case WindowType.TERMINAL:
-        return <WindowTerminal window={window} isFocused={isFocused} />;
+        case WindowType.TERMINAL:
+          return <WindowTerminal window={window} isFocused={isFocused} />;
 
-      default:
-        return null;
-    }
+        default:
+          return null;
+      }
+    };
+
+    // Scoped per window, and keyed on the window id so a fresh pane never
+    // inherits a previous one's caught error. A crash here costs one pane, not
+    // the session -- the other windows keep rendering and stay editable.
+    return (
+      <ErrorBoundary key={window.id} label={`${windowName} stopped working`}>
+        {module()}
+      </ErrorBoundary>
+    );
   };
 
   if (!focusedWindow) return null;

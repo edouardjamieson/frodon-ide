@@ -17,6 +17,8 @@ import WindowsManager from './components/modules/window';
 import GitStatusBar from './components/modules/git-bar';
 import GitBranchDialog from './components/modules/git-branch-dialog';
 import Logger from './lib/logger/logger.service';
+import ErrorBoundary from './components/ui/error-boundary';
+import { installCrashHandlers } from './lib/crash';
 
 function App() {
   const { load, loading, isInit } = useProject();
@@ -90,4 +92,13 @@ function App() {
 // renderer's default exitOnCtrlC intercepts the key before any renderable sees
 // it, so disable it and quit the app through another binding instead.
 const renderer = await createCliRenderer({ exitOnCtrlC: false });
-createRoot(renderer).render(<App />);
+
+// Must follow renderer creation: that's when OpenTUI attaches the
+// log-and-keep-going error listeners this replaces.
+installCrashHandlers(renderer);
+
+createRoot(renderer).render(
+  <ErrorBoundary fatal label="Exodia hit an unrecoverable error">
+    <App />
+  </ErrorBoundary>
+);

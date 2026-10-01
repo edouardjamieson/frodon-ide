@@ -102,9 +102,10 @@ export const ROLE_DEFAULTS: Record<RoleKey, PaletteKey> = {
  */
 export const DEFAULT_ICONS: ThemeIcons = {
   // Disclosure / tree
-  chevronRight: '▶️',
-  chevronLeft: '◀️',
-  chevronDown: '🔽',
+  chevronRight: '▶',
+  chevronLeft: '◀',
+  chevronDown: '▼',
+  chevronUp: '▲',
   file: '📄',
   folder: '📁',
   folderOpen: '📂',

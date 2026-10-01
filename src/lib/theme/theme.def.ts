@@ -177,6 +177,7 @@ export interface ThemeIcons {
   chevronRight: string;
   chevronLeft: string;
   chevronDown: string;
+  chevronUp: string;
   /** Directory marker, shown next to the chevron — so not a chevron itself. */
   folder: string;
   folderOpen: string;

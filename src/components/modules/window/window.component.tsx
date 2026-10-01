@@ -184,7 +184,7 @@ function Window({ window }: { window?: Window }) {
               <box marginLeft={'auto'}>
                 <Tooltip
                   title={moveButtonsVisible ? 'Cancel' : 'Move window'}
-                  align="bottom"
+                  align="left"
                   disabled={moveButtonsVisible}
                 >
                   <box position="relative" zIndex={10}>

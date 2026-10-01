@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { refractor } from 'refractor';
 import { useKeyboard, useRenderer } from '@opentui/react';
@@ -18,6 +18,9 @@ import type {
 import { usePaletteStore } from '../palette/palette.store';
 import { useTheme, type ThemeSyntax } from '~/lib/theme';
 import { SYNTAX_GROUP_BY_TOKEN } from './editor.constant';
+
+/** Shared empty result, so rows with no search hit all get the same array. */
+const NO_HIGHLIGHTS: SearchHighlight[] = [];
 
 interface FlatToken {
   text: string;
@@ -709,39 +712,65 @@ export const useEditor = (props: EditorProps) => {
     focusMatch(next);
   };
 
-  /** Moves the cursor to a clicked row/col; `extend` keeps the selection. */
-  const moveCursorTo = (row: number, col: number, extend: boolean) => {
-    lastKind.current = 'none'; // a click ends the current typing undo step
-    setState((s) => moveTo(s, positionToOffset(s.value, row, col), extend));
-  };
+  /**
+   * Moves the cursor to a clicked row/col; `extend` keeps the selection.
+   *
+   * Stable across renders -- it only touches a ref and the state updater --
+   * because every row holds it as a prop and a fresh identity would re-render
+   * the whole document on each keystroke.
+   */
+  const moveCursorTo = useCallback(
+    (row: number, col: number, extend: boolean) => {
+      lastKind.current = 'none'; // a click ends the current typing undo step
+      setState((s) => moveTo(s, positionToOffset(s.value, row, col), extend));
+    },
+    []
+  );
 
-  /** For a visual row, the selected [startCol, endCol) range, if any. */
-  const selectionForRow = (
-    row: number
-  ): { start: number; end: number } | null => {
-    if (!state.selection) return null;
+  /**
+   * The selected [startCol, endCol) range on each covered row.
+   *
+   * Built once per selection rather than per row: the old per-row form called
+   * `lineStartOffsets` itself, so drawing a 1000-line file scanned the whole
+   * document 1000 times. Memoizing also keeps each row's range identical
+   * across renders that didn't touch the selection, which is what lets
+   * `EditorLine` skip re-rendering.
+   */
+  const selectionByRow = useMemo(() => {
+    const byRow = new Map<number, { start: number; end: number }>();
+    if (!state.selection) return byRow;
+
     const from = Math.min(state.selection.anchor, state.selection.head);
     const to = Math.max(state.selection.anchor, state.selection.head);
-    if (from === to) return null;
+    if (from === to) return byRow;
 
     const starts = lineStartOffsets(state.value);
-    const lineStart = starts[row];
-    if (lineStart === undefined) return null;
-    const lineEnd =
-      row + 1 < starts.length ? starts[row + 1]! - 1 : state.value.length;
+    for (let row = 0; row < starts.length; row++) {
+      const lineStart = starts[row]!;
+      const lineEnd =
+        row + 1 < starts.length ? starts[row + 1]! - 1 : state.value.length;
 
-    if (to <= lineStart || from > lineEnd) return null;
+      if (to <= lineStart || from > lineEnd) continue;
 
-    const start = Math.max(from, lineStart) - lineStart;
-    let end = Math.min(to, lineEnd) - lineStart;
-    if (to > lineEnd) end += 1; // selection spans the newline; hint a trailing cell
-    if (end <= start) return null;
-    return { start, end };
-  };
+      const start = Math.max(from, lineStart) - lineStart;
+      let end = Math.min(to, lineEnd) - lineStart;
+      if (to > lineEnd) end += 1; // spans the newline; hint a trailing cell
+      if (end <= start) continue;
+      byRow.set(row, { start, end });
+    }
+    return byRow;
+  }, [state.value, state.selection]);
 
-  /** Search highlights for a visual row, if any. */
+  /** For a visual row, the selected [startCol, endCol) range, if any. */
+  const selectionForRow = (row: number) => selectionByRow.get(row) ?? null;
+
+  /**
+   * Search highlights for a visual row, if any. Rows without a hit -- nearly
+   * all of them -- share one frozen array, so the prop stays referentially
+   * equal and the row can skip its render.
+   */
   const highlightsForRow = (row: number): SearchHighlight[] =>
-    highlightsByRow.get(row) ?? [];
+    highlightsByRow.get(row) ?? NO_HIGHLIGHTS;
 
   return {
     hasFile: meta !== null,

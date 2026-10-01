@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import {
   MacOSScrollAccel,
   TextAttributes,
@@ -10,7 +10,6 @@ import { useScrollbarOptions, useTheme } from '~/lib/theme';
 import type {
   EditorProps,
   HighlightSegment,
-  Position,
   SearchHighlight,
 } from './editor.def';
 import { useEditor } from './editor.hook';
@@ -138,7 +137,7 @@ export default function Editor(props: EditorProps) {
             row={row}
             segments={segments}
             gutterWidth={gutterWidth}
-            cursor={cursor}
+            cursorCol={cursor.row === row ? cursor.col : null}
             selection={selectionForRow(row)}
             highlights={highlightsForRow(row)}
             showCursor={focused}
@@ -229,25 +228,25 @@ interface EditorLineProps {
   row: number;
   segments: HighlightSegment[];
   gutterWidth: number;
-  cursor: Position;
+  /** The cursor's column when it sits on this row, else null. */
+  cursorCol: number | null;
   selection: { start: number; end: number } | null;
   highlights: SearchHighlight[];
   showCursor: boolean;
   onMove: (row: number, col: number, extend: boolean) => void;
 }
 
-function EditorLine({
+function EditorLineBase({
   row,
   segments,
   gutterWidth,
-  cursor,
+  cursorCol,
   selection,
   highlights,
   showCursor,
   onMove,
 }: EditorLineProps) {
   const { colors } = useTheme();
-  const isCursorRow = cursor.row === row;
   const lineNumber = `${String(row + 1).padStart(gutterWidth - 1, ' ')} `;
 
   // Column is the click's x offset from the content box's own left edge, which
@@ -310,10 +309,10 @@ function EditorLine({
           />
         ))}
 
-        {showCursor && isCursorRow && (
+        {showCursor && cursorCol !== null && (
           <box
             position="absolute"
-            left={cursor.col}
+            left={cursorCol}
             top={0}
             width={1}
             height={1}
@@ -333,3 +332,15 @@ function EditorLine({
     </box>
   );
 }
+
+/**
+ * Every line of the open file is a mounted component -- there's no
+ * virtualization -- so an unmemoized row meant any re-render of the editor, or
+ * of anything above it, reconciled the whole document. Memoizing holds because
+ * each prop is referentially stable while the row itself is unchanged:
+ * `segments` comes from the tokenizer's memo, `selection` and `highlights`
+ * from per-row maps (empty rows share one array), `onMove` is a `useCallback`,
+ * and the cursor arrives as this row's column rather than the shared position,
+ * so moving it re-renders the row it left and the row it landed on.
+ */
+const EditorLine = memo(EditorLineBase);

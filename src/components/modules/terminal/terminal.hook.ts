@@ -52,6 +52,52 @@ export function useTerminal(focused: boolean, onFocusRequest?: () => void) {
     };
   }, []);
 
+  // Keep the PTY's window size matched to the emulator so full-screen programs
+  // (vim, htop, an AI agent) lay out against the real viewport.
+  //
+  // The size alone isn't enough. `Bun.spawn({ terminal })` wires the PTY to the
+  // child's stdio but never makes it the child's *controlling* terminal — the
+  // shell ends up with no session and the PTY with no foreground process group
+  // (`ps` reports `TTY ??`, `TPGID 0`, and the shell announces "no job
+  // control"). TIOCSWINSZ only raises SIGWINCH on that foreground group, so with
+  // nobody in it the resize lands silently: `stty size` reports the new box, yet
+  // nothing running inside is ever told. A program that measured the terminal at
+  // startup and redraws on SIGWINCH — which is every full-screen one — keeps
+  // painting at the old dimensions, so splitting a window or resizing the host
+  // terminal leaves its screen mangled until something else forces a repaint.
+  //
+  // So deliver the signal by hand, to the shell's process group: the login shell
+  // makes itself a group leader, job control is off, and everything it runs
+  // stays in that group — the same assumption `handleData` leans on to turn
+  // Ctrl+C into SIGINT.
+  const resizePty = (cols: number, rows: number) => {
+    // A terminal hidden behind another tab is laid out with `display: none` and
+    // can measure as 0×0; ignore those so a backgrounded shell keeps its size
+    // and full-screen programs don't collapse when the tab is reactivated.
+    if (cols <= 0 || rows <= 0) return;
+
+    const pty = ptyRef.current;
+    if (!pty) return;
+    pty.resize(cols, rows);
+
+    const pid = shellPidRef.current;
+    if (!pid) return;
+    try {
+      process.kill(-pid, 'SIGWINCH');
+    } catch (error) {
+      // ESRCH means the group isn't there to signal: either the shell has
+      // exited, or it hasn't finished claiming its own process group yet (the
+      // opening resize below runs within a tick of the spawn). Neither needs
+      // reporting -- a shell still starting up reads the size we just set.
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== 'ESRCH') {
+        Logger.log(
+          `terminal: failed to notify group ${pid} of resize: ${error}`
+        );
+      }
+    }
+  };
+
   // Spawn the shell + PTY once, for the lifetime of the window.
   useEffect(() => {
     // Guards the async `data` callback against firing after teardown, when the
@@ -83,6 +129,14 @@ export function useTerminal(focused: boolean, onFocusRequest?: () => void) {
       // Track the shell so its whole process tree — not just the shell — is torn
       // down on close and on app quit (see terminal.registry).
       registerTerminalProcess(proc.pid);
+
+      // The emulator reports its measured box through `onTerminalResize` on the
+      // first layout pass, which falls either side of this effect depending on
+      // whether the pane mounts with the frame or into one already laid out.
+      // When it lands first there's no PTY yet to apply it to and the shell is
+      // left on the 80×24 seed above; replaying the measurement closes that gap.
+      const term = terminalRef.current;
+      if (term) resizePty(Math.floor(term.width), Math.floor(term.height));
     } catch (error) {
       Logger.log(`terminal: failed to spawn ${SHELL}: ${error}`);
       setExited(true);
@@ -133,15 +187,8 @@ export function useTerminal(focused: boolean, onFocusRequest?: () => void) {
     pty.write(bytes);
   };
 
-  // Keep the PTY's window size matched to the emulator so full-screen programs
-  // (vim, htop, less) lay out against the real viewport.
-  // A terminal hidden behind another tab is laid out with `display: none` and
-  // can measure as 0×0; ignore those so a backgrounded shell keeps its size and
-  // full-screen programs don't collapse when the tab is reactivated.
-  const handleResize = (cols: number, rows: number) => {
-    if (cols <= 0 || rows <= 0) return;
-    ptyRef.current?.resize(cols, rows);
-  };
+  // The emulator's own measurement of its box, forwarded to the shell.
+  const handleResize = (cols: number, rows: number) => resizePty(cols, rows);
 
   return { terminalRef, exited, handleData, handleResize };
 }

@@ -56,3 +56,34 @@ export function createIgnoreMatcher(patterns: string[] = []): IgnoreMatcher {
 export function toRelativePath(root: string, target: string): string {
   return path.relative(root, target).split(path.sep).join('/');
 }
+
+/**
+ * Whether a project-relative path is hidden, counting its ancestors.
+ *
+ * {@link createIgnoreMatcher} judges one entry as the tree walk meets it, which
+ * is enough while descending: a hidden directory is never entered, so nothing
+ * under it is ever offered. Filesystem events arrive the other way round --
+ * `node_modules/.vite/deps/chunk.js` turns up with no walk behind it -- so each
+ * ancestor segment has to be tested too, or every write inside an excluded
+ * directory looks like a change to the project.
+ */
+export function isIgnoredPath(
+  relativePath: string,
+  isIgnored: IgnoreMatcher
+): boolean {
+  if (relativePath.startsWith('..')) return true; // outside the project root
+
+  const segments = relativePath.split('/').filter(Boolean);
+  let prefix = '';
+
+  for (let i = 0; i < segments.length; i++) {
+    const name = segments[i] as string;
+    prefix = prefix ? `${prefix}/${name}` : name;
+    // Only the last segment can be the leaf the event was about; everything
+    // before it is, by construction, a directory.
+    const isDir = i < segments.length - 1;
+    if (isIgnored({ name, relativePath: prefix, isDir })) return true;
+  }
+
+  return false;
+}

@@ -4,6 +4,7 @@ import Logger from '../logger/logger.service';
 import type { File } from './fs.def';
 import {
   createIgnoreMatcher,
+  isIgnoredPath,
   toRelativePath,
   type IgnoreMatcher,
 } from '../ignore';
@@ -200,4 +201,113 @@ export function flattenFiles(files: File[]): File[] {
 
   walk(files);
   return flat;
+}
+
+/** Quiet period after the last event before a watched tree is rescanned. */
+const WATCH_DEBOUNCE_MS = 150;
+
+/**
+ * Longest a rescan is held back while events keep arriving. An agent rewriting
+ * a hundred files emits events the whole time, and a pure debounce would show
+ * the first of those changes only once it finally stopped.
+ */
+const WATCH_MAX_DELAY_MS = 1000;
+
+/** How often the tree is rescanned when recursive watching isn't available. */
+const WATCH_POLL_MS = 3000;
+
+export interface WatchDirectoryOptions {
+  /** Events under a hidden path are dropped before any rescan is scheduled. */
+  isIgnored?: IgnoreMatcher;
+  debounceMs?: number;
+}
+
+/**
+ * Watches a whole directory tree, invoking `onChange` after a burst of
+ * filesystem events settles. Returns a disposer that stops watching.
+ *
+ * This is how the explorer sees work done outside Frodon -- a file created in
+ * another terminal, a directory an agent renamed. Node's recursive watch is a
+ * single FSEvents/ReadDirectoryChanges subscription on macOS and Windows, and
+ * it picks up directories created after it was armed, so there's nothing to
+ * re-arm as the tree grows. Where it isn't supported the fallback is a plain
+ * interval: the caller rescans either way, so the only difference is latency.
+ *
+ * Events are filtered through `isIgnored` before anything is scheduled --
+ * without that, one `bun install` would queue thousands of full-tree rescans.
+ */
+export function watchDirectory(
+  rootPath: string,
+  onChange: () => void,
+  { isIgnored, debounceMs = WATCH_DEBOUNCE_MS }: WatchDirectoryOptions = {}
+): () => void {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let interval: ReturnType<typeof setInterval> | null = null;
+  let watcher: fs.FSWatcher | null = null;
+  let firstEventAt = 0;
+  let disposed = false;
+
+  const fire = () => {
+    timer = null;
+    firstEventAt = 0;
+    if (!disposed) onChange();
+  };
+
+  const schedule = () => {
+    const now = Date.now();
+    if (!firstEventAt) firstEventAt = now;
+
+    if (timer) clearTimeout(timer);
+    const remaining = WATCH_MAX_DELAY_MS - (now - firstEventAt);
+    timer = setTimeout(fire, Math.max(0, Math.min(debounceMs, remaining)));
+  };
+
+  try {
+    watcher = fs.watch(rootPath, { recursive: true }, (_event, filename) => {
+      // A null filename means the platform couldn't name what changed; rescan
+      // rather than miss it.
+      if (filename) {
+        const relativePath = filename.toString().split(path.sep).join('/');
+        if (isIgnored && isIgnoredPath(relativePath, isIgnored)) return;
+      }
+      schedule();
+    });
+    watcher.on('error', (error) => {
+      Logger.log(`fs: watchDirectory errored for ${rootPath}: ${error}`);
+    });
+  } catch (error) {
+    Logger.log(
+      `fs: recursive watch unavailable for ${rootPath} (${error}); polling instead`
+    );
+    interval = setInterval(onChange, WATCH_POLL_MS);
+  }
+
+  return () => {
+    disposed = true;
+    if (timer) clearTimeout(timer);
+    if (interval) clearInterval(interval);
+    watcher?.close();
+  };
+}
+
+/**
+ * Whether two trees describe the same files, in the same order. Writing to a
+ * file's contents fires watch events without changing the tree, so the rescan
+ * they trigger compares before it stores: an unchanged result is dropped, and
+ * every explorer row keeps its identity instead of re-rendering on each
+ * keystroke an agent saves.
+ */
+export function sameTree(a: File[], b: File[]): boolean {
+  if (a.length !== b.length) return false;
+
+  for (let i = 0; i < a.length; i++) {
+    const left = a[i] as File;
+    const right = b[i] as File;
+    if (left.name !== right.name || left.isDir !== right.isDir) return false;
+    if (left.path !== right.path) return false;
+    if (left.isDir && !sameTree(left.children ?? [], right.children ?? []))
+      return false;
+  }
+
+  return true;
 }

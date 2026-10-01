@@ -51,7 +51,7 @@ Layout:
 
 **Routing** (`src/lib/router/`): a hand-rolled router, not a URL router. `ROUTE` is an enum; `ROUTES` (in `router.constant.tsx`) maps each route to a JSX element; the zustand store holds the active route + params. Navigate with `const { navigate } = useRouter(); navigate(ROUTE.HOME)`. `RootPage` loads the project then navigates to `HOME`.
 
-**Project loading** (`src/lib/project/` + `src/lib/fs/`): `useProject().load()` reads `process.cwd()` recursively via `readFilesFromDir` into a nested `File` tree (dirs sorted first, then alphabetical) and stores it. `HomePage` = `Sidebar` + `WindowsManager`.
+**Project loading** (`src/lib/project/` + `src/lib/fs/`): `useProject().load()` reads `process.cwd()` recursively via `readFilesFromDir` into a nested `File` tree (dirs sorted first, then alphabetical) and stores it. `useProjectSync()` (mounted once in `main.tsx`) then watches the root recursively via `watchDirectory` and rescans on a debounce, so changes made outside Frodon — another terminal, an AI agent — reach the explorer; a rescan that finds the same tree (`sameTree`) stores nothing, so content-only writes don't re-render it. `HomePage` = `Sidebar` + `WindowsManager`.
 
 **Window manager** (`src/lib/window/` + `src/components/modules/window/`): a tiling grid. Each `Window` has a `rowIndex`/`colIndex` and a `type` (`CODE_EDITOR` | `TERMINAL`); `useCalculateLayout` derives percentage-based `left/top/width/height` from how many windows share each row. Windows with no `type` render a welcome screen. Editor files and terminal sessions are tracked in the window store keyed by `windowId`.
 

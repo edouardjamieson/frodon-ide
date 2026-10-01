@@ -3,7 +3,7 @@ import { createRoot, useRenderer } from '@opentui/react';
 import { TooltipManager } from './components/ui/tooltip/tooltip.component';
 import Dialogs from './components/ui/dialog';
 import CommandPalette from './components/modules/palette';
-import { useProject } from './lib/project';
+import { useProject, useProjectSync } from './lib/project';
 import { loadConfig as readConfigLayers, useConfig } from './lib/config';
 import { useEffect, useMemo } from 'react';
 import { useGitSync } from './lib/git';
@@ -35,6 +35,7 @@ function App() {
   const { colors } = useTheme();
   const renderer = useRenderer();
   useGitSync();
+  useProjectSync();
 
   const logo = useMemo(() => frodonLogoAnimation(colors), [colors]);
 

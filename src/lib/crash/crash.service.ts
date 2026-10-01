@@ -1,5 +1,6 @@
 /**
- * Fatal-error handling for a process that owns the terminal.
+ * Process-level error and warning handling for a process that owns the
+ * terminal.
  *
  * Frodon runs on the alternate screen with stdin in raw mode, so a crash that
  * skips teardown doesn't just lose the session — it hands the user back a shell
@@ -95,5 +96,30 @@ export function installCrashHandlers(renderer: CliRenderer): void {
 
   process.on('unhandledRejection', (reason) => {
     Logger.log(`crash: unhandled rejection: ${describe(reason)}`);
+  });
+}
+
+/**
+ * Keeps Node's own diagnostics off the terminal.
+ *
+ * `process.emitWarning` — deprecations, `MaxListenersExceededWarning`, and
+ * anything a dependency emits — is printed to stderr by a default listener Node
+ * installs at bootstrap. stderr is the terminal we're painting, so a warning
+ * fired mid-session lands in the middle of a frame as a stripe of text that
+ * belongs to no renderable and that nothing will erase: the UI only repaints
+ * cells it knows changed, so the stripe survives until something else happens
+ * to draw over it.
+ *
+ * OpenTUI adds a second listener of its own that `console.warn`s the message,
+ * so both have to go. Dropping them and logging instead means the warning is
+ * still there to read in ./test.log, just not on screen. Call this after the
+ * renderer exists, or its listener is attached after ours and survives.
+ */
+export function installWarningHandler(): void {
+  process.removeAllListeners('warning');
+
+  process.on('warning', (warning) => {
+    Logger.log(`warning: ${warning.name}: ${warning.message}`);
+    if (warning.stack) Logger.log(warning.stack);
   });
 }

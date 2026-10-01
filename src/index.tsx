@@ -22,7 +22,7 @@ import WindowsManager from './components/modules/window';
 import GitStatusBar from './components/modules/git-bar';
 import GitBranchDialog from './components/modules/git-branch-dialog';
 import ErrorBoundary from './components/ui/error-boundary';
-import { installCrashHandlers } from './lib/crash';
+import { installCrashHandlers, installWarningHandler } from './lib/crash';
 
 function App() {
   const { load, loading, isInit } = useProject();
@@ -115,6 +115,9 @@ const startupTheme = resolveTheme(
 );
 useThemeStore.setState({ theme: startupTheme, available: startupThemes });
 
+/** Generous enough for every pane and overlay to be open at once. */
+const MAX_KEY_LISTENERS = 100;
+
 // Ctrl+C must reach the focused embedded terminal (forwarded to the PTY as
 // \x03 → SIGINT to the running command), not tear down the whole TUI. The
 // renderer's default exitOnCtrlC intercepts the key before any renderable sees
@@ -125,8 +128,21 @@ const renderer = await createCliRenderer({
 });
 
 // Must follow renderer creation: that's when OpenTUI attaches the
-// log-and-keep-going error listeners this replaces.
+// log-and-keep-going error listeners these replace, and its `warning` listener
+// too.
 installCrashHandlers(renderer);
+installWarningHandler();
+
+// Every `useKeyboard` call is one listener on this emitter, and a normal
+// session has far more than Node's default ceiling of ten live at once: the
+// palette and its active module, each open window plus its editor, the
+// dialogs, the error boundary. They're all added and removed with their
+// component, so crossing ten says nothing is wrong -- but Node assumes an
+// emitter with that many listeners is leaking and emits a warning, which
+// before `installWarningHandler` was painted straight onto the UI. The ceiling
+// is raised rather than removed so a handler that really does accumulate still
+// shows up in ./test.log.
+renderer.keyInput.setMaxListeners(MAX_KEY_LISTENERS);
 
 createRoot(renderer).render(
   <ErrorBoundary fatal label="Frodon hit an unrecoverable error">

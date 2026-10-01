@@ -1,10 +1,11 @@
-import { theme } from '~/lib/theme';
+import { useTheme } from '~/lib/theme';
+import Icon from '~/components/ui/icon';
 import { useSidebar } from './sidebar.hook';
-import { useProject } from '~/lib/project';
 import { Explorer } from '../explorer';
 import Tooltip from '~/components/ui/tooltip';
 
 export default function Sidebar() {
+  const { colors, icons } = useTheme();
   const {
     SIDEBAR_WIDTH,
     SIDEBAR_CONTEXT_SWITCHER_WIDTH,
@@ -21,15 +22,15 @@ export default function Sidebar() {
     <box
       width={SIDEBAR_WIDTH}
       flexDirection="row"
-      backgroundColor={theme.colors.neutral[900]}
+      backgroundColor={colors.sidebarBg}
       border={['right']}
-      borderColor={theme.colors.neutral[700]}
+      borderColor={colors.border}
     >
       {/* Context switcher */}
       {showToolbar && (
         <box
           width={SIDEBAR_CONTEXT_SWITCHER_WIDTH}
-          backgroundColor={theme.colors.neutral[800]}
+          backgroundColor={colors.sidebarToolbarBg}
           paddingY={0}
         >
           <Tooltip
@@ -44,7 +45,9 @@ export default function Sidebar() {
               paddingY={1}
               onMouseDown={() => setExpanded(!expanded)}
             >
-              <text>{expanded ? '>' : '<'}</text>
+              <text fg={colors.fg}>
+                {expanded ? icons.chevronRight : icons.chevronLeft}
+              </text>
             </box>
           </Tooltip>
 
@@ -59,7 +62,8 @@ export default function Sidebar() {
                   paddingY={1}
                   onMouseDown={() => item.onClick()}
                 >
-                  <text>{item.icon}</text>
+                  <text>{icons[item.icon]}</text>
+                  {/* <Icon name={item.icon} color={colors.fgMuted} /> */}
                 </box>
               </Tooltip>
             );

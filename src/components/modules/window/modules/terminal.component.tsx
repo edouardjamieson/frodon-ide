@@ -1,7 +1,7 @@
 import { useWindowManagerStore } from '~/lib/window/window.store';
 import type { WindowModuleProps } from './modules.def';
 import { useEffect, useRef, useState } from 'react';
-import { theme } from '~/lib/theme';
+import { useTheme } from '~/lib/theme';
 import Tooltip from '~/components/ui/tooltip';
 import Terminal from '../../terminal';
 import { TextAttributes } from '@opentui/core';
@@ -17,6 +17,7 @@ export default function WindowTerminal(props: WindowModuleProps) {
     setFocusedWindowId,
   } = useWindowManagerStore();
   const sessions = getWindowTerminals(window.id);
+  const { colors, icons } = useTheme();
 
   const [activeSession, setActiveSession] = useState<string | null>(null);
 
@@ -61,11 +62,7 @@ export default function WindowTerminal(props: WindowModuleProps) {
 
   return (
     <box flexGrow={1} flexDirection="column">
-      <box
-        flexDirection="row"
-        backgroundColor={theme.colors.neutral[900]}
-        flexShrink={0}
-      >
+      <box flexDirection="row" backgroundColor={colors.tabBarBg} flexShrink={0}>
         {sessions.map((session, index) => {
           const isActive = session === activeSession;
           return (
@@ -74,21 +71,23 @@ export default function WindowTerminal(props: WindowModuleProps) {
               flexDirection="row"
               paddingX={1}
               backgroundColor={
-                isActive ? theme.colors.neutral[700] : theme.colors.neutral[800]
+                isActive ? colors.tabActiveBg : colors.tabInactiveBg
               }
               onMouseDown={() => setActiveSession(session)}
               marginBottom={1}
             >
-              <text>{`Terminal ${index + 1}`}</text>
+              <text fg={isActive ? colors.fg : colors.fgMuted}>
+                {`Terminal ${index + 1}`}
+              </text>
               <Tooltip title="Close terminal">
                 <text
-                  fg={theme.colors.neutral[600]}
+                  fg={colors.fgSubtle}
                   onMouseDown={(e) => {
                     e.stopPropagation();
                     closeSession(session);
                   }}
                 >
-                  {'  ×'}
+                  {`  ${icons.dismiss}`}
                 </text>
               </Tooltip>
             </box>
@@ -98,10 +97,10 @@ export default function WindowTerminal(props: WindowModuleProps) {
           <box
             paddingX={1}
             marginBottom={1}
-            backgroundColor={theme.colors.neutral[800]}
+            backgroundColor={colors.tabInactiveBg}
             onMouseDown={openSession}
           >
-            <text>{'+'}</text>
+            <text fg={colors.fgMuted}>{icons.plus}</text>
           </box>
         </Tooltip>
       </box>
@@ -124,8 +123,8 @@ export default function WindowTerminal(props: WindowModuleProps) {
         </box>
       ) : (
         <box flexGrow={1} alignItems="center" justifyContent="center">
-          <text attributes={TextAttributes.DIM}>
-            No open terminals — press + to start a new session
+          <text fg={colors.fgMuted} attributes={TextAttributes.DIM}>
+            No open terminals — press {icons.plus} to start a new session
           </text>
         </box>
       )}

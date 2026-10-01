@@ -9,8 +9,9 @@ import {
 } from './config.service';
 import { ConfigScope, type Config, type PartialConfig } from './config.def';
 import { useSidebarStore } from '~/components/modules/sidebar/sidebar.store';
-import { useCallback, useEffect } from 'react';
+import { useCallback } from 'react';
 import { useGitStore } from '../git';
+import { useThemeSwitcher } from '../theme';
 
 export const useConfig = () => {
   const store = useConfigStore();
@@ -71,14 +72,32 @@ export const useConfig = () => {
 export const useConfigStoreUpdater = () => {
   const { load: loadSidebar } = useConfigSidebarStoreUpdater();
   const { load: loadGitBar } = useConfigGitBarStoreUpdater();
+  const { load: loadTheme } = useConfigThemeStoreUpdater();
 
   const load = useCallback(
     (config: Config) => {
       loadSidebar(config);
       loadGitBar(config);
+      loadTheme(config);
     },
-    [loadSidebar]
+    [loadSidebar, loadGitBar, loadTheme]
   );
+
+  return { load };
+};
+
+/**
+ * Hands the theme store both halves of the picture at once: the definitions
+ * config contributes on top of the built-ins, and which name to resolve. They
+ * have to arrive together — resolving a name against a theme list that hasn't
+ * landed yet would fall back to the default and then flash.
+ */
+const useConfigThemeStoreUpdater = () => {
+  const { load: loadTheme } = useThemeSwitcher();
+
+  const load = (config: Config) => {
+    loadTheme(config.themes, config.preferences.theme);
+  };
 
   return { load };
 };

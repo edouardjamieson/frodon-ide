@@ -1,12 +1,13 @@
-import { RGBA, TextAttributes } from '@opentui/core';
+import { TextAttributes } from '@opentui/core';
 import { useDialogStore } from './dialog.store';
-import { theme } from '~/lib/theme';
+import { useTheme } from '~/lib/theme';
 import Button from '../button';
 import { useEffect, useState } from 'react';
 import { useKeyboard } from '@opentui/react';
 
 export default function Dialogs() {
   const { dialog, destroy } = useDialogStore();
+  const { colors } = useTheme();
 
   const [inputValue, setInputValue] = useState('');
 
@@ -54,7 +55,7 @@ export default function Dialogs() {
       <box
         width={'100%'}
         height={'100%'}
-        backgroundColor={RGBA.fromValues(0, 0, 0, 0.5)}
+        backgroundColor={colors.scrim}
         position="absolute"
         top={0}
         left={0}
@@ -63,22 +64,24 @@ export default function Dialogs() {
 
       {/* Body */}
       <box
-        backgroundColor={theme.colors.neutral[900]}
+        backgroundColor={colors.overlayBg}
         border
-        borderColor={theme.colors.neutral[700]}
+        borderColor={colors.border}
         padding={1}
         width={70}
       >
-        {dialog.title && <text>{dialog.title}</text>}
+        {dialog.title && <text fg={colors.fg}>{dialog.title}</text>}
         {dialog.description && (
-          <text attributes={TextAttributes.DIM}>{dialog.description}</text>
+          <text fg={colors.fgMuted} attributes={TextAttributes.DIM}>
+            {dialog.description}
+          </text>
         )}
 
         {dialog.withInput && (
           <input
             value={inputValue}
             onInput={(e) => setInputValue(e)}
-            backgroundColor={theme.colors.neutral[700]}
+            backgroundColor={colors.inputBg}
             placeholder={dialog.inputPlaceholder}
             marginTop={1}
           />

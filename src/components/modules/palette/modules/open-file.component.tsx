@@ -4,7 +4,7 @@ import { useWindowManagerStore } from '~/lib/window/window.store';
 import { useMemo } from 'react';
 import { flattenFiles } from '~/lib/fs';
 import { useUpDownActions } from '~/lib/utils';
-import { theme } from '~/lib/theme';
+import { useTheme } from '~/lib/theme';
 import { TextAttributes } from '@opentui/core';
 import {
   CommandPaletteBody,
@@ -15,6 +15,7 @@ import {
 export default function PaletteModuleOpenFile() {
   const { project } = useProject();
   const { search, close } = usePaletteStore();
+  const { colors } = useTheme();
   const files = project?.files ?? [];
   const { addWindowFile, windows, focusedWindowId } = useWindowManagerStore();
 
@@ -55,7 +56,7 @@ export default function PaletteModuleOpenFile() {
   }, [searchKeys, search]);
 
   const spawnWindow = (path: string) => {
-    let w = windows.find((w) => w.id === focusedWindowId);
+    const w = windows.find((w) => w.id === focusedWindowId);
     // Logger.log(w, true);
     addWindowFile(w?.id ?? '', path);
   };
@@ -73,7 +74,7 @@ export default function PaletteModuleOpenFile() {
 
   return (
     <>
-      <CommandPaletteHeader title="Open file" icon="📄" />
+      <CommandPaletteHeader title="Open file" icon="document" />
       <CommandPaletteSearch />
       <CommandPaletteBody>
         <box gap={1}>
@@ -81,15 +82,15 @@ export default function PaletteModuleOpenFile() {
             <box
               key={path}
               backgroundColor={
-                index === i ? theme.colors.neutral[700] : undefined
+                index === i ? colors.menuItemSelectedBg : undefined
               }
               onMouseDown={() => {
                 spawnWindow(path);
                 close();
               }}
             >
-              <text>{name}</text>
-              <text attributes={TextAttributes.DIM}>
+              <text fg={colors.fg}>{name}</text>
+              <text fg={colors.fgMuted} attributes={TextAttributes.DIM}>
                 .{path.replace(project?.path ?? '', '')}
               </text>
             </box>

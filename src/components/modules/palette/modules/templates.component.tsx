@@ -4,7 +4,8 @@ import {
   type InputRenderable,
 } from '@opentui/core';
 import { useEffect, useRef, type ReactNode, type Ref } from 'react';
-import { theme } from '~/lib/theme';
+import { useTheme, useScrollbarOptions, type IconName } from '~/lib/theme';
+import Icon from '~/components/ui/icon';
 import type { PaletteItem } from '../palette.def';
 import { usePaletteStore } from '../palette.store';
 
@@ -12,20 +13,30 @@ export function CommandPaletteHeader({
   icon,
   title,
 }: {
-  icon?: string;
+  icon?: IconName;
   title: string;
 }) {
+  const { colors } = useTheme();
+
   return (
     <box
       flexDirection="row"
       alignItems="center"
       justifyContent="center"
       border={['bottom']}
-      borderColor={theme.colors.neutral[700]}
+      borderColor={colors.border}
     >
-      <text>
-        {icon} {title}
-      </text>
+      {/*
+        Centring is applied to this inner row as a whole rather than to the icon
+        and the title separately. Two centred siblings each land on their own
+        fractional offset, and flooring them independently swallows the gap
+        whenever the combined width is odd -- which is how a title one character
+        shorter ends up with its icon glued to it.
+      */}
+      <box flexDirection="row" alignItems="center" gap={1}>
+        {icon && <Icon name={icon} color={colors.fgAccent} />}
+        <text fg={colors.fg}>{title}</text>
+      </box>
     </box>
   );
 }
@@ -38,6 +49,7 @@ export function CommandPaletteSearch({
   disableAutofocus?: boolean;
 }) {
   const { search, setSearch } = usePaletteStore();
+  const { colors } = useTheme();
   const searchRef = useRef<InputRenderable>(null);
 
   useEffect(() => {
@@ -45,17 +57,13 @@ export function CommandPaletteSearch({
   }, [disableAutofocus]);
 
   return (
-    <box
-      border={['bottom']}
-      borderColor={theme.colors.neutral[700]}
-      paddingX={2}
-    >
+    <box border={['bottom']} borderColor={colors.border} paddingX={2}>
       <input
         ref={searchRef}
         value={search}
         onInput={(v) => setSearch(v)}
         placeholder={placeholder ?? 'Search...'}
-        backgroundColor={theme.colors.neutral[700]}
+        backgroundColor={colors.inputBg}
       />
     </box>
   );
@@ -68,8 +76,17 @@ export function CommandPaletteBody({
   children: ReactNode;
   ref?: Ref<ScrollBoxRenderable>;
 }) {
+  const scrollbarOptions = useScrollbarOptions();
+
   return (
-    <scrollbox scrollY ref={ref} focusable={false} maxHeight={20} paddingX={1}>
+    <scrollbox
+      scrollY
+      ref={ref}
+      focusable={false}
+      maxHeight={20}
+      paddingX={1}
+      scrollbarOptions={scrollbarOptions}
+    >
       {children}
     </scrollbox>
   );
@@ -84,26 +101,35 @@ export function CommandPaletteMenuItem({
   selected?: boolean;
   onClick?: () => void;
 }) {
+  const { colors } = useTheme();
+
   return (
     <box
-      backgroundColor={theme.colors.neutral[selected ? 700 : 800]}
+      backgroundColor={selected ? colors.menuItemSelectedBg : colors.menuItemBg}
       paddingY={1}
       paddingX={2}
       marginBottom={1}
       onMouseDown={() => onClick?.()}
     >
       <box flexDirection="row" gap={1} alignItems="center">
-        {item.icon && <text>{item.icon}</text>}
-        <text>{item.title}</text>
+        {item.icon && (
+          <Icon
+            name={item.icon}
+            color={selected ? colors.fgAccent : colors.fgMuted}
+          />
+        )}
+        <text fg={colors.fg}>{item.title}</text>
         {item.shortcut && (
-          <text attributes={TextAttributes.DIM} bg={theme.colors.neutral[700]}>
+          <text
+            fg={colors.fgMuted}
+            attributes={TextAttributes.DIM}
+            bg={colors.inputBg}
+          >
             {item.shortcut}
           </text>
         )}
       </box>
-      {item.description && (
-        <text fg={theme.colors.neutral[600]}>{item.description}</text>
-      )}
+      {item.description && <text fg={colors.fgSubtle}>{item.description}</text>}
     </box>
   );
 }

@@ -46,23 +46,51 @@ function readLayer(filePath: string): PartialConfig {
  * Merges layers per-section, key-by-key: a later layer overrides only the keys
  * it sets within a section. Arrays inside a section (e.g. `files.exclude`) are
  * replaced whole rather than concatenated, so a layer can shrink a list, not
- * just grow it. `actions` is the deliberate exception: it accumulates across
- * layers so a personal formatter and a project linter both fire, instead of one
- * layer masking the other.
+ * just grow it — as is a section that is itself an array (`windowLayouts`).
+ *
+ * Two sections accumulate instead, because masking is never what you want from
+ * them:
+ *
+ * - `actions`, so a personal formatter and a project linter both fire rather
+ *   than one layer silently replacing the other.
+ * - `themes`, so personal themes stay selectable inside a project that ships
+ *   its own. A later layer reusing a name replaces that one theme, which is how
+ *   a project retunes a shared theme without hiding the rest.
  */
 function mergeLayers(...layers: PartialConfig[]): Config {
   const result = structuredClone(DEFAULT_CONFIG);
   for (const layer of layers) {
     for (const section of Object.keys(layer) as (keyof Config)[]) {
+      const value = layer[section];
+      if (value === undefined) continue;
+
       if (section === 'actions') {
-        result.actions = [
-          ...result.actions,
-          ...((layer.actions as Config['actions'] | undefined) ?? []),
-        ];
+        result.actions = [...result.actions, ...(value as Config['actions'])];
+      } else if (section === 'themes') {
+        result.themes = mergeThemes(result.themes, value as Config['themes']);
+      } else if (Array.isArray(value)) {
+        // `Object.assign` onto an array merges by index, which would leave a
+        // shorter layer's tail behind; an array section replaces outright.
+        result[section] = structuredClone(value) as never;
       } else {
-        Object.assign(result[section], layer[section]);
+        Object.assign(result[section], value);
       }
     }
+  }
+  return result;
+}
+
+/** Appends `incoming`, with a repeated name replacing the earlier theme in place. */
+function mergeThemes(
+  current: Config['themes'],
+  incoming: Config['themes']
+): Config['themes'] {
+  const result = [...current];
+  for (const theme of incoming ?? []) {
+    if (!theme?.name) continue;
+    const existing = result.findIndex((t) => t.name === theme.name);
+    if (existing === -1) result.push(theme);
+    else result[existing] = theme;
   }
   return result;
 }

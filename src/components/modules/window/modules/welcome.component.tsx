@@ -4,16 +4,22 @@ import Button from '~/components/ui/button';
 import { WindowType } from '~/lib/window';
 import { useKeyboard } from '@opentui/react';
 import AsciiAnimation, {
-  CAT_ANIMATION,
-  FRODON_LOGO_ANIMATION,
-  SPINNING_GLOBE_ANIMATION,
+  catAnimation,
+  frodonLogoAnimation,
 } from '~/components/ui/ascii-animation';
 import { TextAttributes } from '@opentui/core';
-import { theme } from '~/lib/theme';
+import { useTheme } from '~/lib/theme';
+import { useMemo } from 'react';
 
 export default function WindowWelcomePage(props: WindowModuleProps) {
   const { window, isFocused } = props;
   const { setWindowType } = useWindowManagerStore();
+  const { colors } = useTheme();
+
+  // Rebuilt only when the theme changes -- the cat's frames are assembled from
+  // a dozen string splices apiece, which isn't work for every render.
+  const cat = useMemo(() => catAnimation(colors), [colors]);
+  const logo = useMemo(() => frodonLogoAnimation(colors), [colors]);
 
   useKeyboard((key) => {
     if (!isFocused) return;
@@ -30,14 +36,14 @@ export default function WindowWelcomePage(props: WindowModuleProps) {
   return (
     <box
       flexGrow={1}
-      backgroundColor={theme.colors.neutral[900]}
+      backgroundColor={colors.appBg}
       alignItems="center"
       justifyContent="center"
       gap={2}
     >
-      <AsciiAnimation animation={CAT_ANIMATION} />
-      <AsciiAnimation animation={FRODON_LOGO_ANIMATION} />
-      <text attributes={TextAttributes.DIM}>
+      <AsciiAnimation animation={cat} />
+      <AsciiAnimation animation={logo} />
+      <text fg={colors.fgMuted} attributes={TextAttributes.DIM}>
         Open a code editor or a terminal to get started
       </text>
       <box flexDirection="row" gap={4} alignItems="center">

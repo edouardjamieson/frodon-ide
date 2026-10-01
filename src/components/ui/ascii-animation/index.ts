@@ -1,9 +1,9 @@
 export { default } from './ascii-animation.component';
 export { useAsciiAnimation } from './ascii-animation.hook';
 export {
-  FRODON_LOGO_ANIMATION,
-  SPINNING_GLOBE_ANIMATION,
-  CAT_ANIMATION,
+  frodonLogoAnimation,
+  spinningGlobeAnimation,
+  catAnimation,
 } from './ascii-animation.constant';
 export type {
   AsciiAnimation,

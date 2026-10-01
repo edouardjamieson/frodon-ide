@@ -1,15 +1,16 @@
-import type { ICONS } from './icon.constant';
+import type { IconName } from '~/lib/theme';
 
-export type IconName = keyof typeof ICONS;
+export type { IconName };
 
 export interface IconProps {
   name: IconName;
   /** Foreground color; omit to inherit the surrounding text color. */
   color?: string;
   /**
-   * Cells reserved for the glyph. A fixed slot keeps icon columns aligned and
-   * prevents a mis-measured glyph from reflowing neighboring text. Defaults to
-   * 2 (the single-cell glyph plus one trailing space before a label).
+   * Cells reserved for the glyph. Defaults to the width the glyph measures (1
+   * for the structural marks, 2 for emoji), which is what keeps a column of
+   * mixed-width icons aligned. Pass a value only to reserve more — spacing
+   * before a label is normally the parent row's `gap`.
    */
   width?: number;
   onMouseDown?: () => void;

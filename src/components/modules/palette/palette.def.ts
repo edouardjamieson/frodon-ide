@@ -1,3 +1,5 @@
+import type { IconName } from '~/lib/theme';
+
 export interface PaletteGroup {
   name: string;
   items: PaletteItem[];
@@ -7,7 +9,7 @@ export interface PaletteItem {
   id: string;
   type: 'MODULE' | 'ACTION';
 
-  icon?: string;
+  icon?: IconName;
   title?: string;
   description?: string;
   shortcut?: `ctrl+${string}`;

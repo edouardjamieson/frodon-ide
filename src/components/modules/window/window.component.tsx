@@ -6,7 +6,7 @@ import {
   useMoveWindow,
 } from '../../../lib/window/window.hook';
 import { WindowType, type Window } from '~/lib/window';
-import { theme } from '~/lib/theme';
+import { useTheme } from '~/lib/theme';
 import Tooltip from '~/components/ui/tooltip';
 import { TextAttributes } from '@opentui/core';
 import { useDialog } from '~/components/ui/dialog';
@@ -14,7 +14,6 @@ import { WindowWelcomePage, WindowEditor, WindowTerminal } from './modules';
 import ErrorBoundary from '~/components/ui/error-boundary';
 import { useShortcut } from '~/lib/utils';
 import { useEffect, useState } from 'react';
-import Logger from '~/lib/logger/logger.service';
 
 export default function WindowsManager() {
   const { windows } = useWindowManagerStore();
@@ -50,6 +49,7 @@ function Window({ window }: { window?: Window }) {
   const { spawn } = useSpawnWindow();
   const { moveWindow } = useMoveWindow(window);
   const { openDialog } = useDialog();
+  const { colors, icons } = useTheme();
   const { left, top, width, height } = getWindowLayout(window);
   const showWelcomePage = !window.type;
 
@@ -100,6 +100,8 @@ function Window({ window }: { window?: Window }) {
 
   if (!focusedWindow) return null;
 
+  // The focused window's outline is the app's main "you are here" signal, so it
+  // takes the accent while every other pane stays on the neutral border color.
   return (
     <box
       left={`${left}%`}
@@ -109,10 +111,13 @@ function Window({ window }: { window?: Window }) {
       position="absolute"
       onMouseDown={() => setFocusedWindowId(window.id)}
       border={getWindowBorders(window)}
-      borderColor={theme.colors.neutral[700]}
+      borderColor={isFocused ? colors.windowBorderFocused : colors.windowBorder}
     >
       <box flexShrink={0} paddingX={1} flexDirection="row" gap={2} zIndex={10}>
-        <text attributes={isFocused ? TextAttributes.BOLD : TextAttributes.DIM}>
+        <text
+          fg={isFocused ? colors.fg : colors.fgMuted}
+          attributes={isFocused ? TextAttributes.BOLD : TextAttributes.DIM}
+        >
           {windowName}
         </text>
         {isFocused && (
@@ -120,7 +125,7 @@ function Window({ window }: { window?: Window }) {
             {/* Split horizontal */}
             <Tooltip title="Split horizontal" align="bottom">
               <Button
-                text="]["
+                text={icons.splitHorizontal}
                 size="sm"
                 onClick={() => {
                   spawn(
@@ -133,7 +138,7 @@ function Window({ window }: { window?: Window }) {
             {/* Split vertical */}
             <Tooltip title="Split vertical" align="bottom">
               <Button
-                text="="
+                text={icons.splitVertical}
                 size="sm"
                 onClick={() => {
                   spawn(layout.length, 0);
@@ -143,7 +148,7 @@ function Window({ window }: { window?: Window }) {
             {/* Rename */}
             <Tooltip title="Rename window" align="bottom">
               <Button
-                text="✏️"
+                text={icons.rename}
                 size="sm"
                 onClick={() =>
                   openDialog({
@@ -160,7 +165,7 @@ function Window({ window }: { window?: Window }) {
             {/* Close */}
             <Tooltip title="Close window" align="bottom">
               <Button
-                text="❌"
+                text={icons.close}
                 size="sm"
                 onClick={() => {
                   openDialog({
@@ -184,7 +189,7 @@ function Window({ window }: { window?: Window }) {
                 >
                   <box position="relative" zIndex={10}>
                     <Button
-                      text={moveButtonsVisible ? '⛔️' : '⏺️'}
+                      text={moveButtonsVisible ? icons.cancel : icons.move}
                       size="sm"
                       onClick={() => setMoveButtonsVisible((prev) => !prev)}
                     />
@@ -195,12 +200,13 @@ function Window({ window }: { window?: Window }) {
                             <text
                               position="absolute"
                               right={'100%'}
+                              fg={colors.fgAccent}
                               onMouseDown={() => {
                                 moveWindow('left');
                                 setMoveButtonsVisible(false);
                               }}
                             >
-                              ◀️
+                              {icons.arrowLeft}
                             </text>
                           )}
                         {possibleMoveDirections.x !== null &&
@@ -208,12 +214,13 @@ function Window({ window }: { window?: Window }) {
                             <text
                               position="absolute"
                               left={'100%'}
+                              fg={colors.fgAccent}
                               onMouseDown={() => {
                                 moveWindow('right');
                                 setMoveButtonsVisible(false);
                               }}
                             >
-                              ▶️
+                              {icons.arrowRight}
                             </text>
                           )}
                         {possibleMoveDirections.y !== null &&
@@ -221,12 +228,13 @@ function Window({ window }: { window?: Window }) {
                             <text
                               position="absolute"
                               bottom={'100%'}
+                              fg={colors.fgAccent}
                               onMouseDown={() => {
                                 moveWindow('up');
                                 setMoveButtonsVisible(false);
                               }}
                             >
-                              🔼
+                              {icons.arrowUp}
                             </text>
                           )}
 
@@ -235,12 +243,13 @@ function Window({ window }: { window?: Window }) {
                             <text
                               position="absolute"
                               top={'100%'}
+                              fg={colors.fgAccent}
                               onMouseDown={() => {
                                 moveWindow('down');
                                 setMoveButtonsVisible(false);
                               }}
                             >
-                              🔽
+                              {icons.arrowDown}
                             </text>
                           )}
                       </>

@@ -125,7 +125,7 @@ export const usePaletteItems = () => {
           id: 'split-horizontal',
           title: 'New horizontal window',
           description: 'Split focused window horizontally',
-          icon: '][',
+          icon: 'splitHorizontal',
           shortcut: 'ctrl+shift+right',
           execute: () => {
             if (!focusedWindow) {
@@ -148,7 +148,7 @@ export const usePaletteItems = () => {
           title: 'New vertical window',
           description: 'Split focused window vertically',
           shortcut: 'ctrl+shift+down',
-          icon: '=',
+          icon: 'splitVertical',
           execute: () => {
             if (!focusedWindow) {
               spawn(coords.row, coords.col);
@@ -181,7 +181,7 @@ export const usePaletteItems = () => {
         {
           type: 'MODULE',
           id: 'open-file',
-          icon: '📄',
+          icon: 'document',
           title: 'Open a file',
           shortcut: 'ctrl+p',
           description: 'Open a file from your project in the focused window',
@@ -189,7 +189,7 @@ export const usePaletteItems = () => {
         {
           type: 'MODULE',
           id: 'search',
-          icon: '🔍',
+          icon: 'search',
           title: 'Search',
           shortcut: 'ctrl+shift+f',
           description:
@@ -207,7 +207,7 @@ export const usePaletteItems = () => {
           execute: () => {
             pull();
           },
-          icon: '⏬️',
+          icon: 'gitPull',
         },
         {
           id: 'git-push',
@@ -216,7 +216,7 @@ export const usePaletteItems = () => {
           execute: () => {
             push();
           },
-          icon: '⏫️',
+          icon: 'gitPush',
         },
         {
           id: 'git-change-branch',
@@ -225,13 +225,20 @@ export const usePaletteItems = () => {
           execute: () => {
             openBranchDialog();
           },
-          icon: '🪾',
+          icon: 'gitBranch',
         },
       ],
     },
     {
       name: 'Preferences',
       items: [
+        {
+          id: 'switch-theme',
+          type: 'MODULE',
+          icon: 'palette',
+          title: 'Switch theme',
+          description: 'Preview and pick a color theme',
+        },
         {
           id: 'toggle-explorer',
           shortcut: 'ctrl+b',

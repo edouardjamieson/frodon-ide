@@ -1,24 +1,31 @@
 import { TextAttributes } from '@opentui/core';
-import type { ReactNode } from 'react';
 import type { File } from '~/lib/fs/fs.def';
 import { useProject } from '~/lib/project';
-import { theme } from '~/lib/theme';
+import { useTheme, useScrollbarOptions, type IconName } from '~/lib/theme';
 import {
   useExplorer,
   useExplorerActions,
   useExplorerNode,
 } from './explorer.hook';
 import Tooltip from '~/components/ui/tooltip';
+import Icon, { resolveFileIcon } from '~/components/ui/icon';
 import { useSidebarStore } from '../sidebar/sidebar.store';
 
 export default function Explorer() {
   const { project } = useProject();
   const { maxDeepness } = useExplorer();
+  const scrollbarOptions = useScrollbarOptions();
 
   return (
     <box flexGrow={1}>
       <ExplorerToolbar />
-      <scrollbox scrollX scrollY focusable={false} flexGrow={1}>
+      <scrollbox
+        scrollX
+        scrollY
+        focusable={false}
+        flexGrow={1}
+        scrollbarOptions={scrollbarOptions}
+      >
         <box width={maxDeepness * 8}></box>
         {project?.files.map((f) => (
           <ExplorerNode key={f.path} file={f} level={0} />
@@ -34,51 +41,45 @@ function ExplorerToolbar() {
 
   return (
     <box flexDirection="row" gap={1} marginBottom={1}>
-      <ToolbarButton title="New file" onClick={newFile}>
-        +📄
-      </ToolbarButton>
-      <ToolbarButton title="New folder" onClick={newFolder}>
-        +📁
-      </ToolbarButton>
-      <ToolbarButton title="Rename" onClick={rename} disabled={!hasSelection}>
-        ✏️
-      </ToolbarButton>
-      <ToolbarButton title="Delete" onClick={remove} disabled={!hasSelection}>
-        🗑
-      </ToolbarButton>
+      <ToolbarButton title="New file" icon="newFile" onClick={newFile} />
+      <ToolbarButton title="New folder" icon="newFolder" onClick={newFolder} />
+      <ToolbarButton
+        title="Rename"
+        icon="rename"
+        onClick={rename}
+        disabled={!hasSelection}
+      />
+      <ToolbarButton
+        title="Delete"
+        icon="delete"
+        onClick={remove}
+        disabled={!hasSelection}
+      />
     </box>
   );
 }
 
 interface ToolbarButtonProps {
   title: string;
+  icon: IconName;
   onClick: () => void;
   disabled?: boolean;
-  children: ReactNode;
 }
 
-function ToolbarButton({
-  title,
-  onClick,
-  disabled,
-  children,
-}: ToolbarButtonProps) {
+function ToolbarButton({ title, icon, onClick, disabled }: ToolbarButtonProps) {
+  const { colors } = useTheme();
+
   return (
     <Tooltip title={title} align="bottom">
       <box
         paddingX={1}
-        backgroundColor={theme.colors.neutral[800]}
+        backgroundColor={colors.buttonBg}
         onMouseDown={(e) => {
           e.stopPropagation();
           if (!disabled) onClick();
         }}
       >
-        <text
-          attributes={disabled ? TextAttributes.DIM : undefined}
-          fg={disabled ? theme.colors.neutral[500] : undefined}
-        >
-          {children}
-        </text>
+        <Icon name={icon} color={disabled ? colors.fgSubtle : colors.fg} />
       </box>
     </Tooltip>
   );
@@ -88,32 +89,33 @@ function ExplorerNode({ file, level }: { file: File; level: number }) {
   const { isToggled, isSelected, onMouseDown, isFileOpened, gitStatus } =
     useExplorerNode(file);
   const { showIcons } = useSidebarStore();
+  const { colors, icons } = useTheme();
 
   const backgroundColor = isSelected
-    ? theme.colors.neutral[600]
+    ? colors.explorerRowSelectedBg
     : isFileOpened
-      ? theme.colors.neutral[700]
+      ? colors.explorerRowOpenBg
       : undefined;
 
   // Git status colors take precedence so a changed file stays visibly marked
   // even when open or selected.
   const gitColor =
     gitStatus === 'staged'
-      ? 'green'
+      ? colors.gitStagedFg
       : gitStatus === 'changed'
-        ? 'yellow'
+        ? colors.gitChangedFg
         : null;
   const fg =
     gitColor ??
     (isFileOpened || isToggled || isSelected
-      ? 'white'
-      : theme.colors.neutral[300]);
+      ? colors.explorerActiveFg
+      : colors.explorerFileFg);
 
   return (
     <box
       paddingLeft={level * 1}
       border={level === 0 ? false : ['left']}
-      borderColor={level === 0 ? undefined : theme.colors.neutral[700]}
+      borderColor={level === 0 ? undefined : colors.explorerIndentBorder}
       onMouseDown={(e) => {
         e.stopPropagation();
         onMouseDown();
@@ -123,9 +125,13 @@ function ExplorerNode({ file, level }: { file: File; level: number }) {
     >
       <box flexDirection="row" gap={1}>
         {file.isDir && (
-          <text attributes={TextAttributes.DIM}>{isToggled ? 'v' : '>'}</text>
+          <text fg={colors.fgSubtle} attributes={TextAttributes.DIM}>
+            {isToggled ? icons.chevronDown : icons.chevronRight}
+          </text>
         )}
-        {file.isDir && showIcons && <text>📁</text>}
+        {file.isDir && showIcons && (
+          <Icon name={resolveFileIcon(file, isToggled)} color={fg} />
+        )}
         <text
           wrapMode="none"
           attributes={isToggled ? TextAttributes.BOLD : undefined}
@@ -146,7 +152,7 @@ function ExplorerNode({ file, level }: { file: File; level: number }) {
           width={'100%'}
           left={0}
           top={0}
-          backgroundColor={theme.colors.neutral[800]}
+          backgroundColor={colors.explorerDirExpandedBg}
           zIndex={-1}
         />
       )}

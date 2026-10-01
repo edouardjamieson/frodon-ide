@@ -1,25 +1,20 @@
-import { InputRenderable, RGBA, TextAttributes } from '@opentui/core';
-import { theme } from '~/lib/theme';
-import type { PaletteItem, PaletteModuleProps } from './palette.def';
+import { InputRenderable } from '@opentui/core';
+import { useTheme } from '~/lib/theme';
 import { usePaletteStore } from './palette.store';
 import { usePalette } from './palette.hook';
 import { useKeyboard } from '@opentui/react';
 import { useEffect, useMemo, useRef } from 'react';
-import { useProject } from '~/lib/project';
-import type { File } from '~/lib/fs/fs.def';
-import { useUpDownActions } from '~/lib/utils';
-import { useWindowManagerStore } from '~/lib/window/window.store';
-import { WindowType } from '~/lib/window';
-import Logger from '~/lib/logger/logger.service';
 import {
   PaletteModuleHome,
   PaletteModuleOpenFile,
   PaletteModuleSearch,
+  PaletteModuleTheme,
 } from './modules';
 
 export default function CommandPalette() {
   const { open, close } = usePaletteStore();
   const { activeItem } = usePalette();
+  const { colors } = useTheme();
   const searchRef = useRef<InputRenderable>(null);
 
   useKeyboard((key) => {
@@ -42,6 +37,8 @@ export default function CommandPalette() {
         return <PaletteModuleOpenFile />;
       case 'search':
         return <PaletteModuleSearch />;
+      case 'switch-theme':
+        return <PaletteModuleTheme />;
       default:
         break;
     }
@@ -64,7 +61,7 @@ export default function CommandPalette() {
       <box
         width={'100%'}
         height={'100%'}
-        backgroundColor={RGBA.fromValues(0, 0, 0, 0.5)}
+        backgroundColor={colors.scrim}
         position="absolute"
         top={0}
         left={0}
@@ -73,9 +70,9 @@ export default function CommandPalette() {
 
       {/* Body */}
       <box
-        backgroundColor={theme.colors.neutral[900]}
+        backgroundColor={colors.overlayBg}
         border
-        borderColor={theme.colors.neutral[700]}
+        borderColor={colors.border}
         width={100}
       >
         {ActiveModule}

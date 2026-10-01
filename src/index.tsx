@@ -1,22 +1,26 @@
 import { createCliRenderer, TextAttributes } from '@opentui/core';
-import { createRoot } from '@opentui/react';
+import { createRoot, useRenderer } from '@opentui/react';
 import { TooltipManager } from './components/ui/tooltip/tooltip.component';
 import Dialogs from './components/ui/dialog';
 import CommandPalette from './components/modules/palette';
 import { useProject } from './lib/project';
-import { useConfig } from './lib/config';
-import { useEffect } from 'react';
+import { loadConfig as readConfigLayers, useConfig } from './lib/config';
+import { useEffect, useMemo } from 'react';
 import { useGitSync } from './lib/git';
 import Loader from './components/ui/loader';
 import AsciiAnimation, {
-  FRODON_LOGO_ANIMATION,
+  frodonLogoAnimation,
 } from './components/ui/ascii-animation';
-import { theme } from './lib/theme';
+import {
+  collectThemes,
+  resolveTheme,
+  useTheme,
+  useThemeStore,
+} from './lib/theme';
 import Sidebar from './components/modules/sidebar';
 import WindowsManager from './components/modules/window';
 import GitStatusBar from './components/modules/git-bar';
 import GitBranchDialog from './components/modules/git-branch-dialog';
-import Logger from './lib/logger/logger.service';
 import ErrorBoundary from './components/ui/error-boundary';
 import { installCrashHandlers } from './lib/crash';
 
@@ -28,7 +32,19 @@ function App() {
     loaded,
     applyDefaultsToStores,
   } = useConfig();
+  const { colors } = useTheme();
+  const renderer = useRenderer();
   useGitSync();
+
+  const logo = useMemo(() => frodonLogoAnimation(colors), [colors]);
+
+  // The renderer paints its own background wherever no renderable covers the
+  // screen -- the gaps around the window grid, most visibly. It isn't part of
+  // the React tree, so switching themes has to tell it directly or those gaps
+  // keep the previous theme's color.
+  useEffect(() => {
+    renderer.setBackgroundColor(colors.appBg);
+  }, [renderer, colors.appBg]);
 
   // Config resolves first: the project scan filters on `files.exclude`, so
   // reading it afterwards would mean walking `node_modules` anyway. The config
@@ -50,13 +66,15 @@ function App() {
         alignItems="center"
         justifyContent="center"
         flexGrow={1}
-        backgroundColor={'#000'}
+        backgroundColor={colors.appBg}
       >
         <box justifyContent="center" alignItems="center" gap={1}>
-          <AsciiAnimation animation={FRODON_LOGO_ANIMATION} />
+          <AsciiAnimation animation={logo} />
           <box flexDirection="row" alignItems="center" gap={2}>
             <Loader />
-            <text attributes={TextAttributes.DIM}>Opening project</text>
+            <text fg={colors.fgMuted} attributes={TextAttributes.DIM}>
+              Opening project
+            </text>
           </box>
         </box>
       </box>
@@ -66,11 +84,7 @@ function App() {
     return (
       <>
         <box flexGrow={1}>
-          <box
-            flexGrow={1}
-            flexDirection="row"
-            backgroundColor={theme.colors.neutral[900]}
-          >
+          <box flexGrow={1} flexDirection="row" backgroundColor={colors.appBg}>
             <Sidebar />
             <WindowsManager />
           </box>
@@ -87,11 +101,28 @@ function App() {
   return null;
 }
 
+// Resolve the theme before the first frame rather than in a React effect.
+// `createCliRenderer` paints its background the moment it's created, and the
+// config layers are three small synchronous reads away -- without this, anyone
+// not on the default theme watches the default's background for the handful of
+// frames it takes the project to load. `App` re-applies the same values once
+// config has been read through the usual path; that pass is a no-op.
+const startupConfig = readConfigLayers(process.cwd());
+const startupThemes = collectThemes(startupConfig.themes);
+const startupTheme = resolveTheme(
+  startupConfig.preferences.theme,
+  startupThemes
+);
+useThemeStore.setState({ theme: startupTheme, available: startupThemes });
+
 // Ctrl+C must reach the focused embedded terminal (forwarded to the PTY as
 // \x03 → SIGINT to the running command), not tear down the whole TUI. The
 // renderer's default exitOnCtrlC intercepts the key before any renderable sees
 // it, so disable it and quit the app through another binding instead.
-const renderer = await createCliRenderer({ exitOnCtrlC: false });
+const renderer = await createCliRenderer({
+  exitOnCtrlC: false,
+  backgroundColor: startupTheme.colors.appBg,
+});
 
 // Must follow renderer creation: that's when OpenTUI attaches the
 // log-and-keep-going error listeners this replaces.

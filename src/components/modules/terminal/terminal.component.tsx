@@ -1,6 +1,6 @@
 import { EmbeddedTerminalRenderable, TextAttributes } from '@opentui/core';
-import { extend, useKeyboard } from '@opentui/react';
-import { theme } from '~/lib/theme';
+import { extend } from '@opentui/react';
+import { useTheme } from '~/lib/theme';
 import { useTerminal } from './terminal.hook';
 import type { TerminalProps } from './terminal.def';
 import { usePaletteStore } from '../palette/palette.store';
@@ -20,6 +20,7 @@ export default function Terminal({
   );
 
   const { open: paletteOpen } = usePaletteStore();
+  const { colors } = useTheme();
 
   // useKeyboard((e) => {
   //   if (e.ctrl && e.name === 'c') {
@@ -32,7 +33,7 @@ export default function Terminal({
     <box
       flexGrow={1}
       flexDirection="column"
-      backgroundColor={theme.colors.neutral[900]}
+      backgroundColor={colors.terminalBg}
       visible={active}
     >
       <embeddedTerminal
@@ -45,7 +46,7 @@ export default function Terminal({
       />
       {exited && (
         <box flexShrink={0} paddingX={1}>
-          <text attributes={TextAttributes.DIM}>
+          <text fg={colors.fgMuted} attributes={TextAttributes.DIM}>
             Session ended — close this window to dismiss.
           </text>
         </box>

@@ -128,13 +128,38 @@ Project settings beat personal ones so a team can pin shared behaviour in git;
   "preferences": {
     "displayToolbar": true,
     "displayIcons": true,
-    "expandedGitbar": true
+    "expandedGitbar": true,
+    "theme": "frodon-dark"
   }
 }
 ```
 
 Full reference: [docs/config.md](docs/config.md) ·
-Actions: [docs/actions.md](docs/actions.md)
+Actions: [docs/actions.md](docs/actions.md) ·
+Themes: [docs/themes.md](docs/themes.md)
+
+### Themes
+
+Three ship with it — `frodon-dark`, `frodon-light` and `nocturne`. Switch from
+the command palette (`Ctrl+K` → **Switch theme**); arrowing through the list
+recolors the UI live, `Enter` keeps it.
+
+Your own is a few lines, because a theme inherits everything it doesn't name:
+
+```jsonc
+{
+  "preferences": { "theme": "mine" },
+  "themes": [
+    { "name": "mine", "extends": "nocturne",
+      "colors": { "palette": { "accent": "#ffb000" } } }
+  ]
+}
+```
+
+A theme carries colors (a 17-color palette, 48 overridable surface roles, ten
+syntax groups) and the UI's glyphs. Glyphs are emoji by default, and may be any
+one- or two-cell character — Nerd Font glyphs included. See
+[docs/themes.md](docs/themes.md).
 
 ## Development
 
@@ -212,6 +237,7 @@ Built:
 - Command palette, fuzzy open-file, project-wide search
 - Git status bar with pull, push, branch switch and create
 - Layered config, and actions bound to save/create/rename/delete
+- Themes: three built-in, user-defined ones in config, live switching
 - Crash handling that restores the terminal instead of stranding it
 
 Not built yet:
@@ -221,7 +247,6 @@ Not built yet:
 - The `change` action event
 - A results panel for action output (runs are recorded, nothing renders them)
 - Saved window layouts (`windowLayouts` is in the config schema but unread)
-- Themes
 
 ## License
 

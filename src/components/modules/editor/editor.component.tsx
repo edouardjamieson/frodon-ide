@@ -6,7 +6,7 @@ import {
   type MouseEvent,
   type ScrollBoxRenderable,
 } from '@opentui/core';
-import { theme } from '~/lib/theme';
+import { useScrollbarOptions, useTheme } from '~/lib/theme';
 import type {
   EditorProps,
   HighlightSegment,
@@ -33,6 +33,9 @@ export default function Editor(props: EditorProps) {
     matchCount,
     activeMatchIndex,
   } = useEditor(props);
+
+  const { colors } = useTheme();
+  const scrollbarOptions = useScrollbarOptions();
 
   const scrollRef = useRef<ScrollBoxRenderable>(null);
   const searchInputRef = useRef<InputRenderable>(null);
@@ -94,14 +97,26 @@ export default function Editor(props: EditorProps) {
 
   if (!hasFile) {
     return (
-      <box flexGrow={1} alignItems="center" justifyContent="center">
-        <text attributes={TextAttributes.DIM}>No file open</text>
+      <box
+        flexGrow={1}
+        alignItems="center"
+        justifyContent="center"
+        backgroundColor={colors.editorBg}
+      >
+        <text fg={colors.fgMuted} attributes={TextAttributes.DIM}>
+          No file open
+        </text>
       </box>
     );
   }
 
   return (
-    <box flexGrow={1} flexDirection="column" position="relative">
+    <box
+      flexGrow={1}
+      flexDirection="column"
+      position="relative"
+      backgroundColor={colors.editorBg}
+    >
       {/*
         `focusable={false}` stops the scrollbox from capturing the arrow keys
         (its built-in key handler scrolls on up/down); navigation is driven by
@@ -113,6 +128,7 @@ export default function Editor(props: EditorProps) {
         scrollX
         scrollY
         scrollAcceleration={scrollAccel.current}
+        scrollbarOptions={scrollbarOptions}
         flexGrow={1}
         paddingLeft={1}
       >
@@ -162,6 +178,8 @@ function EditorSearchBox({
   matchCount,
   activeIndex,
 }: EditorSearchBoxProps) {
+  const { colors, icons } = useTheme();
+
   const count = value
     ? matchCount === 0
       ? 'No results'
@@ -178,24 +196,30 @@ function EditorSearchBox({
       alignItems="center"
       gap={1}
       paddingX={1}
-      backgroundColor={theme.colors.neutral[800]}
+      backgroundColor={colors.overlayElevatedBg}
       border
-      borderColor={theme.colors.neutral[700]}
+      borderColor={colors.border}
     >
-      <text attributes={TextAttributes.DIM}>🔍</text>
+      <text fg={colors.fgMuted}>{icons.search}</text>
       <input
         ref={inputRef}
         value={value}
         onInput={onInput}
         placeholder="Find"
         width={20}
-        backgroundColor={theme.colors.neutral[700]}
+        backgroundColor={colors.inputBg}
       />
       {count !== '' && (
-        <text attributes={TextAttributes.DIM}>{count}</text>
+        <text fg={colors.fgMuted} attributes={TextAttributes.DIM}>
+          {count}
+        </text>
       )}
-      <text attributes={TextAttributes.DIM} onMouseDown={onClose}>
-        ✕
+      <text
+        fg={colors.fgMuted}
+        attributes={TextAttributes.DIM}
+        onMouseDown={onClose}
+      >
+        {icons.dismiss}
       </text>
     </box>
   );
@@ -222,6 +246,7 @@ function EditorLine({
   showCursor,
   onMove,
 }: EditorLineProps) {
+  const { colors } = useTheme();
   const isCursorRow = cursor.row === row;
   const lineNumber = `${String(row + 1).padStart(gutterWidth - 1, ' ')} `;
 
@@ -247,7 +272,7 @@ function EditorLine({
 
   return (
     <box flexDirection="row" minHeight={1}>
-      <text fg={theme.colors.neutral[600]}>{lineNumber}</text>
+      <text fg={colors.editorLineNumber}>{lineNumber}</text>
 
       {/* Content layer with cursor / selection overlays positioned by column. */}
       <box
@@ -263,7 +288,7 @@ function EditorLine({
             top={0}
             width={Math.max(1, selection.end - selection.start)}
             height={1}
-            backgroundColor={theme.colors.neutral[700]}
+            backgroundColor={colors.editorSelectionBg}
             zIndex={-2}
           />
         )}
@@ -277,7 +302,9 @@ function EditorLine({
             width={Math.max(1, hl.end - hl.start)}
             height={1}
             backgroundColor={
-              hl.active ? theme.colors.lime.dark : theme.colors.lime.darker
+              hl.active
+                ? colors.editorSearchMatchActiveBg
+                : colors.editorSearchMatchBg
             }
             zIndex={-2}
           />
@@ -290,7 +317,7 @@ function EditorLine({
             top={0}
             width={1}
             height={1}
-            backgroundColor={theme.colors.lime.main}
+            backgroundColor={colors.editorCursorBg}
             zIndex={-1}
           />
         )}

@@ -4,16 +4,18 @@ import {
   CommandPaletteMenuItem,
   CommandPaletteSearch,
 } from './templates.component';
-import { usePalette, usePaletteItems } from '../palette.hook';
+import { usePaletteItems } from '../palette.hook';
 import { Fragment } from '@opentui/react/jsx-runtime';
 import { useAutoScroll, useUpDownActions } from '~/lib/utils';
 import { usePaletteStore } from '../palette.store';
 import { useMemo, useRef } from 'react';
 import type { ScrollBoxRenderable } from '@opentui/core';
+import { useTheme } from '~/lib/theme';
 
 export default function PaletteModuleHome() {
   const { search, setOpen } = usePaletteStore();
   const { items, executeAction } = usePaletteItems();
+  const { colors } = useTheme();
 
   const scrollBoxRef = useRef<ScrollBoxRenderable>(null);
 
@@ -50,14 +52,16 @@ export default function PaletteModuleHome() {
 
   return (
     <>
-      <CommandPaletteHeader title="Command palette" icon="💡" />
+      <CommandPaletteHeader title="Command palette" icon="commands" />
       <CommandPaletteSearch />
       <CommandPaletteBody ref={scrollBoxRef}>
         {filteredItems.map(({ items, name }, i) => {
           if (items.length === 0) return null;
           return (
             <Fragment key={i}>
-              <text marginBottom={1}>{name}</text>
+              <text fg={colors.fgMuted} marginBottom={1}>
+                {name}
+              </text>
               {items.map((item, j) => (
                 <CommandPaletteMenuItem
                   key={j}

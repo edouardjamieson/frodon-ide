@@ -1,22 +1,31 @@
-import { ICONS } from './icon.constant';
+import { glyphWidth, useIcons } from '~/lib/theme';
 import type { IconProps } from './icon.def';
 
 /**
- * Renders a Nerd Font glyph inside a fixed-width slot. The glyph occupies a
- * single terminal cell and inherits `color`, so icons stay aligned and on-theme
- * — the reliable alternative to emoji, whose width the layout engine and the
- * terminal often disagree on. Requires a Nerd Font in the user's terminal.
+ * Renders a themed glyph inside a slot sized to the glyph.
+ *
+ * Icons come from the active theme and may be one cell (the structural marks,
+ * Nerd Font glyphs) or two (emoji); the loader rejects anything else, so the
+ * measured width is always a number the layout can reserve. Reserving it is the
+ * point: a fixed box means a two-cell glyph can't push the label beside it, and
+ * a column of mixed-width icons still lines up.
+ *
+ * `color` is inherited by single-cell glyphs. Emoji carry their own color and
+ * ignore it — which is why the parts of the UI that have to dim with their row
+ * (tree arrows, bullets, the inline dismiss) don't default to emoji.
  */
-export default function Icon({
-  name,
-  color,
-  width = 2,
-  onMouseDown,
-}: IconProps) {
+export default function Icon({ name, color, width, onMouseDown }: IconProps) {
+  const icons = useIcons();
+  const glyph = icons[name];
+
   return (
-    <box width={width} flexShrink={0} onMouseDown={onMouseDown}>
+    <box
+      width={width ?? glyphWidth(glyph)}
+      flexShrink={0}
+      onMouseDown={onMouseDown}
+    >
       <text fg={color} wrapMode="none">
-        {ICONS[name]}
+        {glyph}
       </text>
     </box>
   );

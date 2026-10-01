@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { usePaletteStore } from '../palette/palette.store';
 import { useSidebarStore } from './sidebar.store';
-import { useShortcut } from '~/lib/utils';
+import type { IconName } from '~/lib/theme';
 
 export const useSidebar = () => {
   const SIDEBAR_CONTEXT_SWITCHER_WIDTH = 5;
@@ -25,9 +25,15 @@ export const useSidebar = () => {
     return w;
   }, [expanded, showToolbar]);
 
-  const contextSidebarItems = [
+  const contextSidebarItems: {
+    icon: IconName;
+    id: string;
+    name: string;
+    shortcut: string;
+    onClick: () => void;
+  }[] = [
     {
-      icon: '💡',
+      icon: 'commands',
       id: 'commands',
       name: 'Command palette',
       shortcut: 'CTRL + k',
@@ -36,7 +42,7 @@ export const useSidebar = () => {
       },
     },
     {
-      icon: '🔍',
+      icon: 'search',
       id: 'search',
       name: 'Search',
       shortcut: 'CTRL + f',
@@ -45,7 +51,7 @@ export const useSidebar = () => {
       },
     },
     {
-      icon: '📄',
+      icon: 'document',
       id: 'open-file',
       name: 'Open file',
       shortcut: 'CTRL + p',

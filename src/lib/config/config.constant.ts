@@ -1,6 +1,7 @@
 import os from 'node:os';
 import path from 'node:path';
 import type { Config } from './config.def';
+import { DEFAULT_THEME_NAME } from '../theme';
 
 /** Folder (under the project root) that holds project-scoped config. */
 export const PROJECT_CONFIG_DIR = '.frodon';
@@ -36,6 +37,8 @@ export const DEFAULT_CONFIG: Config = {
     displayIcons: true,
     displayToolbar: true,
     expandedGitbar: true,
+    theme: DEFAULT_THEME_NAME,
   },
+  themes: [],
   windowLayouts: [],
 };

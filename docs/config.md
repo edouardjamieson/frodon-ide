@@ -23,9 +23,12 @@ Layers merge **per section, key by key** — a layer only has to name what it
 changes. Arrays inside a section replace wholesale rather than concatenating, so
 a layer can shrink a list and not only grow it.
 
-`actions` is the one exception: it **accumulates** across layers, so a personal
-format-on-save and a team linter both fire instead of one masking the other. See
-[actions.md](actions.md).
+Two sections are exceptions and **accumulate** across layers instead, because
+masking is never what you want from them: `actions`, so a personal format-on-save
+and a team linter both fire (see [actions.md](actions.md)); and `themes`, so your
+personal themes stay selectable inside a project that ships its own (see
+[themes.md](themes.md)). A later layer reusing a theme's name replaces that one
+theme only.
 
 ## Reference
 
@@ -59,13 +62,18 @@ OS bookkeeping files (`.DS_Store`, `Thumbs.db`, …) are always hidden and are
   "preferences": {
     "displayToolbar": true,   // the explorer's new-file / rename / delete toolbar
     "displayIcons": true,     // file-type icons in the explorer
-    "expandedGitbar": true    // the git status bar's expanded form
+    "expandedGitbar": true,   // the git status bar's expanded form
+    "theme": "frodon-dark"    // a built-in, or anything named in `themes`
   }
 }
 ```
 
-These are also toggled live from the command palette. A palette toggle changes
-the running session; it isn't written back to disk.
+These are also set live from the command palette, which applies the change to
+the running session *and* writes it back to the user layer — so it sticks across
+restarts unless a project or local layer overrides it.
+
+An unknown `theme` falls back to `frodon-dark` and says so in `./test.log`
+rather than failing to start.
 
 ### `actions`
 
@@ -84,6 +92,31 @@ Shell commands bound to filesystem events. Full reference in
   ]
 }
 ```
+
+### `themes`
+
+```jsonc
+{
+  "themes": [
+    {
+      "name": "mine",
+      "extends": "nocturne",
+      "colors": { "palette": { "accent": "#ffb000" } }
+    }
+  ]
+}
+```
+
+Themes you add to the three built-ins, selectable by name from
+`preferences.theme`. Each is partial and inherits everything it doesn't name
+from the theme it `extends` (`frodon-dark` by default), so recoloring one thing
+is a four-line entry. Colors come in three layers — a 17-color palette, 48
+individually overridable surface roles, and ten syntax groups — and `icons`
+replaces any of the UI glyphs.
+
+Full reference: [themes.md](themes.md)
+
+Default: `[]`
 
 ### `windowLayouts`
 
@@ -118,11 +151,13 @@ window arrangements:
 | Read, merge, write layers     | `src/lib/config/config.service.ts`  |
 | `useConfig` + store hydration | `src/lib/config/config.hook.ts`     |
 | Exclusion matching            | `src/lib/ignore/ignore.service.ts`  |
+| Theme resolution              | `src/lib/theme/theme.service.ts`    |
 
 ## Status
 
-Built: the four layers, per-section merge, action accumulation, `files.exclude`
-(names and globs), `preferences`, and writing a patch back to a chosen scope.
+Built: the four layers, per-section merge, action and theme accumulation,
+`files.exclude` (names and globs), `preferences`, `themes`, and writing a patch
+back to a chosen scope.
 
-Not built yet: reloading config without a restart, a settings UI, `theme`, and
-reading `windowLayouts`.
+Not built yet: reloading config without a restart, a settings UI, and reading
+`windowLayouts`.

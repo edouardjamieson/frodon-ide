@@ -1,9 +1,8 @@
 import type { TooltipProps } from './tooltip.def';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useTooltipStore } from './tooltip.store';
 import { TextAttributes, type BoxRenderable } from '@opentui/core';
-import { theme } from '~/lib/theme';
-import Logger from '~/lib/logger/logger.service';
+import { useTheme } from '~/lib/theme';
 
 export default function Tooltip(props: TooltipProps) {
   const { title, children, align, shortcut, disabled } = props;
@@ -77,6 +76,7 @@ export default function Tooltip(props: TooltipProps) {
 
 export function TooltipManager() {
   const { tooltip } = useTooltipStore();
+  const { colors } = useTheme();
 
   if (!tooltip) return null;
   const { x, y, title, shortcut } = tooltip;
@@ -88,14 +88,18 @@ export function TooltipManager() {
       top={y}
       zIndex={10}
       focusable={false}
-      backgroundColor={theme.colors.neutral[900]}
+      backgroundColor={colors.tooltipBg}
       border
-      borderColor={theme.colors.neutral[700]}
+      borderColor={colors.tooltipBorder}
       flexDirection="row"
       gap={1}
     >
-      <text>{title}</text>
-      {shortcut && <text attributes={TextAttributes.DIM}>{shortcut}</text>}
+      <text fg={colors.fg}>{title}</text>
+      {shortcut && (
+        <text fg={colors.fgSubtle} attributes={TextAttributes.DIM}>
+          {shortcut}
+        </text>
+      )}
     </box>
   );
 }

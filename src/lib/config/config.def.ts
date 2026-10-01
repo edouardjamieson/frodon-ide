@@ -4,6 +4,7 @@
  * Every field is required here; each on-disk layer is a `PartialConfig`.
  */
 import type { Action } from '../actions/actions.def';
+import type { ThemeDefinition } from '../theme';
 
 export interface Config {
   files: {
@@ -32,7 +33,25 @@ export interface Config {
 
     // Git
     expandedGitbar: boolean;
+
+    /**
+     * Name of the active theme — a built-in or anything defined in `themes`.
+     * An unknown name falls back to the default rather than failing to start.
+     */
+    theme: string;
   };
+
+  /**
+   * Themes this project/user adds to the built-in set, selectable by name from
+   * `preferences.theme`.
+   *
+   * Like `actions`, these accumulate across layers rather than overriding, so
+   * personal themes stay available inside a project that defines its own; a
+   * later layer reusing a name replaces that one theme only. Each definition is
+   * partial and `extends` another theme (the default, unless it says otherwise)
+   * for everything it leaves out — recoloring one thing is a four-line entry.
+   */
+  themes: ThemeDefinition[];
   windowLayouts: {
     name: string;
     // [[ 0, 0 ], [ 1 ]]
@@ -40,12 +59,6 @@ export interface Config {
     // 2 rows, 1st with 2 cols, 2nd with 1 col
     layout: number[][];
   }[];
-
-  // TODO: Theme for later
-  // theme: {
-  //   /** Accent colour (hex) used for highlights and the logo. */
-  //   accent: string;
-  // };
 }
 
 /**

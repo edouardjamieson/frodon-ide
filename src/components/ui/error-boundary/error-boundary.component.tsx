@@ -1,7 +1,7 @@
 import { Component, type ErrorInfo } from 'react';
 import { useKeyboard, useRenderer } from '@opentui/react';
 import { TextAttributes } from '@opentui/core';
-import { theme } from '~/lib/theme';
+import { useTheme } from '~/lib/theme';
 import Logger from '~/lib/logger/logger.service';
 import { restoreTerminal } from '~/lib/crash';
 import type {
@@ -22,6 +22,7 @@ export function ErrorFallback({
   onRetry,
 }: ErrorFallbackProps) {
   const renderer = useRenderer();
+  const { colors } = useTheme();
 
   // Only the app-level boundary takes the keyboard. A window-level fallback
   // that grabbed bare `q`/`r` would swallow them from every other window's
@@ -46,28 +47,26 @@ export function ErrorFallback({
       padding={1}
       gap={1}
       border
-      borderColor={theme.colors.red.main}
-      backgroundColor={theme.colors.neutral[900]}
+      borderColor={colors.errorBorder}
+      backgroundColor={colors.appBg}
     >
-      <text fg={theme.colors.red.light} attributes={TextAttributes.BOLD}>
+      <text fg={colors.errorTitleFg} attributes={TextAttributes.BOLD}>
         {label ?? 'Something broke'}
       </text>
 
-      <text fg={theme.colors.neutral[200]}>
-        {error.message || String(error)}
-      </text>
+      <text fg={colors.fg}>{error.message || String(error)}</text>
 
       {frames.length > 0 && (
         <box>
           {frames.map((frame, i) => (
-            <text key={i} fg={theme.colors.neutral[500]}>
+            <text key={i} fg={colors.fgSubtle}>
               {frame}
             </text>
           ))}
         </box>
       )}
 
-      <text attributes={TextAttributes.DIM}>
+      <text fg={colors.fgMuted} attributes={TextAttributes.DIM}>
         {fatal
           ? 'r to retry  ·  q to quit  ·  full stack in ./test.log'
           : 'Ctrl+W to close this window  ·  full stack in ./test.log'}

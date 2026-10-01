@@ -16,45 +16,8 @@ import type {
   SearchMatch,
 } from './editor.def';
 import { usePaletteStore } from '../palette/palette.store';
-
-/** GitHub-dark inspired colors keyed by refractor token type. */
-export const TOKEN_COLORS: Record<string, string> = {
-  plain: '#E6EDF3',
-
-  comment: '#8B949E',
-  prolog: '#8B949E',
-  doctype: '#8B949E',
-  cdata: '#8B949E',
-
-  keyword: '#FF7B72',
-  operator: '#FF7B72',
-  'attr-name': '#FF7B72',
-
-  string: '#A5D6FF',
-  char: '#A5D6FF',
-  regex: '#A5D6FF',
-  'attr-value': '#A5D6FF',
-
-  number: '#79C0FF',
-  boolean: '#79C0FF',
-  constant: '#79C0FF',
-  property: '#79C0FF',
-
-  function: '#D2A8FF',
-  'function-variable': '#D2A8FF',
-  'variable-function': '#D2A8FF',
-
-  variable: '#E6EDF3',
-
-  class: '#FFA657',
-  'class-name': '#FFA657',
-  builtin: '#FFA657',
-  tag: '#7EE787',
-
-  punctuation: '#F0F6FC',
-};
-
-const DEFAULT_COLOR = TOKEN_COLORS.plain!;
+import { useTheme, type ThemeSyntax } from '~/lib/theme';
+import { SYNTAX_GROUP_BY_TOKEN } from './editor.constant';
 
 interface FlatToken {
   text: string;
@@ -84,13 +47,14 @@ function flatten(node: any, inherited = 'plain'): FlatToken[] {
  */
 export function highlightToLines(
   code: string,
-  language: string | null
+  language: string | null,
+  syntax: ThemeSyntax
 ): HighlightSegment[][] {
   const plainLines = (): HighlightSegment[][] =>
     code
       .split('\n')
       .map((line) =>
-        line.length ? [{ text: line, color: DEFAULT_COLOR }] : []
+        line.length ? [{ text: line, color: syntax.plain }] : []
       );
 
   if (language === null || !refractor.registered(language)) return plainLines();
@@ -105,7 +69,8 @@ export function highlightToLines(
 
   const lines: HighlightSegment[][] = [[]];
   for (const token of flat) {
-    const color = TOKEN_COLORS[token.type] ?? DEFAULT_COLOR;
+    const group = SYNTAX_GROUP_BY_TOKEN[token.type];
+    const color = group ? syntax[group] : syntax.plain;
     const parts = token.text.split('\n');
     parts.forEach((part, i) => {
       if (i > 0) lines.push([]);
@@ -358,6 +323,7 @@ function isInsertable(seq: string): boolean {
 const EMPTY_STATE: EditorState = { value: '', cursor: 0, selection: null };
 
 export const useEditor = (props: EditorProps) => {
+  const { syntax } = useTheme();
   const { filePath, focused = true, onDirtyChange } = props;
   const { open: paletteOpen } = usePaletteStore();
   const renderer = useRenderer();
@@ -512,7 +478,9 @@ export const useEditor = (props: EditorProps) => {
     try {
       disk = readFileSync(filePath, 'utf-8');
     } catch (error) {
-      Logger.log(`editor: reload after actions failed for ${filePath}: ${error}`);
+      Logger.log(
+        `editor: reload after actions failed for ${filePath}: ${error}`
+      );
       return;
     }
     if (disk === stateRef.current.value) return;
@@ -646,8 +614,9 @@ export const useEditor = (props: EditorProps) => {
   // Highlight only once the language is registered; until then render plain
   // text, then re-highlight when `languageReady` flips.
   const lines = useMemo(
-    () => highlightToLines(state.value, languageReady ? languageId : null),
-    [state.value, languageId, languageReady]
+    () =>
+      highlightToLines(state.value, languageReady ? languageId : null, syntax),
+    [state.value, languageId, languageReady, syntax]
   );
 
   const cursor = useMemo(

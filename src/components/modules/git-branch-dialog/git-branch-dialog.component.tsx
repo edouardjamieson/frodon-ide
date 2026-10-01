@@ -1,7 +1,7 @@
-import { RGBA, TextAttributes, type InputRenderable } from '@opentui/core';
+import { TextAttributes, type InputRenderable } from '@opentui/core';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useKeyboard } from '@opentui/react';
-import { theme } from '~/lib/theme';
+import { useScrollbarOptions, useTheme } from '~/lib/theme';
 import { useUpDownActions } from '~/lib/utils';
 import type { BranchEntry } from './git-branch-dialog.def';
 import { useGitBranchDialog } from './git-branch-dialog.hook';
@@ -20,6 +20,8 @@ export default function GitBranchDialog() {
 
   const [query, setQuery] = useState('');
   const searchRef = useRef<InputRenderable>(null);
+  const { colors, icons } = useTheme();
+  const scrollbarOptions = useScrollbarOptions();
 
   // Reset the filter each time the dialog opens and grab focus for typing.
   useEffect(() => {
@@ -78,7 +80,7 @@ export default function GitBranchDialog() {
       <box
         width={'100%'}
         height={'100%'}
-        backgroundColor={RGBA.fromValues(0, 0, 0, 0.5)}
+        backgroundColor={colors.scrim}
         position="absolute"
         top={0}
         left={0}
@@ -87,9 +89,9 @@ export default function GitBranchDialog() {
 
       {/* Body */}
       <box
-        backgroundColor={theme.colors.neutral[900]}
+        backgroundColor={colors.overlayBg}
         border
-        borderColor={theme.colors.neutral[700]}
+        borderColor={colors.border}
         width={80}
       >
         <box
@@ -97,47 +99,53 @@ export default function GitBranchDialog() {
           alignItems="center"
           justifyContent="center"
           border={['bottom']}
-          borderColor={theme.colors.neutral[700]}
+          borderColor={colors.border}
         >
-          <text>🪾 Switch branch</text>
+          <text fg={colors.fg}>{`${icons.gitBranch} Switch branch`}</text>
         </box>
 
         {hasChanges && (
           <box
             border={['bottom']}
-            borderColor={theme.colors.neutral[700]}
-            backgroundColor={theme.colors.neutral[800]}
+            borderColor={colors.border}
+            backgroundColor={colors.overlayElevatedBg}
             paddingX={2}
           >
-            <text fg="yellow">
-              ⚠ {changedCount} uncommitted{' '}
+            <text fg={colors.fgWarning}>
+              {icons.warning} {changedCount} uncommitted{' '}
               {changedCount === 1 ? 'change' : 'changes'} — commit or stash to
               switch branches.
             </text>
-            <text attributes={TextAttributes.DIM}>
+            <text fg={colors.fgMuted} attributes={TextAttributes.DIM}>
               You can still create a new branch to carry your changes over.
             </text>
           </box>
         )}
 
-        <box
-          border={['bottom']}
-          borderColor={theme.colors.neutral[700]}
-          paddingX={2}
-        >
+        <box border={['bottom']} borderColor={colors.border} paddingX={2}>
           <input
             ref={searchRef}
             value={query}
             onInput={(v) => setQuery(v)}
             placeholder="Filter or type a new branch name..."
-            backgroundColor={theme.colors.neutral[700]}
+            backgroundColor={colors.inputBg}
           />
         </box>
 
-        <scrollbox scrollY focusable={false} maxHeight={20} paddingX={1}>
+        <scrollbox
+          scrollY
+          focusable={false}
+          maxHeight={20}
+          paddingX={1}
+          scrollbarOptions={scrollbarOptions}
+        >
           <box gap={0} paddingY={1}>
             {entries.length === 0 && (
-              <text attributes={TextAttributes.DIM} paddingX={1}>
+              <text
+                fg={colors.fgMuted}
+                attributes={TextAttributes.DIM}
+                paddingX={1}
+              >
                 No branches
               </text>
             )}
@@ -180,6 +188,7 @@ function BranchRow({
   disabled: boolean;
   onClick: () => void;
 }) {
+  const { colors, icons } = useTheme();
   const dimmed = disabled ? { attributes: TextAttributes.DIM } : {};
 
   return (
@@ -189,21 +198,21 @@ function BranchRow({
       gap={1}
       paddingX={2}
       paddingY={0}
-      backgroundColor={selected ? theme.colors.neutral[700] : undefined}
+      backgroundColor={selected ? colors.menuItemSelectedBg : undefined}
       onMouseDown={disabled ? undefined : onClick}
     >
       {entry.type === 'create' ? (
         <>
-          <text fg={theme.colors.lime.main}>＋</text>
-          <text fg={theme.colors.lime.main}>Create branch </text>
-          <text fg={theme.colors.lime.main} attributes={TextAttributes.BOLD}>
+          <text fg={colors.fgAccent}>{icons.plus}</text>
+          <text fg={colors.fgAccent}>Create branch </text>
+          <text fg={colors.fgAccent} attributes={TextAttributes.BOLD}>
             {entry.branch}
           </text>
         </>
       ) : (
         <>
-          <text fg={isCurrent ? theme.colors.lime.main : undefined} {...dimmed}>
-            {isCurrent ? '●' : ' '}
+          <text fg={isCurrent ? colors.fgAccent : colors.fg} {...dimmed}>
+            {isCurrent ? icons.disc : ' '}
           </text>
           <text
             attributes={
@@ -213,12 +222,16 @@ function BranchRow({
                   ? TextAttributes.DIM
                   : undefined
             }
-            fg={isCurrent ? theme.colors.lime.main : undefined}
+            fg={isCurrent ? colors.fgAccent : colors.fg}
           >
             {entry.branch}
           </text>
-          {isCurrent && <text attributes={TextAttributes.DIM}>(current)</text>}
-          {disabled && <text attributes={TextAttributes.DIM}>🔒</text>}
+          {isCurrent && (
+            <text fg={colors.fgMuted} attributes={TextAttributes.DIM}>
+              (current)
+            </text>
+          )}
+          {disabled && <text fg={colors.fgSubtle}>{icons.blocked}</text>}
         </>
       )}
     </box>

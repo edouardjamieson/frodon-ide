@@ -1,21 +1,22 @@
 import { TextAttributes } from '@opentui/core';
-import React, { useMemo } from 'react';
+import React from 'react';
 import Button from '~/components/ui/button';
 import Tooltip from '~/components/ui/tooltip';
 import { useGit, useGitStore } from '~/lib/git';
 import { useGitBranchDialog } from '~/components/modules/git-branch-dialog';
-import { useProject, useProjectStore } from '~/lib/project';
-import { theme } from '~/lib/theme';
+import { useProject } from '~/lib/project';
+import { useTheme } from '~/lib/theme';
 
 export default function GitStatusBar() {
   const { inRepo } = useGitStore();
+  const { colors } = useTheme();
 
   if (!inRepo) return null;
 
   return (
     <box
       flexDirection="row"
-      backgroundColor={theme.colors.neutral[900]}
+      backgroundColor={colors.statusBarBg}
       paddingX={2}
       gap={1}
     >
@@ -30,17 +31,27 @@ export default function GitStatusBar() {
 function GitBarPrefix() {
   const { shortPath } = useProject();
   const { expanded } = useGitStore();
+  const { colors, icons } = useTheme();
 
   return (
     <box flexDirection="row" gap={1}>
-      {expanded && <text attributes={TextAttributes.DIM}>{shortPath}</text>}
-      <text attributes={TextAttributes.DIM}>{'>'}</text>
+      {expanded && (
+        <text fg={colors.fgMuted} attributes={TextAttributes.DIM}>
+          {shortPath}
+        </text>
+      )}
+      <text fg={colors.fgAccent}>{icons.terminal}</text>
     </box>
   );
 }
 
 function GitBarSeparator() {
-  return <text attributes={TextAttributes.DIM}>{'|'}</text>;
+  const { colors } = useTheme();
+  return (
+    <text fg={colors.fgSubtle} attributes={TextAttributes.DIM}>
+      {'|'}
+    </text>
+  );
 }
 
 function GitBarBranch() {
@@ -57,6 +68,7 @@ function GitBarBranch() {
 function GitBarPushPull() {
   const { ahead, behind } = useGitStore();
   const { pull, push } = useGit();
+  const { icons } = useTheme();
   if (ahead === 0 && behind === 0) return null;
 
   return (
@@ -68,7 +80,11 @@ function GitBarPushPull() {
             align="top"
             title={`Push ${ahead} ${ahead === 1 ? 'commit' : 'commits'}`}
           >
-            <Button text={`${ahead} ⬆️`} size="sm" onClick={() => push()} />
+            <Button
+              text={`${ahead} ${icons.gitPush}`}
+              size="sm"
+              onClick={() => push()}
+            />
           </Tooltip>
         )}
         {behind > 0 && (
@@ -76,7 +92,11 @@ function GitBarPushPull() {
             align="top"
             title={`Pull ${behind} ${behind === 1 ? 'commit' : 'commits'}`}
           >
-            <Button text={`${behind} ⬇️`} size="sm" onClick={() => pull()} />
+            <Button
+              text={`${behind} ${icons.gitPull}`}
+              size="sm"
+              onClick={() => pull()}
+            />
           </Tooltip>
         )}
       </box>
@@ -87,6 +107,7 @@ function GitBarPushPull() {
 function GitBarStaging() {
   const { stagedFiles, unstagedFiles, untrackedFiles, expanded } =
     useGitStore();
+  const { colors } = useTheme();
 
   const stagedFilesCount = stagedFiles.length;
   const unStagedUnTrackedFilesCount =
@@ -99,7 +120,7 @@ function GitBarStaging() {
       <GitBarSeparator />
       <box flexDirection="row" gap={1}>
         {stagedFilesCount > 0 && (
-          <text fg="green">
+          <text fg={colors.gitStagedFg}>
             {!expanded ? (
               stagedFilesCount
             ) : (
@@ -114,7 +135,7 @@ function GitBarStaging() {
           <GitBarSeparator />
         )}
         {unStagedUnTrackedFilesCount > 0 && (
-          <text fg="yellow">
+          <text fg={colors.gitChangedFg}>
             {!expanded ? (
               unStagedUnTrackedFilesCount
             ) : (

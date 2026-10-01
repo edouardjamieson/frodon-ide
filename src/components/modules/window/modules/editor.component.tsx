@@ -2,7 +2,7 @@ import { useWindowManagerStore } from '~/lib/window/window.store';
 import type { WindowModuleProps } from './modules.def';
 import { useEffect, useState } from 'react';
 import { useDialog } from '~/components/ui/dialog';
-import { theme } from '~/lib/theme';
+import { useTheme } from '~/lib/theme';
 import Tooltip from '~/components/ui/tooltip';
 import Editor from '../../editor';
 import { TextAttributes } from '@opentui/core';
@@ -25,6 +25,7 @@ export default function WindowEditor(props: WindowModuleProps) {
   const [activeFile, setActiveFile] = useState<string | null>(null);
 
   const { openDialog } = useDialog();
+  const { colors, icons } = useTheme();
 
   useEffect(() => {
     if (files.length > 0) {
@@ -76,11 +77,7 @@ export default function WindowEditor(props: WindowModuleProps) {
 
   return (
     <box flexGrow={1} flexDirection="column">
-      <box
-        flexDirection="row"
-        backgroundColor={theme.colors.neutral[900]}
-        flexShrink={0}
-      >
+      <box flexDirection="row" backgroundColor={colors.tabBarBg} flexShrink={0}>
         {files.map((file) => {
           const name = file.split('/').pop() ?? file;
           const isActive = file === activeFile;
@@ -91,21 +88,23 @@ export default function WindowEditor(props: WindowModuleProps) {
               flexDirection="row"
               paddingX={1}
               backgroundColor={
-                isActive ? theme.colors.neutral[700] : theme.colors.neutral[800]
+                isActive ? colors.tabActiveBg : colors.tabInactiveBg
               }
               onMouseDown={() => setActiveFile(file)}
               marginBottom={1}
             >
-              <text>{isDirty ? `${name} *` : name}</text>
+              <text fg={isActive ? colors.fg : colors.fgMuted}>
+                {isDirty ? `${name} ${icons.disc}` : name}
+              </text>
               <Tooltip title="Close file" shortcut="CTRL + w">
                 <text
-                  fg={theme.colors.neutral[600]}
+                  fg={colors.fgSubtle}
                   onMouseDown={(e) => {
                     e.stopPropagation();
                     requestCloseFile(file);
                   }}
                 >
-                  {'  ×'}
+                  {`  ${icons.dismiss}`}
                 </text>
               </Tooltip>
             </box>
@@ -115,10 +114,10 @@ export default function WindowEditor(props: WindowModuleProps) {
           <box
             paddingX={1}
             marginBottom={1}
-            backgroundColor={theme.colors.neutral[800]}
+            backgroundColor={colors.tabInactiveBg}
             onMouseDown={openFilePicker}
           >
-            <text>{'+'}</text>
+            <text fg={colors.fgMuted}>{icons.plus}</text>
           </box>
         </Tooltip>
       </box>
@@ -133,7 +132,7 @@ export default function WindowEditor(props: WindowModuleProps) {
         />
       ) : (
         <box flexGrow={1} alignItems="center" justifyContent="center">
-          <text attributes={TextAttributes.DIM}>
+          <text fg={colors.fgMuted} attributes={TextAttributes.DIM}>
             Select a file from the explorer to start editing
           </text>
         </box>

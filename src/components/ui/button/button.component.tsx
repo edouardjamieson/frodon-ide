@@ -1,12 +1,12 @@
-import { BoxRenderable, TextAttributes } from '@opentui/core';
-import { useState, type FC } from 'react';
-import { theme } from '~/lib/theme';
+import { TextAttributes } from '@opentui/core';
+import { useState } from 'react';
+import { useTheme } from '~/lib/theme';
 import type { ButtonProps } from './button.def';
-import type { BoxProps } from '@opentui/react';
 
 export default function Button(props: ButtonProps) {
   const { text, onClick, size = 'md', boxProps, color } = props;
 
+  const { colors } = useTheme();
   const [isHovered, setIsHovered] = useState(false);
 
   const getXPadding = () => {
@@ -30,15 +30,14 @@ export default function Button(props: ButtonProps) {
     }
   };
 
+  // `lime` is the accent variant -- it keeps its historical name in the props
+  // so call sites don't have to care that the color itself is now themed.
+  const isAccent = color === 'lime';
+
   const getBgColor = () => {
-    const _col = color || 'grey';
-    const defaultColor =
-      _col === 'lime' ? theme.colors.lime.main : theme.colors.neutral[800];
-
-    const hoverColor =
-      _col === 'lime' ? theme.colors.lime.darker : theme.colors.neutral[700];
-
-    return isHovered ? hoverColor : defaultColor;
+    if (isAccent)
+      return isHovered ? colors.buttonAccentHoverBg : colors.buttonAccentBg;
+    return isHovered ? colors.buttonHoverBg : colors.buttonBg;
   };
 
   return (
@@ -51,7 +50,12 @@ export default function Button(props: ButtonProps) {
       onMouseDown={onClick}
       {...boxProps}
     >
-      <text attributes={TextAttributes.BOLD}>{text}</text>
+      <text
+        fg={isAccent ? colors.buttonAccentFg : colors.buttonFg}
+        attributes={TextAttributes.BOLD}
+      >
+        {text}
+      </text>
     </box>
   );
 }

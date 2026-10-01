@@ -1,35 +1,44 @@
-import { theme } from '~/lib/theme';
+import type { ThemeRoles } from '~/lib/theme';
 import type { AsciiAnimation, AsciiFrame } from './ascii-animation.def';
+
+/*
+ * These are factories rather than constants because an animation carries
+ * colors, and colors now come from the active theme. Call them through a
+ * `useMemo` keyed on the theme so switching themes recolors the art without
+ * rebuilding the (sometimes expensive) frames on every render.
+ */
 
 /**
  * The "Frodon" logo intro: a typewriter reveal (with a trailing `_` cursor)
- * that powers up from a dim neutral into the lime brand color once complete.
+ * that powers up from a dim neutral into the accent color once complete.
  */
-export const FRODON_LOGO_ANIMATION: AsciiAnimation = {
-  font: 'tiny',
-  color: theme.colors.neutral[500],
-  frameDuration: 150,
-  loop: true,
-  frames: [
-    { text: '_' },
-    { text: 'F_' },
-    { text: 'Fr_' },
-    { text: 'Fro_' },
-    { text: 'Frod_' },
-    { text: 'Frodo_' },
-    { text: 'Frodon' },
-    { text: 'Frodon', color: theme.colors.neutral[600], duration: 120 },
-    { text: 'Frodon', color: theme.colors.neutral[700], duration: 120 },
-    { text: 'Frodon', color: 'white', duration: 2000 },
-    { text: 'Frodon' },
-    { text: 'Frodo_' },
-    { text: 'Frod_' },
-    { text: 'Fro_' },
-    { text: 'Fr_' },
-    { text: 'F_' },
-    { text: '_' },
-  ],
-};
+export function frodonLogoAnimation(colors: ThemeRoles): AsciiAnimation {
+  return {
+    font: 'tiny',
+    color: colors.fgSubtle,
+    frameDuration: 150,
+    loop: true,
+    frames: [
+      { text: '_' },
+      { text: 'F_' },
+      { text: 'Fr_' },
+      { text: 'Fro_' },
+      { text: 'Frod_' },
+      { text: 'Frodo_' },
+      { text: 'Frodon' },
+      { text: 'Frodon', color: colors.fgMuted, duration: 120 },
+      { text: 'Frodon', color: colors.fg, duration: 120 },
+      { text: 'Frodon', color: colors.fgAccent, duration: 2000 },
+      { text: 'Frodon' },
+      { text: 'Frodo_' },
+      { text: 'Frod_' },
+      { text: 'Fro_' },
+      { text: 'Fr_' },
+      { text: 'F_' },
+      { text: '_' },
+    ],
+  };
+}
 
 /* --- Spinning globe -------------------------------------------------------- */
 
@@ -55,15 +64,15 @@ const GLOBE_CONTINENTS: {
   wlon: number;
   wlat: number;
 }[] = [
-    { lon: -100, lat: 45, wlon: 32, wlat: 26 }, // North America
-    { lon: -42, lat: 72, wlon: 16, wlat: 10 }, // Greenland
-    { lon: -60, lat: -20, wlon: 17, wlat: 34 }, // South America
-    { lon: 18, lat: 6, wlon: 24, wlat: 34 }, // Africa
-    { lon: 12, lat: 52, wlon: 26, wlat: 12 }, // Europe
-    { lon: 90, lat: 48, wlon: 55, wlat: 26 }, // Asia
-    { lon: 80, lat: 22, wlon: 12, wlat: 16 }, // India
-    { lon: 135, lat: -25, wlon: 19, wlat: 13 }, // Australia
-  ];
+  { lon: -100, lat: 45, wlon: 32, wlat: 26 }, // North America
+  { lon: -42, lat: 72, wlon: 16, wlat: 10 }, // Greenland
+  { lon: -60, lat: -20, wlon: 17, wlat: 34 }, // South America
+  { lon: 18, lat: 6, wlon: 24, wlat: 34 }, // Africa
+  { lon: 12, lat: 52, wlon: 26, wlat: 12 }, // Europe
+  { lon: 90, lat: 48, wlon: 55, wlat: 26 }, // Asia
+  { lon: 80, lat: 22, wlon: 12, wlat: 16 }, // India
+  { lon: 135, lat: -25, wlon: 19, wlat: 13 }, // Australia
+];
 
 /** Picks an outline glyph for a border cell from its angle around the center. */
 function globeBorderChar(angle: number): string {
@@ -137,14 +146,16 @@ const GLOBE_FRAMES: AsciiFrame[] = Array.from(
  * that sweep across the visible hemisphere and around the limb as the sphere
  * spins. Built by back-projecting each cell onto the sphere. Text-mode art.
  */
-export const SPINNING_GLOBE_ANIMATION: AsciiAnimation = {
-  render: 'text',
-  font: 'tiny', // unused in text mode; satisfies the shared type
-  color: theme.colors.lime.light,
-  frameDuration: 90,
-  loop: true,
-  frames: GLOBE_FRAMES,
-};
+export function spinningGlobeAnimation(colors: ThemeRoles): AsciiAnimation {
+  return {
+    render: 'text',
+    font: 'tiny', // unused in text mode; satisfies the shared type
+    color: colors.fgAccent,
+    frameDuration: 90,
+    loop: true,
+    frames: GLOBE_FRAMES,
+  };
+}
 
 /* --- Cat ------------------------------------------------------------------ */
 
@@ -250,35 +261,39 @@ function catPose(
  * wink before settling back down. Text-mode art — one long loop rather than a
  * short cycle, so the motion stays unpredictable enough to feel alive.
  */
-export const CAT_ANIMATION: AsciiAnimation = {
-  render: 'text',
-  font: 'tiny', // unused in text mode; satisfies the shared type
-  color: theme.colors.neutral[600],
-  frameDuration: 200,
-  loop: true,
-  frames: [
-    catPose('open', 'rest', 'curl', 1800),
-    // Double blink.
-    catPose('shut', 'rest', 'curl', 110),
-    catPose('open', 'rest', 'curl', 150),
-    catPose('shut', 'rest', 'curl', 110),
-    catPose('open', 'rest', 'curl', 900),
-    // Tail swish.
-    catPose('open', 'rest', 'wide', 320),
-    catPose('open', 'rest', 'tight', 320),
-    catPose('open', 'rest', 'curl', 700),
-    // Yawn.
-    catPose('half', 'ajar', 'curl', 160),
-    catPose('squint', 'yawn', 'curl', 750),
-    catPose('half', 'ajar', 'curl', 160),
-    catPose('shut', 'rest', 'curl', 200),
-    catPose('open', 'rest', 'curl', 1400),
-    // Wink.
-    catPose('wink', 'rest', 'curl', 520),
-    catPose('open', 'rest', 'curl', 800),
-    // Settling swish.
-    catPose('open', 'rest', 'tight', 300),
-    catPose('open', 'rest', 'wide', 300),
-    catPose('open', 'rest', 'curl', 1200),
-  ],
-};
+export function catAnimation(colors: ThemeRoles): AsciiAnimation {
+  return {
+    render: 'text',
+    font: 'tiny', // unused in text mode; satisfies the shared type
+    color: colors.fgSubtle,
+    frameDuration: 200,
+    loop: true,
+    frames: CAT_FRAMES,
+  };
+}
+
+const CAT_FRAMES: AsciiFrame[] = [
+  catPose('open', 'rest', 'curl', 1800),
+  // Double blink.
+  catPose('shut', 'rest', 'curl', 110),
+  catPose('open', 'rest', 'curl', 150),
+  catPose('shut', 'rest', 'curl', 110),
+  catPose('open', 'rest', 'curl', 900),
+  // Tail swish.
+  catPose('open', 'rest', 'wide', 320),
+  catPose('open', 'rest', 'tight', 320),
+  catPose('open', 'rest', 'curl', 700),
+  // Yawn.
+  catPose('half', 'ajar', 'curl', 160),
+  catPose('squint', 'yawn', 'curl', 750),
+  catPose('half', 'ajar', 'curl', 160),
+  catPose('shut', 'rest', 'curl', 200),
+  catPose('open', 'rest', 'curl', 1400),
+  // Wink.
+  catPose('wink', 'rest', 'curl', 520),
+  catPose('open', 'rest', 'curl', 800),
+  // Settling swish.
+  catPose('open', 'rest', 'tight', 300),
+  catPose('open', 'rest', 'wide', 300),
+  catPose('open', 'rest', 'curl', 1200),
+];

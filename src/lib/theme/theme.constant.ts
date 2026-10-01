@@ -119,7 +119,7 @@ export const DEFAULT_ICONS: ThemeIcons = {
   // Status / actions
   check: '✅',
   close: '❌',
-  dismiss: '❌',
+  dismiss: 'x',
   cancel: '⛔',
   cross: '❌',
   warning: '⚠️',

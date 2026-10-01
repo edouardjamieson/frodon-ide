@@ -126,7 +126,7 @@ function ExplorerNode({ file, level }: { file: File; level: number }) {
       <box flexDirection="row" gap={1}>
         {file.isDir && (
           <text fg={colors.fgSubtle} attributes={TextAttributes.DIM}>
-            {isToggled ? icons.chevronDown : icons.chevronRight}
+            {isToggled ? "v" : ">"}
           </text>
         )}
         {file.isDir && showIcons && (

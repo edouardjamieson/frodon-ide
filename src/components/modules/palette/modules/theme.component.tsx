@@ -45,6 +45,7 @@ export default function PaletteModuleTheme() {
       update(ConfigScope.USER, { preferences: { theme: theme.name } });
       close();
     },
+    startIndex: currentIndex,
   });
 
   const selected = index ?? currentIndex;

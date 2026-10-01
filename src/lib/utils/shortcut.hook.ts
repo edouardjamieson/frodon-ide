@@ -1,7 +1,6 @@
 import { useKeyboard } from '@opentui/react';
-import { useEffect, useRef, useState, type Ref } from 'react';
-import Logger from '../logger/logger.service';
-import type { BoxRenderable, ScrollBoxRenderable } from '@opentui/core';
+import { useEffect, useState } from 'react';
+import type { ScrollBoxRenderable } from '@opentui/core';
 
 export const useShortcut = (shortcut: `ctrl+${string}`, cb: () => void) => {
   const triggerKey = shortcut.split('+')[1];
@@ -15,11 +14,13 @@ export const useShortcut = (shortcut: `ctrl+${string}`, cb: () => void) => {
 export const useUpDownActions = ({
   maxIndex,
   onEnter,
+  startIndex,
 }: {
   onEnter?: (index: number) => void;
   maxIndex?: number;
+  startIndex?: number;
 }) => {
-  const [index, setIndex] = useState<number | null>(null);
+  const [index, setIndex] = useState<number | null>(startIndex ?? null);
 
   useKeyboard((key) => {
     if (key.name === 'down') {

@@ -114,7 +114,7 @@ export const usePaletteItems = () => {
           type: 'ACTION',
           id: 'new-window',
           title: 'New window',
-          description: 'Create a new window',
+          description: 'Open an empty window in the first free slot',
           shortcut: 'ctrl+shift+n',
           execute: () => {
             spawn(coords.row, coords.col);
@@ -123,8 +123,8 @@ export const usePaletteItems = () => {
         {
           type: 'ACTION',
           id: 'split-horizontal',
-          title: 'New horizontal window',
-          description: 'Split focused window horizontally',
+          title: 'Split right',
+          description: 'Open a new window beside the focused one',
           icon: 'splitHorizontal',
           shortcut: 'ctrl+shift+right',
           execute: () => {
@@ -145,8 +145,8 @@ export const usePaletteItems = () => {
         {
           type: 'ACTION',
           id: 'split-vertical',
-          title: 'New vertical window',
-          description: 'Split focused window vertically',
+          title: 'Split down',
+          description: 'Open a new window below the focused one',
           shortcut: 'ctrl+shift+down',
           icon: 'splitVertical',
           execute: () => {
@@ -165,7 +165,7 @@ export const usePaletteItems = () => {
           type: 'ACTION',
           id: 'close-all-windows',
           title: 'Close all windows',
-          description: 'Close all windows',
+          description: 'Close every editor and terminal at once',
           shortcut: 'ctrl+shift+x',
           execute: () => {
             windows.forEach((window) => {
@@ -182,18 +182,17 @@ export const usePaletteItems = () => {
           type: 'MODULE',
           id: 'open-file',
           icon: 'document',
-          title: 'Open a file',
+          title: 'Open file',
           shortcut: 'ctrl+p',
-          description: 'Open a file from your project in the focused window',
+          description: 'Pick a project file and open it in the focused window',
         },
         {
           type: 'MODULE',
           id: 'search',
           icon: 'search',
-          title: 'Search',
+          title: 'Search in files',
           shortcut: 'ctrl+shift+f',
-          description:
-            'Search through files and directories for a string or pattern',
+          description: 'Find a string or pattern across the project',
         },
       ],
     },
@@ -203,7 +202,8 @@ export const usePaletteItems = () => {
         {
           id: 'git-pull',
           type: 'ACTION',
-          title: 'Git pull',
+          title: 'Pull',
+          description: 'Fetch and merge commits from the remote branch',
           execute: () => {
             pull();
           },
@@ -212,7 +212,8 @@ export const usePaletteItems = () => {
         {
           id: 'git-push',
           type: 'ACTION',
-          title: 'Git push',
+          title: 'Push',
+          description: 'Send local commits to the remote branch',
           execute: () => {
             push();
           },
@@ -222,6 +223,7 @@ export const usePaletteItems = () => {
           id: 'git-change-branch',
           type: 'ACTION',
           title: 'Switch branch',
+          description: 'Check out another branch in this repository',
           execute: () => {
             openBranchDialog();
           },
@@ -244,7 +246,7 @@ export const usePaletteItems = () => {
           shortcut: 'ctrl+b',
           type: 'ACTION',
           title: 'Toggle explorer',
-          description: 'Expands or hides the explorer sidebar',
+          description: 'Show or hide the file tree sidebar',
           execute: () => {
             setExpanded(!expanded);
           },
@@ -253,7 +255,7 @@ export const usePaletteItems = () => {
           id: 'toggle-explorer-icons',
           type: 'ACTION',
           title: 'Toggle explorer icons',
-          description: 'Display or not the icons in the file explorer',
+          description: 'Show or hide file type icons in the file tree',
           execute: () => {
             setShowIcons(!showIcons);
             update(ConfigScope.USER, {
@@ -264,8 +266,8 @@ export const usePaletteItems = () => {
         {
           id: 'toggle-explorer-toolbar',
           type: 'ACTION',
-          title: 'Toggle sidebar toolbar',
-          description: 'Display or not the toolbar in the explorer sidebar',
+          title: 'Toggle explorer toolbar',
+          description: 'Show or hide the toolbar above the file tree',
           execute: () => {
             setShowToolbar(!showToolbar);
             update(ConfigScope.USER, {
@@ -276,8 +278,8 @@ export const usePaletteItems = () => {
         {
           id: 'toggle-expanded-git-bar',
           type: 'ACTION',
-          title: 'Expand git bar',
-          description: 'Shows more information in the git bar',
+          title: 'Toggle git bar details',
+          description: 'Spell out the project path and the file counts',
           execute: () => {
             setGitBarExpanded(!gitBarExpanded);
             update(ConfigScope.USER, {
@@ -294,6 +296,7 @@ export const usePaletteItems = () => {
           id: 'quit',
           type: 'ACTION',
           title: 'Quit Frodon',
+          description: 'Stop running terminals and leave the IDE',
           shortcut: 'ctrl+shift+q',
           execute: () => {
             // Tear down terminal process trees while the event loop is still

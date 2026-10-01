@@ -22,6 +22,18 @@ import { SYNTAX_GROUP_BY_TOKEN } from './editor.constant';
 /** Shared empty result, so rows with no search hit all get the same array. */
 const NO_HIGHLIGHTS: SearchHighlight[] = [];
 
+/**
+ * How long external writes must settle before the buffer adopts them.
+ *
+ * Adopting costs a full re-tokenize and a re-render of the document, so the
+ * rate matters when an agent streams a rewrite a chunk at a time. A background
+ * pane is a live view — eight updates a second still reads as live, and costs
+ * a third of what 25 did — while the editor under the cursor stays on the
+ * short beat so a save → formatter → adopt round trip feels immediate.
+ */
+const ADOPT_DEBOUNCE_FOCUSED_MS = 40;
+const ADOPT_DEBOUNCE_BACKGROUND_MS = 120;
+
 interface FlatToken {
   text: string;
   type: string;
@@ -518,10 +530,28 @@ export const useEditor = (props: EditorProps) => {
   const adoptRef = useRef(adoptDiskChanges);
   adoptRef.current = adoptDiskChanges;
 
+  // Read inside the debounce callback so the watch, armed once per file, sees
+  // the current focus without being torn down and re-armed on every change.
+  const focusedRef = useRef(focused);
+  focusedRef.current = focused;
+
   useEffect(() => {
     if (!filePath) return;
-    return watchFile(filePath, () => adoptRef.current(true));
+    return watchFile(filePath, () => adoptRef.current(true), {
+      debounceMs: () =>
+        focusedRef.current
+          ? ADOPT_DEBOUNCE_FOCUSED_MS
+          : ADOPT_DEBOUNCE_BACKGROUND_MS,
+    });
   }, [filePath]);
+
+  // Catch up the moment this editor takes focus. A background pane adopts on
+  // the slower beat, so without this you could click into it and start typing
+  // against a buffer a debounce behind the file. `adoptDiskChanges` no-ops
+  // when disk already matches, and never moves the cursor while focused.
+  useEffect(() => {
+    if (focused) adoptRef.current();
+  }, [focused]);
 
   const save = () => {
     if (!filePath || !meta) return;

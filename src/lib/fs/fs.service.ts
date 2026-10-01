@@ -71,6 +71,20 @@ export function deletePath(targetPath: string): FsResult {
   }
 }
 
+/** Quiet period after the last write before a file's change is reported. */
+const FILE_WATCH_DEBOUNCE_MS = 40;
+
+export interface WatchFileOptions {
+  /**
+   * Quiet period before `onChange` fires. Pass a function to have it re-read
+   * on every event: the cost of reacting depends on what the caller is going
+   * to do with the change, and that can shift (an editor in the background is
+   * cheaper to update lazily than the one being typed in) without any reason
+   * to tear down and re-arm the watch.
+   */
+  debounceMs?: number | (() => number);
+}
+
 /**
  * Watches a single file for external modifications, invoking `onChange`
  * (debounced) whenever it changes on disk. Returns a disposer that stops
@@ -82,16 +96,21 @@ export function deletePath(targetPath: string): FsResult {
  * That surfaces as a `rename` event, on which we re-arm the watcher so we keep
  * following the path rather than a now-orphaned inode.
  */
-export function watchFile(filePath: string, onChange: () => void): () => void {
+export function watchFile(
+  filePath: string,
+  onChange: () => void,
+  { debounceMs = FILE_WATCH_DEBOUNCE_MS }: WatchFileOptions = {}
+): () => void {
   let timer: ReturnType<typeof setTimeout> | null = null;
   let watcher: fs.FSWatcher | null = null;
   let disposed = false;
 
   const schedule = () => {
     if (timer) clearTimeout(timer);
+    const delay = typeof debounceMs === 'function' ? debounceMs() : debounceMs;
     timer = setTimeout(() => {
       if (!disposed) onChange();
-    }, 40);
+    }, delay);
   };
 
   const arm = () => {

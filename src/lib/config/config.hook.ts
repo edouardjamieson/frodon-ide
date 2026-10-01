@@ -114,7 +114,10 @@ const useConfigSidebarStoreUpdater = () => {
 };
 
 const useConfigGitBarStoreUpdater = () => {
-  const { expanded, setExpanded } = useGitStore();
+  // Selector, not the whole store: this hook runs inside `useConfig`, which
+  // `App` calls, so subscribing to all of git state here re-rendered the app
+  // from the root on every poll.
+  const setExpanded = useGitStore((s) => s.setExpanded);
 
   const load = (config: Config) => {
     setExpanded(config.preferences.expandedGitbar);

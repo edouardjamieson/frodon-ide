@@ -25,9 +25,12 @@ export interface GitStore {
 
   setBranch: (branch: string) => void;
   setAheadBehind: (ahead: number, behind: number) => void;
-  setStagedFiles: (files: string[]) => void;
-  setUnstagedFiles: (files: string[]) => void;
-  setUntrackedFiles: (files: string[]) => void;
+  /** The three lists from one `git status` run, set together. */
+  setStatus: (
+    staged: string[],
+    unstaged: string[],
+    untracked: string[]
+  ) => void;
   setBranches: (branches: string[]) => void;
   setOperating: (operating: boolean) => void;
   setRepoStatus: (inRepo: boolean) => void;

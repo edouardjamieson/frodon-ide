@@ -6,7 +6,12 @@ import { useDialog } from '~/components/ui/dialog';
 import type { GitOpResult } from './git.def';
 
 export const useGit = () => {
-  const store = useGitStore();
+  // Actions only, read through `getState` rather than subscribed to. They
+  // never change identity, and `useGit` is called by the 3-second poller that
+  // `App` mounts -- a whole-store subscription there re-rendered the entire
+  // tree on every tick. Components that *display* git state subscribe to the
+  // slice they draw instead.
+  const store = useGitStore.getState();
   const { openDialog } = useDialog();
 
   const run = async (args: string[]) => {
@@ -75,9 +80,7 @@ export const useGit = () => {
           if (index !== ' ') staged.push(file);
           if (worktree !== ' ') unstaged.push(file);
         }
-        store.setStagedFiles(staged);
-        store.setUnstagedFiles(unstaged);
-        store.setUntrackedFiles(untracked);
+        store.setStatus(staged, unstaged, untracked);
       }
     } catch (error) {
       Logger.log(`git: failed to refresh: ${error}`);
@@ -86,7 +89,7 @@ export const useGit = () => {
 
   const init = async () => {
     if (useProjectStore.getState().path.length === 0) return;
-    if (store.inRepo) return;
+    if (useGitStore.getState().inRepo) return;
 
     try {
       const { exitCode, stderr } = await run(['init']);

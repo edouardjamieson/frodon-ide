@@ -64,47 +64,54 @@ export const useExplorer = () => {
   return { maxDeepness };
 };
 
+/**
+ * One row of the tree.
+ *
+ * Every subscription here is a selector that narrows to a boolean or a single
+ * status, because this hook runs once per visible node: subscribing to whole
+ * stores meant expanding one folder, focusing another window, or a git poll
+ * finding a single changed file re-rendered every row in the explorer. With
+ * selectors a row re-renders only when its own flags move. State that's only
+ * read inside a handler is pulled from `getState` at click time, so it costs
+ * no subscription at all.
+ */
 export const useExplorerNode = (file: File) => {
-  const { toggledDirs, toggleDir, selected, setSelected } = useExplorerStore();
-  const isToggled = file.isDir && toggledDirs.includes(file.path);
-  const isSelected = selected?.path === file.path;
+  const toggleDir = useExplorerStore((s) => s.toggleDir);
+  const isToggled = useExplorerStore(
+    (s) => file.isDir && s.toggledDirs.includes(file.path)
+  );
+  const isSelected = useExplorerStore((s) => s.selected?.path === file.path);
 
-  const { focusedWindowId, addWindowFile, editorFiles } =
-    useWindowManagerStore();
+  const isFileOpened = useWindowManagerStore((s) =>
+    s.editorFiles.some((f) => f.file === file.path)
+  );
 
   const onMouseDown = () => {
-    setSelected({ path: file.path, isDir: file.isDir });
+    const { focusedWindowId, addWindowFile } = useWindowManagerStore.getState();
+    useExplorerStore.getState().setSelected({
+      path: file.path,
+      isDir: file.isDir,
+    });
     if (file.isDir) toggleDir(file.path);
-    if (!file.isDir) {
-      focusedWindowId && addWindowFile(focusedWindowId, file.path);
+    if (!file.isDir && focusedWindowId) {
+      addWindowFile(focusedWindowId, file.path);
     }
   };
 
-  const isFileOpened = useMemo(() => {
-    return editorFiles.find((f) => f.file === file.path);
-  }, [editorFiles]);
-
   const projectPath = useProjectStore((s) => s.path);
-  const { stagedFiles, unstagedFiles, untrackedFiles } = useGitStore();
+
+  // Git reports paths relative to the repo root (the project root the `git`
+  // subprocess runs in), so that's the key into the store's status lookup.
+  const relativePath = useMemo(() => {
+    if (file.isDir || !projectPath) return null;
+    return relative(projectPath, file.path);
+  }, [file.isDir, file.path, projectPath]);
 
   // Mirror the git status bar: staged files read green, unstaged/untracked
-  // read yellow. Git reports paths relative to the repo root (the project
-  // root the `git` subprocess runs in), so match against that.
-  const gitStatus = useMemo<'staged' | 'changed' | null>(() => {
-    if (file.isDir || !projectPath) return null;
-    const rel = relative(projectPath, file.path);
-    if (stagedFiles.includes(rel)) return 'staged';
-    if (unstagedFiles.includes(rel) || untrackedFiles.includes(rel))
-      return 'changed';
-    return null;
-  }, [
-    file.isDir,
-    file.path,
-    projectPath,
-    stagedFiles,
-    unstagedFiles,
-    untrackedFiles,
-  ]);
+  // read yellow.
+  const gitStatus = useGitStore((s) =>
+    relativePath ? (s.statusByPath.get(relativePath) ?? null) : null
+  );
 
   return {
     isToggled,

@@ -88,7 +88,8 @@ function ToolbarButton({ title, icon, onClick, disabled }: ToolbarButtonProps) {
 function ExplorerNode({ file, level }: { file: File; level: number }) {
   const { isToggled, isSelected, onMouseDown, isFileOpened, gitStatus } =
     useExplorerNode(file);
-  const { showIcons } = useSidebarStore();
+  // Selector for the same reason as the hook above: this runs per row.
+  const showIcons = useSidebarStore((s) => s.showIcons);
   const { colors, icons } = useTheme();
 
   const backgroundColor = isSelected

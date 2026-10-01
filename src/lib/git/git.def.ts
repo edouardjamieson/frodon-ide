@@ -5,6 +5,9 @@ export interface GitOpResult {
   error?: string;
 }
 
+/** How a file differs from HEAD, as the explorer and status bar color it. */
+export type GitFileStatus = 'staged' | 'changed';
+
 export interface GitStore {
   inRepo: boolean;
   branch: string;
@@ -15,6 +18,16 @@ export interface GitStore {
   stagedFiles: string[];
   unstagedFiles: string[];
   untrackedFiles: string[];
+  /**
+   * The three lists above as one project-relative path -> status lookup.
+   *
+   * Derived rather than computed where it's read: the explorer asks per row,
+   * and scanning three arrays for every file in the tree on every render is
+   * the whole tree's worth of linear scans. Rebuilt only when `setStatus`
+   * finds the lists actually changed, so a row's selector returns a stable
+   * value across polls.
+   */
+  statusByPath: Map<string, GitFileStatus>;
   /** Local branch names, refreshed when the branch dialog opens. */
   branches: string[];
   /** True while a pull/push/checkout is in flight, to disable duplicate runs. */

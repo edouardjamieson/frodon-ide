@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { GitStore } from './git.def';
+import type { GitFileStatus, GitStore } from './git.def';
 
 /**
  * Whether two lists hold the same strings in the same order.
@@ -19,6 +19,22 @@ function sameList(a: string[], b: string[]): boolean {
   return true;
 }
 
+/**
+ * Path -> status lookup for the explorer. Staged is written last so a file
+ * that is both staged and dirty reads as staged, matching the status bar.
+ */
+function buildStatusByPath(
+  staged: string[],
+  unstaged: string[],
+  untracked: string[]
+): Map<string, GitFileStatus> {
+  const map = new Map<string, GitFileStatus>();
+  for (const file of untracked) map.set(file, 'changed');
+  for (const file of unstaged) map.set(file, 'changed');
+  for (const file of staged) map.set(file, 'staged');
+  return map;
+}
+
 export const useGitStore = create<GitStore>((set, get) => ({
   inRepo: false,
   branch: '',
@@ -27,6 +43,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
   stagedFiles: [],
   unstagedFiles: [],
   untrackedFiles: [],
+  statusByPath: new Map(),
   branches: [],
   operating: false,
   expanded: true,
@@ -56,6 +73,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
       stagedFiles: staged,
       unstagedFiles: unstaged,
       untrackedFiles: untracked,
+      statusByPath: buildStatusByPath(staged, unstaged, untracked),
     });
   },
   setBranches(branches) {
@@ -86,6 +104,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
       state.stagedFiles.length === 0 &&
       state.unstagedFiles.length === 0 &&
       state.untrackedFiles.length === 0 &&
+      state.statusByPath.size === 0 &&
       state.branches.length === 0 &&
       !state.operating
     ) {
@@ -99,6 +118,7 @@ export const useGitStore = create<GitStore>((set, get) => ({
       stagedFiles: [],
       unstagedFiles: [],
       untrackedFiles: [],
+      statusByPath: new Map(),
       branches: [],
       operating: false,
       // We don't include "expanded" in the reset because it's part of the UI,

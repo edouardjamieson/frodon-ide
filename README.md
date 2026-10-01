@@ -14,9 +14,36 @@ them. See [docs/actions.md](docs/actions.md).
 
 ## Requirements
 
-Bun 1.3.0 or later. Frodon is compiled for the Bun runtime and its binary is
-launched through a `#!/usr/bin/env bun` shebang, so Bun has to be on your PATH —
-`npx` alone won't do.
+**Bun 1.3.0 or later**, on macOS or Linux. That's the whole hard requirement.
+
+Frodon is compiled for the Bun runtime — it reads files, matches globs and
+spawns processes through Bun's APIs, and every terminal window is a `Bun.Terminal`
+PTY, which is what 1.3.0 brings. So `npm` and `npx` can *install* Frodon, but
+they can't run it: Bun has to be on your PATH.
+
+Nothing else is version-checked. Frodon never shells out to `node`, `npm` or
+`npx` on its own — if a configured [action](docs/actions.md) or something you
+type in a terminal window needs them, that's your toolchain's business, and a
+missing one shows up as a failed command rather than a broken IDE.
+
+If the requirement isn't met you get told which half is wrong, before the UI
+takes over the screen:
+
+| Situation | What you see |
+| --- | --- |
+| No `bun` on PATH | Install instructions, exit 1 — from `dist/frodon`, the POSIX-sh launcher that fronts the app |
+| Bun older than 1.3.0 | The version found, and `bun upgrade` |
+| Run under Node (`node dist/index.js`) | A note that Frodon needs Bun, not Node |
+
+These run in `scripts/frodon.sh` and `src/lib/preflight/` respectively — the
+launcher catches the case where Bun is missing and no Frodon code can run at
+all, the preflight module catches a Bun that starts but is too old. Both read
+their floor from `engines.bun`, which the build asserts against `MINIMUM_BUN`.
+
+Three things are used when present and skipped when not: `git` (the status bar
+and git commands go quiet without it), `pbcopy`/`pbpaste` (clipboard, macOS),
+and `$SHELL` (terminal windows, falling back to `zsh`). None of them block
+startup — without `git`, the status bar simply doesn't render.
 
 ## Install
 

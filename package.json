@@ -23,7 +23,7 @@
   ],
   "type": "module",
   "bin": {
-    "frodon": "./dist/index.js"
+    "frodon": "./dist/frodon"
   },
   "files": [
     "dist"

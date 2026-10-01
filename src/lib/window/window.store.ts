@@ -1,4 +1,4 @@
-import { uuid } from 'uuidv4';
+import { randomUUID } from 'node:crypto';
 import { create } from 'zustand';
 import { WindowType, type Window, type WindowManagerStore } from '~/lib/window';
 import { useCalculateLayout, useGetFirstAvailableCoords } from './window.hook';
@@ -56,7 +56,7 @@ export const useWindowManagerStore = create<WindowManagerStore>((set, get) => ({
 
     // If no windows remain, seed a fresh empty one at the origin.
     if (remaining.length === 0) {
-      const fallback: Window = { id: uuid(), colIndex: 0, rowIndex: 0 };
+      const fallback: Window = { id: randomUUID(), colIndex: 0, rowIndex: 0 };
       set({ windows: [fallback], focusedWindowId: fallback.id });
       return;
     }
@@ -141,7 +141,7 @@ export const useWindowManagerStore = create<WindowManagerStore>((set, get) => ({
         targetWindowId = existingValidWindow.id;
       } else {
         // Spawn code editor window
-        const newWindowId = uuid();
+        const newWindowId = randomUUID();
         const coords = getCoords(getLayout(windows));
         spawn({
           id: newWindowId,
@@ -213,7 +213,7 @@ export const useWindowManagerStore = create<WindowManagerStore>((set, get) => ({
       .flatMap((t) => t.session);
   },
   addWindowTerminal: (windowId) => {
-    const session = uuid();
+    const session = randomUUID();
     set((state: WindowManagerStore) => ({
       terminalSessions: [...state.terminalSessions, { windowId, session }],
     }));

@@ -55,7 +55,6 @@
     "opentui-spinner": "^0.0.7",
     "react": "^19.2.8",
     "refractor": "^5.0.0",
-    "uuidv4": "^6.2.13",
     "zustand": "^5.0.15"
   },
   "engines": {

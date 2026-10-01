@@ -2,7 +2,7 @@ import Logger from '~/lib/logger/logger.service';
 import { WindowType, type Window } from '~/lib/window';
 import { useWindowManagerStore } from './window.store';
 import { useCallback, useMemo } from 'react';
-import { uuid } from 'uuidv4';
+import { randomUUID } from 'node:crypto';
 import type { BorderSides } from '@opentui/core';
 
 const MAX_COLS = 3;
@@ -118,7 +118,7 @@ export const useSpawnWindow = () => {
     const window: Window = {
       colIndex: col,
       rowIndex: row,
-      id: uuid(),
+      id: randomUUID(),
       type,
     };
 

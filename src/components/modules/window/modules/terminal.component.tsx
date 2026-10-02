@@ -96,7 +96,7 @@ export default function WindowTerminal(props: WindowModuleProps) {
             </box>
           );
         })}
-        <Tooltip title="New terminal">
+        <Tooltip title="New terminal" shortcut="CTRL + t">
           <box
             paddingX={1}
             marginBottom={1}

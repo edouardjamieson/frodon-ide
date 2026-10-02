@@ -6,7 +6,7 @@ import type { PaletteGroup, PaletteItem } from './palette.def';
 import { useSidebarStore } from '../sidebar/sidebar.store';
 import { useWindowManagerStore } from '~/lib/window/window.store';
 import {
-  useGetFirstAvailableCoords,
+  getFirstAvailableCoords,
   useSpawnWindow,
 } from '~/lib/window/window.hook';
 import { ConfigScope, useConfig } from '~/lib/config';
@@ -92,7 +92,6 @@ export const usePaletteItems = () => {
   const { getLayout, focusedWindowId, windows, destroy, openTerminal } =
     useWindowManagerStore();
   const { spawn } = useSpawnWindow();
-  const { getCoords } = useGetFirstAvailableCoords();
   const { update } = useConfig();
 
   const gitBarExpanded = useGitStore((s) => s.expanded);
@@ -102,7 +101,7 @@ export const usePaletteItems = () => {
 
   const focusedWindow = windows.find((window) => window.id === focusedWindowId);
   const layout = getLayout(windows);
-  const coords = getCoords(layout);
+  const coords = getFirstAvailableCoords(layout);
 
   const renderer = useRenderer();
 

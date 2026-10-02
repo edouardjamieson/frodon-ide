@@ -1,5 +1,4 @@
 import { useTheme } from '~/lib/theme';
-import Icon from '~/components/ui/icon';
 import { useSidebar } from './sidebar.hook';
 import { Explorer } from '../explorer';
 import Tooltip from '~/components/ui/tooltip';

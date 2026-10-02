@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { refractor } from 'refractor';
+import type { Root, RootContent } from 'hast';
 import { useKeyboard, useRenderer } from '@opentui/react';
 import Logger from '~/lib/logger/logger.service';
 import { resolveLanguageId, useLanguageStore } from '~/lib/language';
@@ -40,7 +41,7 @@ interface FlatToken {
 }
 
 /** Depth-first flatten of a refractor AST into typed text runs. */
-function flatten(node: any, inherited = 'plain'): FlatToken[] {
+function flatten(node: Root | RootContent, inherited = 'plain'): FlatToken[] {
   if (node.type === 'text') {
     return [{ text: node.value, type: inherited }];
   }
@@ -48,11 +49,16 @@ function flatten(node: any, inherited = 'plain'): FlatToken[] {
 
   let type = inherited;
   if (node.type === 'element') {
-    const classes: string[] = node.properties?.className ?? [];
-    type = classes.find((c) => c !== 'token') ?? inherited;
+    // hast types `className` as loosely as HTML allows it; refractor only ever
+    // sets an array of class names, so anything else is treated as none.
+    const classes = node.properties?.className;
+    type =
+      (Array.isArray(classes) ? classes.map(String) : []).find(
+        (c) => c !== 'token'
+      ) ?? inherited;
   }
 
-  return node.children.flatMap((child: any) => flatten(child, type));
+  return node.children.flatMap((child) => flatten(child, type));
 }
 
 /**

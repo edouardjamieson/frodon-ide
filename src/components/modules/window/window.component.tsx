@@ -31,8 +31,11 @@ export default function WindowsManager() {
   );
 }
 
-function Window({ window }: { window?: Window }) {
-  if (!window) return null;
+// `window` is required: the only caller maps over the store's windows, so it is
+// always present. It used to be optional with an `if (!window) return null`
+// guard above the hooks below -- which, had it ever fired, would have rendered
+// fewer hooks than the previous pass and thrown rather than bailed out quietly.
+function Window({ window }: { window: Window }) {
   const {
     getWindowLayout,
     getWindowBorders,

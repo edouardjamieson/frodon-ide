@@ -22,7 +22,7 @@ const shellPids = new Set<number>();
 function descendants(pid: number): number[] {
   const found: number[] = [];
   const walk = (parent: number) => {
-    let out = '';
+    let out: string;
     try {
       out = Bun.spawnSync(['pgrep', '-P', String(parent)]).stdout.toString();
     } catch {

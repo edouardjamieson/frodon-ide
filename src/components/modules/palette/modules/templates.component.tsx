@@ -53,7 +53,7 @@ export function CommandPaletteSearch({
   const searchRef = useRef<InputRenderable>(null);
 
   useEffect(() => {
-    !disableAutofocus && searchRef.current?.focus();
+    if (!disableAutofocus) searchRef.current?.focus();
   }, [disableAutofocus]);
 
   return (

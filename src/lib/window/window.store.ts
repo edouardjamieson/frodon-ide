@@ -1,8 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { create } from 'zustand';
 import { WindowType, type Window, type WindowManagerStore } from '~/lib/window';
-import { useCalculateLayout, useGetFirstAvailableCoords } from './window.hook';
-import Logger from '../logger/logger.service';
+import { getFirstAvailableCoords } from './window.hook';
 
 export const useWindowManagerStore = create<WindowManagerStore>((set, get) => ({
   windows: [
@@ -127,7 +126,6 @@ export const useWindowManagerStore = create<WindowManagerStore>((set, get) => ({
   },
   addWindowFile: (windowId, file) => {
     const { windows, setWindowType, spawn, getLayout } = get();
-    const { getCoords } = useGetFirstAvailableCoords();
 
     let targetWindowId: string = windowId;
     const window = windows.find((w) => w.id === windowId);
@@ -142,7 +140,7 @@ export const useWindowManagerStore = create<WindowManagerStore>((set, get) => ({
       } else {
         // Spawn code editor window
         const newWindowId = randomUUID();
-        const coords = getCoords(getLayout(windows));
+        const coords = getFirstAvailableCoords(getLayout(windows));
         spawn({
           id: newWindowId,
           type: WindowType.CODE_EDITOR,
@@ -228,7 +226,6 @@ export const useWindowManagerStore = create<WindowManagerStore>((set, get) => ({
       addWindowTerminal,
       setFocusedWindowId,
     } = get();
-    const { getCoords } = useGetFirstAvailableCoords();
 
     let targetWindowId: string = windowId;
     const window = windows.find((w) => w.id === windowId);
@@ -243,7 +240,7 @@ export const useWindowManagerStore = create<WindowManagerStore>((set, get) => ({
       if (existingTerminal) {
         targetWindowId = existingTerminal.id;
       } else {
-        const coords = getCoords(getLayout(windows));
+        const coords = getFirstAvailableCoords(getLayout(windows));
         // Grid is full and nothing can take a shell: leave the layout alone.
         if (coords.row === -1) return;
 

@@ -1,7 +1,5 @@
-import Logger from '~/lib/logger/logger.service';
 import { WindowType, type Window } from '~/lib/window';
 import { useWindowManagerStore } from './window.store';
-import { useCallback, useMemo } from 'react';
 import { randomUUID } from 'node:crypto';
 import type { BorderSides } from '@opentui/core';
 
@@ -10,7 +8,6 @@ const MAX_ROWS = 3;
 
 export const useCalculateLayout = () => {
   const { windows, getLayout } = useWindowManagerStore();
-  const { getCoords } = useGetFirstAvailableCoords();
   const layout = getLayout(windows);
 
   const getWindowLayout = (window: Window) => {
@@ -89,7 +86,7 @@ export const useCalculateLayout = () => {
     getWindowLayout,
     getWindowBorders,
     getPossibleMoveDirections,
-    getFirstAvailableCoords: getCoords,
+    getFirstAvailableCoords,
   };
 };
 
@@ -130,19 +127,23 @@ export const useSpawnWindow = () => {
   return { spawn };
 };
 
-export const useGetFirstAvailableCoords = () => {
-  const getCoords = (layout: number[]) => {
-    for (let i = 0; i < MAX_ROWS; i++) {
-      const cols = layout[i];
-      if (cols === undefined || cols < MAX_COLS) {
-        return { row: i, col: cols ?? 0 };
-      }
+/**
+ * The first grid slot with room in it, scanning rows top to bottom, or
+ * `{ row: -1, col: -1 }` when the grid is full.
+ *
+ * Deliberately not a hook: it reads no store and holds no state, and the
+ * window store's actions call it from outside React. Naming it `use*` made
+ * every one of those calls look like a conditional hook call.
+ */
+export const getFirstAvailableCoords = (layout: number[]) => {
+  for (let i = 0; i < MAX_ROWS; i++) {
+    const cols = layout[i];
+    if (cols === undefined || cols < MAX_COLS) {
+      return { row: i, col: cols ?? 0 };
     }
+  }
 
-    return { row: -1, col: -1 };
-  };
-
-  return { getCoords };
+  return { row: -1, col: -1 };
 };
 
 export const useMoveWindow = (window: Window) => {

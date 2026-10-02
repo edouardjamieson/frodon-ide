@@ -92,6 +92,5 @@ export const useProjectSync = () => {
     });
     // `excludeKey` stands in for `exclude`, whose identity changes on every
     // config read even when the patterns don't.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path, excludeKey]);
 };

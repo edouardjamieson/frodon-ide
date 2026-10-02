@@ -219,6 +219,56 @@ export const useWindowManagerStore = create<WindowManagerStore>((set, get) => ({
     }));
     return session;
   },
+  openTerminal: (windowId) => {
+    const {
+      windows,
+      spawn,
+      getLayout,
+      setWindowType,
+      addWindowTerminal,
+      setFocusedWindowId,
+    } = get();
+    const { getCoords } = useGetFirstAvailableCoords();
+
+    let targetWindowId: string = windowId;
+    const window = windows.find((w) => w.id === windowId);
+
+    // An editor can't host a shell, so fall back to an existing terminal
+    // window, then to a new one in the first free slot.
+    if (!window || window.type === WindowType.CODE_EDITOR) {
+      const existingTerminal = windows.find(
+        (w) => w.type === WindowType.TERMINAL
+      );
+
+      if (existingTerminal) {
+        targetWindowId = existingTerminal.id;
+      } else {
+        const coords = getCoords(getLayout(windows));
+        // Grid is full and nothing can take a shell: leave the layout alone.
+        if (coords.row === -1) return;
+
+        const newWindowId = randomUUID();
+        spawn({
+          id: newWindowId,
+          type: WindowType.TERMINAL,
+          colIndex: coords.col,
+          rowIndex: coords.row,
+        });
+        // The window seeds its own first session on mount, so stop here.
+        setFocusedWindowId(newWindowId);
+        return;
+      }
+    } else if (!window.type) {
+      // An empty window becomes the terminal and seeds its own session.
+      setWindowType(window.id, WindowType.TERMINAL);
+      setFocusedWindowId(window.id);
+      return;
+    }
+
+    addWindowTerminal(targetWindowId);
+    setFocusedWindowId(targetWindowId);
+  },
+
   closeWindowTerminal: (windowId, session) => {
     set((state: WindowManagerStore) => ({
       terminalSessions: state.terminalSessions.filter(

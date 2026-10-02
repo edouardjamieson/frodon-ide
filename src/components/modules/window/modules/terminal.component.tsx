@@ -31,10 +31,13 @@ export default function WindowTerminal(props: WindowModuleProps) {
     }
   }, []);
 
-  // Keep the selection pointing at a live session; `openSession`, the seed, and
-  // `closeSession` set it explicitly, so this only recovers from a stale id.
+  // Keep the selection pointing at a live session, and follow a session opened
+  // from outside this component (the command palette) onto its tab.
+  const sessionCount = useRef(sessions.length);
   useEffect(() => {
-    if (activeSession && sessions.includes(activeSession)) return;
+    const grew = sessions.length > sessionCount.current;
+    sessionCount.current = sessions.length;
+    if (!grew && activeSession && sessions.includes(activeSession)) return;
     setActiveSession(sessions[sessions.length - 1] ?? null);
   }, [sessions.length]);
 

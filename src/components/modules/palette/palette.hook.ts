@@ -89,7 +89,7 @@ export const usePaletteItems = () => {
     showIcons,
     showToolbar,
   } = useSidebarStore();
-  const { getLayout, focusedWindowId, windows, destroy } =
+  const { getLayout, focusedWindowId, windows, destroy, openTerminal } =
     useWindowManagerStore();
   const { spawn } = useSpawnWindow();
   const { getCoords } = useGetFirstAvailableCoords();
@@ -159,6 +159,18 @@ export const usePaletteItems = () => {
             if (!spawned) {
               spawn(coords.row, coords.col);
             }
+          },
+        },
+        {
+          type: 'ACTION',
+          id: 'new-terminal',
+          title: 'New terminal',
+          description:
+            'Open a shell in a terminal window, spawning one if needed',
+          icon: 'terminal',
+          shortcut: 'ctrl+t',
+          execute: () => {
+            openTerminal(focusedWindowId ?? '');
           },
         },
         {

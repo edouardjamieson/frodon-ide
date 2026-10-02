@@ -50,6 +50,12 @@ export interface WindowManagerStore {
   getWindowTerminals: (windowId: string) => string[];
   /** Opens a new terminal session in the window and returns its id. */
   addWindowTerminal: (windowId: string) => string;
+  /**
+   * Opens a terminal from anywhere: routes to a window that can host a shell
+   * (the given one, another terminal window, or a freshly spawned one) and
+   * focuses it.
+   */
+  openTerminal: (windowId: string) => void;
   /** Closes a terminal session in the window. */
   closeWindowTerminal: (windowId: string, session: string) => void;
 

@@ -1,8 +1,26 @@
-# Frodon
+<div align="center">
 
-A terminal IDE. Tiling windows, a real editor, embedded shells, git, and
+```
+     ,_     _
+     |\\_,-~/
+     / _  _ |    ,--.
+    (  @  @ )   / ,-'
+     \  _T_/-._( (
+     /         `. \
+    |         _  \ |
+     \ \ ,  /      |
+      || |-_\__   /
+     ((_/`(____,-'
+
+█▀▀ █▀█ █▀█ █▀▄ █▀█ █▄ █
+█▀  █▀▄ █▄█ █▄▀ █▄█ █ ▀█
+```
+
+**A terminal IDE.** Tiling windows, a real editor, embedded shells, git and
 project-wide search — rendered entirely in the terminal, on
 [Bun](https://bun.sh) and [OpenTUI](https://github.com/anomalyco/opentui).
+
+</div>
 
 Frodon doesn't reimplement your toolchain. Formatters, linters and codegen stay
 whatever they already are; you bind them to filesystem events and Frodon runs
@@ -188,70 +206,6 @@ syntax groups) and the UI's glyphs. Glyphs are emoji by default, and may be any
 one- or two-cell character — Nerd Font glyphs included. See
 [docs/themes.md](docs/themes.md).
 
-## Development
-
-```bash
-bun install
-bun dev          # hot-reloading: bun run --watch src/index.tsx
-bun run typecheck
-bunx eslint .    # no lint script; run it directly
-bun run build    # bundles dist/index.js for publishing
-```
-
-### There is no console
-
-Frodon owns the terminal, so **`console.log` corrupts the render**. Use the file
-logger and tail it from another shell:
-
-```ts
-import Logger from '~/lib/logger/logger.service';
-Logger.log(anything);   // appends to ./test.log
-```
-
-```bash
-tail -f test.log
-```
-
-### Module convention
-
-Every feature — a visual module under `src/components/` or a service under
-`src/lib/` — is a folder of single-responsibility files sharing a name prefix,
-re-exported through a barrel `index.ts`:
-
-| File              | Holds                                                     |
-| ----------------- | --------------------------------------------------------- |
-| `*.component.tsx` | the OpenTUI view; kept thin                               |
-| `*.hook.ts`       | `use*` hooks wrapping the store, and the logic            |
-| `*.store.ts`      | a zustand store — app state lives here, not in React state |
-| `*.service.ts`    | non-visual logic with no React dependency                 |
-| `*.def.ts`        | types, interfaces, enums                                  |
-| `*.constant.ts`   | constants (`.tsx` when they hold JSX)                     |
-
-Import across features through the barrel and the `~/*` alias (`~/*` →
-`./src/*`), e.g. `import { useProject } from '~/lib/project'`.
-
-### Layout
-
-| Path                       | What                                                     |
-| -------------------------- | -------------------------------------------------------- |
-| `src/index.tsx`            | renderer creation, crash handlers, the app root          |
-| `src/lib/`                 | services and stores — see below                          |
-| `src/components/modules/`  | feature UI: editor, explorer, sidebar, window, terminal, palette, git |
-| `src/components/ui/`       | primitives: button, dialog, loader, tooltip, error boundary |
-
-Under `src/lib/`: `project` (load the tree) · `fs` (filesystem + the scan) ·
-`ignore` (the one exclusion matcher) · `search` (project-wide text search) ·
-`window` (tiling layout) · `config` (layered settings) · `actions` (event-bound
-commands) · `git` · `crash` (terminal restore on fatal errors) · `language` ·
-`clipboard` · `logger` · `theme.ts`.
-
-### Rendering model
-
-JSX intrinsics (`<box>`, `<text>`, `<scrollbox>`, `<ascii-font>`) come from
-`@opentui/react` via `jsxImportSource`, **not** the DOM. There is no browser, no
-CSS and no `document`. Layout is flexbox through Yoga; colours are hex strings
-from `src/lib/theme.ts`.
-
 ## Status
 
 Built:
@@ -274,6 +228,12 @@ Not built yet:
 - The `change` action event
 - A results panel for action output (runs are recorded, nothing renders them)
 - Saved window layouts (`windowLayouts` is in the config schema but unread)
+
+## Contributing
+
+`bun install`, then `bun dev`. The architecture, the module convention and the
+one rule that bites everyone (**`console.log` corrupts the render**) are in
+[docs/development.md](docs/development.md).
 
 ## License
 

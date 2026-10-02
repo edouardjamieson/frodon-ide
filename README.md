@@ -1,17 +1,6 @@
 <div align="center">
 
 ```
-     ,_     _
-     |\\_,-~/
-     / _  _ |    ,--.
-    (  @  @ )   / ,-'
-     \  _T_/-._( (
-     /         `. \
-    |         _  \ |
-     \ \ ,  /      |
-      || |-_\__   /
-     ((_/`(____,-'
-
 █▀▀ █▀█ █▀█ █▀▄ █▀█ █▄ █
 █▀  █▀▄ █▄█ █▄▀ █▄█ █ ▀█
 ```
@@ -36,7 +25,7 @@ them. See [docs/actions.md](docs/actions.md).
 
 Frodon is compiled for the Bun runtime — it reads files, matches globs and
 spawns processes through Bun's APIs, and every terminal window is a `Bun.Terminal`
-PTY, which is what 1.3.0 brings. So `npm` and `npx` can *install* Frodon, but
+PTY, which is what 1.3.0 brings. So `npm` and `npx` can _install_ Frodon, but
 they can't run it: Bun has to be on your PATH.
 
 Nothing else is version-checked. Frodon never shells out to `node`, `npm` or
@@ -47,11 +36,11 @@ missing one shows up as a failed command rather than a broken IDE.
 If the requirement isn't met you get told which half is wrong, before the UI
 takes over the screen:
 
-| Situation | What you see |
-| --- | --- |
-| No `bun` on PATH | Install instructions, exit 1 — from `dist/frodon`, the POSIX-sh launcher that fronts the app |
-| Bun older than 1.3.0 | The version found, and `bun upgrade` |
-| Run under Node (`node dist/index.js`) | A note that Frodon needs Bun, not Node |
+| Situation                             | What you see                                                                                 |
+| ------------------------------------- | -------------------------------------------------------------------------------------------- |
+| No `bun` on PATH                      | Install instructions, exit 1 — from `dist/frodon`, the POSIX-sh launcher that fronts the app |
+| Bun older than 1.3.0                  | The version found, and `bun upgrade`                                                         |
+| Run under Node (`node dist/index.js`) | A note that Frodon needs Bun, not Node                                                       |
 
 These run in `scripts/frodon.sh` and `src/lib/preflight/` respectively — the
 launcher catches the case where Bun is missing and no Frodon code can run at
@@ -127,25 +116,25 @@ Only these are bound today. The palette lists shortcut hints next to some
 commands (`Ctrl+P`, `Ctrl+B`, …) that **are not wired up yet** — use the palette
 itself to reach those. See [docs/keybindings.md](docs/keybindings.md).
 
-| Key            | Does                                            |
-| -------------- | ----------------------------------------------- |
-| `Ctrl+K`       | Open the command palette                        |
-| `Ctrl+W`       | Close the focused tab, or an empty window        |
-| `Esc`          | Dismiss the palette or a dialog                 |
-| `1` / `2`      | On a welcome screen: open an editor / a terminal |
+| Key       | Does                                             |
+| --------- | ------------------------------------------------ |
+| `Ctrl+K`  | Open the command palette                         |
+| `Ctrl+W`  | Close the focused tab, or an empty window        |
+| `Esc`     | Dismiss the palette or a dialog                  |
+| `1` / `2` | On a welcome screen: open an editor / a terminal |
 
 In an editor:
 
-| Key                     | Does                                     |
-| ----------------------- | ---------------------------------------- |
-| `Ctrl+S`                | Save (fires `save` actions)              |
-| `Ctrl+Z` / `Ctrl+Shift+Z` | Undo / redo (`Ctrl+Y` also redoes)     |
-| `Ctrl+A`                | Select all                               |
+| Key                            | Does                                                                    |
+| ------------------------------ | ----------------------------------------------------------------------- |
+| `Ctrl+S`                       | Save (fires `save` actions)                                             |
+| `Ctrl+Z` / `Ctrl+Shift+Z`      | Undo / redo (`Ctrl+Y` also redoes)                                      |
+| `Ctrl+A`                       | Select all                                                              |
 | `Ctrl+C` / `Ctrl+X` / `Ctrl+V` | Copy / cut / paste — the selection, or the whole line when there's none |
-| `Ctrl+F`                | Find in file; `Enter` / `Shift+Enter` to step, `Esc` to close |
-| Arrows, `Home`, `End`   | Move; hold `Shift` to select             |
+| `Ctrl+F`                       | Find in file; `Enter` / `Shift+Enter` to step, `Esc` to close           |
+| Arrows, `Home`, `End`          | Move; hold `Shift` to select                                            |
 
-Quit from the palette (**Quit Frodon**). `Ctrl+C` is deliberately *not* a quit
+Quit from the palette (**Quit Frodon**). `Ctrl+C` is deliberately _not_ a quit
 binding — it belongs to whatever is running in the focused terminal.
 
 ## Configuration
@@ -165,17 +154,21 @@ Project settings beat personal ones so a team can pin shared behaviour in git;
 {
   "files": {
     // hidden from the explorer, search and the open-file palette
-    "exclude": ["node_modules", ".git", "dist", "build"]
+    "exclude": ["node_modules", ".git", "dist", "build"],
   },
   "actions": [
-    { "on": "save", "run": "bunx prettier --write {{filePath}}", "blocking": true }
+    {
+      "on": "save",
+      "run": "bunx prettier --write {{filePath}}",
+      "blocking": true,
+    },
   ],
   "preferences": {
     "displayToolbar": true,
     "displayIcons": true,
     "expandedGitbar": true,
-    "theme": "frodon-dark"
-  }
+    "theme": "frodon-dark",
+  },
 }
 ```
 
@@ -195,9 +188,12 @@ Your own is a few lines, because a theme inherits everything it doesn't name:
 {
   "preferences": { "theme": "mine" },
   "themes": [
-    { "name": "mine", "extends": "nocturne",
-      "colors": { "palette": { "accent": "#ffb000" } } }
-  ]
+    {
+      "name": "mine",
+      "extends": "nocturne",
+      "colors": { "palette": { "accent": "#ffb000" } },
+    },
+  ],
 }
 ```
 

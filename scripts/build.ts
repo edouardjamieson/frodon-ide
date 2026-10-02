@@ -14,7 +14,7 @@
  *
  * Run with: `bun scripts/build.ts`
  */
-import { chmodSync } from 'node:fs';
+import { chmodSync, rmSync } from 'node:fs';
 import pkg from '../package.json';
 import { MINIMUM_BUN } from '../src/lib/preflight/preflight.constant';
 
@@ -34,6 +34,12 @@ if (pkg.engines?.bun !== declared) {
 }
 
 const external = Object.keys(pkg.dependencies ?? {});
+
+// Wipe the previous build first. `splitting` names chunks by content hash, so
+// a rebuild writes new ones and leaves the old ones behind -- and `files`
+// publishes the whole directory, dead chunks included. Nothing reaches them at
+// runtime, so the only symptom is a tarball that grows with every build.
+rmSync('dist', { recursive: true, force: true });
 
 const result = await Bun.build({
   entrypoints: ['src/index.tsx'],
@@ -56,6 +62,10 @@ if (!result.success) {
   for (const log of result.logs) console.error(log);
   process.exit(1);
 }
+
+// The banner gives index.js a shebang; the mode is what makes it mean
+// something to the kernel.
+chmodSync('dist/index.js', 0o755);
 
 const launcher = await Bun.file('scripts/frodon.sh').text();
 await Bun.write('dist/frodon', launcher.replaceAll('__MINIMUM_BUN__', MINIMUM_BUN));

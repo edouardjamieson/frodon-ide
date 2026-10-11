@@ -282,3 +282,8 @@ body {
   background: var(--fd-scrollbar-thumb-hover);
   background-clip: content-box;
 }
+/* Where a horizontal and a vertical scrollbar meet. Left alone it is a light
+   grey square, which a narrow editor pane in a split shows off perfectly. */
+::-webkit-scrollbar-corner {
+  background: transparent;
+}

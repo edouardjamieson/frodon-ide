@@ -17,7 +17,7 @@ export default function Sidebar() {
   return (
     <aside className="flex w-[300px] overflow-hidden shrink-0 h-full gap-2">
       <SidebarMenu />
-      <div className="flex flex-col  bg-sidebar border border-project/15 w-full h-full rounded-xl">
+      <div className="flex flex-col bg-sidebar border border-project/15 w-full h-full rounded-xl">
         <Explorer files={files} />
       </div>
     </aside>

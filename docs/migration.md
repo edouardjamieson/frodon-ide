@@ -15,7 +15,33 @@ deliberately left behind.
 | `lib/ignore/` | `main/ignore/` | `Bun.Glob` → `picomatch`. Same pattern semantics. |
 | `lib/theme/` | `renderer/src/lib/theme/` | Palettes, `ROLE_DEFAULTS`, the `extends` chain, hex validation. Roles now emit CSS custom properties. |
 | `lib/project/` | split | The scan and watcher went to `main/project/`; the store and hooks stayed in the renderer. |
+| `lib/window/` | split | The model came over whole — windows on a row/col grid, contents per window. `useCalculateLayout` did not: see below. |
 | Module convention | everywhere | Unchanged. |
+
+### What changed in the window port
+
+Worth writing down, because the diff is bigger than the table suggests:
+
+- **Layout is no longer computed.** `useCalculateLayout` turned each window's
+  row/col into percentage `left/top/width/height` because a terminal has no
+  layout engine. The rows are now nested `react-resizable-panels` groups: the
+  browser sizes them, and the splitters between panes are real draggable
+  separators rather than a border character.
+- **Contents live on the window.** The TUI kept `editorFiles`,
+  `terminalSessions` and `dirtyFiles` as arrays keyed by `windowId`, each
+  scanned per render. Here `WindowState` is a discriminated union and a
+  window's tabs are a property of it — one lookup, and closing a window drops
+  its contents with it.
+- **`dirtyFiles` was not ported.** It tracked unsaved changes so closing a tab
+  could warn — and there is nothing to warn about until saving exists. It
+  comes back with save, together with the dialog that asks.
+- **Tabs keep their document, not their path.** Each tab's CodeMirror
+  `EditorState` is held beside the view and swapped in on click, so switching
+  tabs restores the cursor, scroll and undo history instead of re-reading the
+  file and discarding whatever was typed.
+- **Window titles and `swapWindows` did not come over.** Renaming wanted an
+  input dialog and moving wanted the arrow-key overlay; both belong with the
+  keybinding registry and the command palette rather than in the layout code.
 
 ## Still to port
 
@@ -100,14 +126,6 @@ routine. The TUI couldn't easily do this; this can.
 
 `{{variable}}` resolution is pure and ports untouched. The spawn becomes
 `execFile`. Runs on main, results pushed to the renderer.
-
-### 7. Window tiling — `lib/window/`
-
-The *model* survives: panes on a row/col grid, files and terminal sessions
-tracked per `windowId`, `dirtyFiles` per pane. The *implementation* —
-`useCalculateLayout` deriving percentage left/top/width/height — gets deleted
-and replaced with CSS grid, which does it natively and gives you draggable
-splitters for free.
 
 ## Deliberately left behind
 

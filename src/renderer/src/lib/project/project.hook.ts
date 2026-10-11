@@ -12,7 +12,7 @@ import { useTheme } from '~/lib/theme';
  * This hook is the whole of the renderer's side of that arrangement.
  */
 export const useProject = () => {
-  const { root, name, files, setProject, activePath } = useProjectStore();
+  const { root, name, files, setProject } = useProjectStore();
   const [opening, setOpening] = useState(false);
 
   const open = useCallback(async () => {
@@ -36,7 +36,6 @@ export const useProject = () => {
     name,
     color,
     files,
-    activePath,
     open,
     opening,
     isOpen: root !== '',

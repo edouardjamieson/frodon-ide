@@ -46,8 +46,8 @@ src/
 │   └── project/       the open project: root, tree, watcher
 ├── preload/         the bridge. One file. Read it before changing it.
 └── renderer/src/
-    ├── lib/           non-visual: theme, project state
-    ├── components/    feature UI
+    ├── lib/           non-visual: theme, project and window state
+    ├── components/    feature UI: explorer, editor, window manager
     ├── app.component.tsx
     └── styles.css     Tailwind @theme inline <- theme custom properties
 ```
@@ -91,6 +91,33 @@ Anything that touches disk, spawns a process, or outlives a window belongs on
 main's side of that line. Anything that is purely about presentation —
 which directories are expanded, which pane has focus, the active theme — lives
 in a renderer store and never crosses.
+
+## The workbench
+
+Next to the sidebar is the window manager: a small grid of tiles, each holding
+one module — an editor with its own tabs, a terminal (a placeholder until
+node-pty lands), or nothing yet.
+
+```
+windows: [{ id, row, col, …contents }]      flat, each carrying its coordinates
+   ↓ rowsOf()
+rows of windows                              derived, never stored
+   ↓
+nested resizable panel groups                the browser sizes them
+```
+
+Two rules keep it small:
+
+- **The layout is derived, not stored.** A window knows its row and column;
+  nothing knows a width. Sizing is the panel library's, and dragging a
+  splitter changes no application state at all.
+- **A module owns its contents.** `WindowState` is a discriminated union, so
+  an editor's tabs live on the editor window. Adding a window type is a member
+  on that union, a module file, and the two switches in
+  `window.component.tsx` that TypeScript will point at.
+
+A *window* here is a tile, not an OS window. The thing `main/app/` creates is a
+`BrowserWindow`, and the two never meet.
 
 ## Theming
 

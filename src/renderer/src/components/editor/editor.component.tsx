@@ -1,33 +1,35 @@
-import { useProjectStore } from '~/lib/project';
 import { useEditor } from './editor.hook';
 
+interface EditorProps {
+  /** The file on screen, or null when the window has no tab open. */
+  path: string | null;
+  /** Every tab the window has open — see `useEditor`. */
+  openPaths?: string[];
+}
+
 /**
- * The editor pane. Thin by design — the component mounts a host element and
- * CodeMirror owns everything inside it.
+ * CodeMirror, mounted.
+ *
+ * Thin by design: the component hands over a host element and CodeMirror owns
+ * everything inside it. It draws no tab bar and no file name — an editor
+ * window's chrome belongs to the window frame, so the same editor can be
+ * mounted anywhere without bringing a header along.
  */
-export default function Editor() {
-  const activePath = useProjectStore((state) => state.activePath);
-  const { hostRef, error } = useEditor(activePath);
+export default function Editor({ path, openPaths }: EditorProps) {
+  const { hostRef, error } = useEditor(path, openPaths);
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col bg-editor">
-      <div className="flex h-9 shrink-0 items-center border-b border-border bg-tab-bar px-3">
-        {activePath ? (
-          <span className="truncate font-mono text-[12px] text-fg-muted">
-            {activePath.split('/').pop()}
-          </span>
-        ) : (
-          <span className="text-[12px] text-fg-subtle">No file open</span>
-        )}
-      </div>
-
+    <div className="flex h-full min-h-0 min-w-0 flex-col bg-editor">
       {error ? (
-        <div className="p-4 font-mono text-[12px] text-fg-danger select-text">
+        <div className="shrink-0 px-3 py-2 font-mono text-[12px] text-fg-danger select-text">
           {error}
         </div>
       ) : null}
 
-      <div ref={hostRef} className="min-h-0 flex-1 select-text" />
+      <div
+        ref={hostRef}
+        className="min-h-0 flex-1 overflow-hidden select-text"
+      />
     </div>
   );
 }

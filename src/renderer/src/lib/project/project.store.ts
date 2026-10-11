@@ -10,7 +10,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   root: '',
   name: '',
   files: [],
-  activePath: null,
   expanded: new Set<string>(),
 
   setProject: (root, files) => set({ root, name: basename(root), files }),
@@ -18,8 +17,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   // The watcher in main already drops rescans that found an identical tree, so
   // anything arriving here is a real change and is stored without comparison.
   setFiles: (files) => set({ files }),
-
-  setActivePath: (activePath) => set({ activePath }),
 
   toggleExpanded: (path) => {
     // A new Set each time, because zustand compares by reference and mutating

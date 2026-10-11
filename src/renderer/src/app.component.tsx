@@ -6,6 +6,7 @@ import {
   useProjectSync,
 } from '~/lib/project';
 import { Header, Sidebar, Welcome } from '~/components/workbench';
+import WindowManager from '~/components/window';
 import Backdrop from '~/components/backdrop';
 
 /**
@@ -30,10 +31,10 @@ export default function App() {
     <div className="relative isolate flex h-full flex-col bg-app">
       <Backdrop />
       <Header />
-      <div className="w-full flex-grow flex gap-2 px-2 pb-2">
+      <div className="flex min-h-0 w-full flex-grow gap-2 px-2 pb-2">
         <Sidebar />
+        <WindowManager />
       </div>
-      {/* <Editor /> */}
       {/* <StatusBar /> */}
     </div>
   );

@@ -1,0 +1,10 @@
+{
+  // Format-on-save is configured in settings.json to use Prettier, so without
+  // this extension present saving quietly does nothing. The prompt on first
+  // open is the point.
+  "recommendations": [
+    "esbenp.prettier-vscode",
+    "dbaeumer.vscode-eslint",
+    "bradlc.vscode-tailwindcss"
+  ]
+}

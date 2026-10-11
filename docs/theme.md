@@ -1,0 +1,95 @@
+# Theming
+
+Carried over from the TUI, where it was the best-designed part of the codebase.
+Three layers, each narrower than the last:
+
+```
+palette   ~18 colors a theme author writes
+  ↓       ROLE_DEFAULTS maps each role to a palette entry
+roles     57 named surfaces the UI reads
+  ↓       applyTheme() writes --fd-* onto :root
+CSS       @theme inline turns them into Tailwind utilities
+  ↓
+bg-sidebar, text-fg-muted, border-pane-border-focused
+```
+
+The indirection is what makes a light theme possible: nothing in the UI knows
+that `bg` happens to be dark.
+
+## Writing a theme
+
+Everything but `name` is optional. A theme `extends` another (the default,
+unless it says otherwise) for whatever it leaves out, so recoloring one thing
+is a four-line file:
+
+```json
+{
+  "name": "my-theme",
+  "extends": "frodon-dark",
+  "colors": {
+    "palette": { "accent": "#ff8c00" }
+  }
+}
+```
+
+A **role** value is either a literal hex color or the name of a palette key,
+so you can write `"paneBorderFocused": "danger"` without repeating a hex.
+
+Nothing here throws. A bad hex, an unknown role, a cyclic `extends` — each is
+logged and replaced with the default's value, one key at a time. A typo in a
+theme file must never cost you the session.
+
+## Reading colors in a component
+
+Don't. Write a utility class:
+
+```tsx
+<div className="bg-sidebar text-fg-muted border-r border-border" />
+```
+
+Tailwind resolves that to `var(--fd-sidebar-bg)`, which means a theme switch is
+one write to `document.documentElement` and **zero React re-renders**. That is
+why previewing a theme as you arrow through a picker costs nothing.
+
+`useTheme()` exists for the handful of places that must hand a color to
+something CSS doesn't style — CodeMirror's `EditorView.theme`, a canvas, an SVG
+gradient. `editor.theme.ts` is the only current caller. If you find yourself
+reaching for it in a regular component, you want a utility class instead.
+
+## Adding a role
+
+Three edits, and they must stay in sync — CSS can't be type-checked, so order
+the lists identically to make drift visible:
+
+1. `theme.def.ts` → add the key to `ThemeRoles`
+2. `theme.constant.ts` → add its fallback to `ROLE_DEFAULTS`
+3. `styles.css` → add `--color-<name>: var(--fd-<kebab-name>);` to `@theme inline`
+
+TypeScript catches 1 and 2 (`ROLE_DEFAULTS` is a `Record<RoleKey, PaletteKey>`,
+so a missing entry fails the build). Step 3 is on you.
+
+To check the three lists agree:
+
+```bash
+node -e '
+const fs=require("fs");
+const css=fs.readFileSync("src/renderer/src/styles.css","utf8");
+const ts=fs.readFileSync("src/renderer/src/lib/theme/theme.constant.ts","utf8");
+const kebab=s=>s.replace(/[A-Z]/g,c=>"-"+c.toLowerCase());
+const block=ts.split("ROLE_DEFAULTS: Record<RoleKey, PaletteKey> = {")[1].split("\n};")[0];
+const roles=[...block.matchAll(/^\s{2}([a-zA-Z]+):/gm)].map(m=>m[1]).map(kebab);
+const used=new Set([...css.matchAll(/var\(--fd-([a-z-]+)\)/g)].map(m=>m[1]));
+console.log("missing from styles.css:", roles.filter(r=>!used.has(r)));
+console.log("in css but not a role:", [...used].filter(r=>!roles.includes(r)));
+'
+```
+
+## Why there are no icons here
+
+The TUI's theme had an `icons` layer with a width validator, because a terminal
+can't ship a font and every glyph had to measure exactly one or two cells —
+emoji were two, ignored `fg`, and stayed full-saturation in a dimmed pane.
+
+None of that exists in a browser engine. Icons are SVG, they inherit
+`currentColor`, and they lay out however you tell them to. The whole layer was
+dropped.

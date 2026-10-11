@@ -1,0 +1,5 @@
+# pnpm blocks dependency build scripts unless they are allowed here. A new
+# native dependency — node-pty is the next one — needs an entry, or its build
+# step is silently skipped. `pnpm approve-builds` writes this file for you.
+allowBuilds:
+  esbuild: true

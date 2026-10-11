@@ -1,0 +1,284 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/**
+ * `dark:` follows the *app's* theme, not the OS's.
+ *
+ * Tailwind's stock dark variant is a `prefers-color-scheme` media query, which
+ * is wrong here by construction: a user running frodon-light under a dark
+ * system would get shadcn's dark overrides on a white background. `applyTheme`
+ * toggles this class from `theme.dark`, so the variant tracks the theme that
+ * is actually loaded.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/**
+ * The bridge between the theme system and Tailwind.
+ *
+ * `@theme inline` is what makes this work: it generates utilities that
+ * *reference* the custom property rather than copying its value at build time.
+ * So `bg-sidebar` compiles to `background-color: var(--fd-sidebar-bg)`, and
+ * when `applyTheme` rewrites that property on `:root` the whole app restyles
+ * without a rebuild and without React re-rendering. A plain `@theme` block
+ * would inline the default theme's hex and freeze it.
+ *
+ * Every name here maps to a role in `theme.def.ts`. Adding a role means adding
+ * a line here too — the two lists are checked against each other by
+ * `npm run typecheck` only insofar as TypeScript sees the role; CSS can't be
+ * type-checked, so keep them in the same order to make drift visible.
+ */
+@theme inline {
+  /* Surfaces */
+  --color-app: var(--fd-app-bg);
+  --color-title-bar: var(--fd-title-bar-bg);
+  --color-sidebar: var(--fd-sidebar-bg);
+  --color-sidebar-header: var(--fd-sidebar-header-bg);
+  --color-status-bar: var(--fd-status-bar-bg);
+  --color-editor: var(--fd-editor-bg);
+  --color-terminal: var(--fd-terminal-bg);
+  --color-tab-bar: var(--fd-tab-bar-bg);
+  --color-tab-active: var(--fd-tab-active-bg);
+  --color-tab-inactive: var(--fd-tab-inactive-bg);
+  --color-overlay: var(--fd-overlay-bg);
+  --color-overlay-elevated: var(--fd-overlay-elevated-bg);
+  --color-input: var(--fd-input-bg);
+  --color-tooltip: var(--fd-tooltip-bg);
+  --color-menu-item: var(--fd-menu-item-bg);
+  --color-menu-item-hover: var(--fd-menu-item-hover-bg);
+  --color-menu-item-selected: var(--fd-menu-item-selected-bg);
+  --color-scrim: var(--fd-scrim);
+
+  /* Explorer */
+  --color-row-hover: var(--fd-explorer-row-hover-bg);
+  --color-row-selected: var(--fd-explorer-row-selected-bg);
+  --color-row-open: var(--fd-explorer-row-open-bg);
+  --color-indent-guide: var(--fd-explorer-indent-guide);
+  --color-explorer-file: var(--fd-explorer-file-fg);
+  --color-explorer-active: var(--fd-explorer-active-fg);
+
+  /* Borders */
+  --color-border: var(--fd-border);
+  --color-pane-border: var(--fd-pane-border);
+  --color-pane-border-focused: var(--fd-pane-border-focused);
+  --color-tooltip-border: var(--fd-tooltip-border);
+  --color-focus-ring: var(--fd-focus-ring);
+
+  /* Text */
+  --color-fg: var(--fd-fg);
+  --color-fg-muted: var(--fd-fg-muted);
+  --color-fg-subtle: var(--fd-fg-subtle);
+  --color-fg-accent: var(--fd-fg-accent);
+  --color-fg-danger: var(--fd-fg-danger);
+  --color-fg-warning: var(--fd-fg-warning);
+  --color-fg-success: var(--fd-fg-success);
+
+  /* Buttons */
+  --color-button: var(--fd-button-bg);
+  --color-button-hover: var(--fd-button-hover-bg);
+  --color-button-fg: var(--fd-button-fg);
+  --color-button-accent: var(--fd-button-accent-bg);
+  --color-button-accent-hover: var(--fd-button-accent-hover-bg);
+  --color-button-accent-fg: var(--fd-button-accent-fg);
+
+  /* Editor chrome */
+  --color-editor-gutter: var(--fd-editor-gutter-bg);
+  --color-line-number: var(--fd-editor-line-number);
+  --color-line-number-active: var(--fd-editor-line-number-active);
+  --color-active-line: var(--fd-editor-active-line-bg);
+  --color-editor-selection: var(--fd-editor-selection-bg);
+  --color-editor-cursor: var(--fd-editor-cursor);
+  --color-search-match: var(--fd-editor-search-match-bg);
+  --color-search-match-active: var(--fd-editor-search-match-active-bg);
+
+  /* Git */
+  --color-git-staged: var(--fd-git-staged-fg);
+  --color-git-changed: var(--fd-git-changed-fg);
+  --color-git-untracked: var(--fd-git-untracked-fg);
+
+  /* Scrollbars */
+  --color-scrollbar-thumb: var(--fd-scrollbar-thumb);
+  --color-scrollbar-thumb-hover: var(--fd-scrollbar-thumb-hover);
+
+  /* Errors */
+  --color-error-border: var(--fd-error-border);
+  --color-error-title: var(--fd-error-title-fg);
+
+  /* The open project's generated color. Not a theme role: it comes from the
+     folder name, not from the theme, and `useProjectColorEffect` writes it.
+     The fallback covers the frames before a project is open. */
+  --color-project: var(--fd-project-color, var(--fd-fg-accent));
+
+  /*
+   * ---------------------------------------------------------------------
+   * shadcn token bridge
+   * ---------------------------------------------------------------------
+   *
+   * Vendored shadcn components are written against a fixed vocabulary —
+   * `bg-primary`, `text-muted-foreground`, `border-ring`. Rather than rewrite
+   * every component on arrival, each of those names is aliased onto a Frodon
+   * role here. The components stay byte-identical to what `shadcn add` emits,
+   * and they restyle with the rest of the app on a theme switch because they
+   * are reading `--fd-*` like everything else.
+   *
+   * These are aliases, not new colors: adding one must never introduce a hex
+   * value. If a shadcn token has no role that fits, the fix is a new role in
+   * `theme.def.ts`, not a literal here.
+   */
+  --color-background: var(--fd-app-bg);
+  --color-foreground: var(--fd-fg);
+
+  --color-card: var(--fd-overlay-elevated-bg);
+  --color-card-foreground: var(--fd-fg);
+  /* Dropdowns, selects and tooltips. Dialogs use `bg-background` upstream,
+     which is why `overlayBg` lands here and not on `--color-background`. */
+  --color-popover: var(--fd-overlay-bg);
+  --color-popover-foreground: var(--fd-fg);
+
+  --color-primary: var(--fd-button-accent-bg);
+  --color-primary-foreground: var(--fd-button-accent-fg);
+  --color-secondary: var(--fd-button-bg);
+  --color-secondary-foreground: var(--fd-button-fg);
+
+  /* shadcn's `muted` is a recessive surface, its `accent` a hover surface —
+     neither means what Frodon's `accent` palette entry means. */
+  --color-muted: var(--fd-overlay-elevated-bg);
+  --color-muted-foreground: var(--fd-fg-muted);
+  --color-accent: var(--fd-menu-item-hover-bg);
+  --color-accent-foreground: var(--fd-fg);
+
+  /* Upstream uses this as both a fill and a text color, which `fgDanger`
+     already serves in both positions. */
+  --color-destructive: var(--fd-fg-danger);
+  --color-destructive-foreground: var(--fd-fg);
+
+  /*
+   * The one genuine collision. shadcn spends this token as `border-input` — a
+   * border — while Frodon's `inputBg` role is a fill. The token follows
+   * shadcn, because it is the only thing reading `border-input`; the role is
+   * still reachable as `bg-input-surface`, and had no users to break.
+   */
+  --color-input: var(--fd-border);
+  --color-input-surface: var(--fd-input-bg);
+
+  --color-ring: var(--fd-focus-ring);
+
+  /*
+   * One knob for how round the UI is. The derived steps work out to Tailwind's
+   * own defaults at 0.5rem (4 / 6 / 8 / 12px), so this changes nothing until
+   * it is turned.
+   */
+  --radius: 0.5rem;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* The editor and terminal both want a real monospace stack. */
+  --font-mono:
+    'JetBrains Mono', 'SF Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/**
+ * shadcn components write a bare `border` and expect it to pick up the theme's
+ * border color; Tailwind on its own would leave it `currentColor`, which on a
+ * button reads as a box drawn in the text color. Same story for the focus
+ * outline. This is the one rule upstream's globals.css contributes that Frodon
+ * does not already have.
+ */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+}
+
+/**
+ * An IDE is a single fixed viewport, not a document. Nothing outside a
+ * designated scroll container may scroll, or a long file drags the chrome off
+ * screen with it.
+ */
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  margin: 0;
+  background-color: var(--fd-app-bg);
+  color: var(--fd-fg);
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, system-ui, sans-serif;
+  font-size: 13px;
+  /* The chrome is not a document; selecting it by accident is only ever a
+     misfire. Surfaces that hold real content opt back in with `select-text`. */
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+/**
+ * The project backdrop — a wash of the generated project color behind the
+ * workbench, in the spirit of JetBrains' project gradient but pitched far
+ * lower: something you notice when you switch projects, not while you work.
+ *
+ * It lives in CSS rather than in the component because the two gradients are
+ * long enough that Tailwind's arbitrary-value syntax would obscure them, and
+ * because the rule here still reads no color in JS — only `--fd-project-color`,
+ * which `useProjectColorEffect` keeps current.
+ *
+ * `light-dark()` rather than a media query or a class: `applyTheme` already
+ * writes `color-scheme` onto `:root`, so the two branches track the *app's*
+ * theme and not the OS's. The light branch is weaker on purpose — the
+ * generated color is darker on a light theme, so the same mix percentage would
+ * land as a visible stain on white.
+ */
+.fd-backdrop {
+  --fd-backdrop-near: light-dark(
+    color-mix(in oklab, var(--fd-project-color, transparent) 6%, transparent),
+    color-mix(in oklab, var(--fd-project-color, transparent) 11%, transparent)
+  );
+  --fd-backdrop-far: light-dark(
+    color-mix(in oklab, var(--fd-project-color, transparent) 3%, transparent),
+    color-mix(in oklab, var(--fd-project-color, transparent) 5%, transparent)
+  );
+
+  background-image:
+    radial-gradient(
+      115% 85% at 0% 0%,
+      var(--fd-backdrop-near) 0%,
+      transparent 62%
+    ),
+    radial-gradient(
+      90% 70% at 100% 0%,
+      var(--fd-backdrop-far) 0%,
+      transparent 58%
+    );
+}
+
+/** The drag region for the frameless window — see `titleBarStyle` in main. */
+.drag-region {
+  -webkit-app-region: drag;
+}
+.drag-region button,
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Themed scrollbars, so they don't arrive as a stock light-grey stripe. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--fd-scrollbar-thumb);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--fd-scrollbar-thumb-hover);
+  background-clip: content-box;
+}

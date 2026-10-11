@@ -1,0 +1,109 @@
+/**
+ * The contract between the two processes, and the only place either one may
+ * learn about the other.
+ *
+ * In the TUI everything shared one process, so a hook could call
+ * `readFileSync` on the line that needed it. Electron splits that in half: the
+ * renderer is a sandboxed browser page with no Node, and every filesystem,
+ * git, or subprocess call has to cross a process boundary. Left unmanaged that
+ * boundary becomes dozens of stringly-typed `ipcRenderer.invoke` calls whose
+ * payloads drift from their handlers until something fails at runtime in a
+ * build you already shipped.
+ *
+ * So the channels live here, in a table that main, preload, and renderer all
+ * import. Adding a feature means adding one line to `IpcContract`; TypeScript
+ * then fails the build in the main process until a handler exists, and at
+ * every call site until the arguments match. The channel strings are never
+ * written by hand anywhere else.
+ *
+ * `shared/` is compiled into both bundles, so it must stay free of imports
+ * from either side — no `electron`, no `node:*`, no React. Types and plain
+ * data only.
+ */
+import type { File, FsResult } from './fs.def';
+
+/**
+ * Every request/response channel: renderer asks, main answers.
+ *
+ * `req` is the single argument the renderer passes (`void` for none), `res` is
+ * what it gets back. Both cross the boundary by structured clone, so they must
+ * hold plain data — no class instances, no functions, no `Map` keyed by
+ * anything exotic. A `Map` or `Set` itself clones fine; a zustand store does
+ * not.
+ */
+export interface IpcContract {
+  /** Native folder picker. Resolves to null when the user cancels. */
+  'project:pick': { req: void; res: string | null };
+  /** Recursive scan of a project root into a nested tree, respecting excludes. */
+  'project:tree': { req: { root: string }; res: File[] };
+
+  /** Reads a file as UTF-8 text. Rejects if unreadable. */
+  'file:read': { req: { path: string }; res: string };
+  /** Writes a file, creating parent directories as needed. */
+  'file:write': { req: { path: string; content: string }; res: FsResult };
+
+  /** Host facts the renderer can't ask the DOM for. */
+  'app:info': { req: void; res: AppInfo };
+}
+
+/**
+ * Every event channel: main pushes, renderer listens.
+ *
+ * These are one-way and unacknowledged. A filesystem watcher firing into a
+ * window that has since closed is normal, not an error.
+ */
+export interface IpcEvents {
+  /** The watched project tree changed on disk. Payload is the new tree. */
+  'project:changed': File[];
+}
+
+/**
+ * `shared/` compiles into the renderer too, which has no Node types, so the
+ * platform is spelled out rather than borrowed from `NodeJS.Platform`.
+ */
+export type Platform = 'darwin' | 'win32' | 'linux';
+
+export interface AppInfo {
+  platform: Platform;
+  /**
+   * The user's home directory, absolute and without a trailing slash.
+   *
+   * The renderer has no `os.homedir()` and never will, but it is the side that
+   * draws paths, and `~/dev/frodon` is what a person recognises. So the prefix
+   * crosses once at startup rather than a shortened path crossing per file.
+   */
+  home: string;
+  versions: { electron: string; chrome: string; node: string };
+}
+
+export type Channel = keyof IpcContract;
+export type Req<C extends Channel> = IpcContract[C]['req'];
+export type Res<C extends Channel> = IpcContract[C]['res'];
+
+export type EventChannel = keyof IpcEvents;
+export type EventPayload<E extends EventChannel> = IpcEvents[E];
+
+/**
+ * The shape `contextBridge` exposes on `window.frodon`.
+ *
+ * Deliberately a flat list of named methods rather than a generic
+ * `invoke(channel, payload)` passthrough. A passthrough would let the renderer
+ * reach any channel main ever registers, including ones added later for
+ * something else entirely — the exposed surface is the security boundary, so
+ * it is written out rather than computed.
+ */
+export interface FrodonApi {
+  project: {
+    pick: () => Promise<Res<'project:pick'>>;
+    tree: (root: string) => Promise<Res<'project:tree'>>;
+    /** Subscribes to tree changes. Returns an unsubscribe function. */
+    onChanged: (listener: (files: File[]) => void) => () => void;
+  };
+  file: {
+    read: (path: string) => Promise<Res<'file:read'>>;
+    write: (path: string, content: string) => Promise<Res<'file:write'>>;
+  };
+  app: {
+    info: () => Promise<Res<'app:info'>>;
+  };
+}

@@ -80,6 +80,11 @@
   --color-button-accent-hover: var(--fd-button-accent-hover-bg);
   --color-button-accent-fg: var(--fd-button-accent-fg);
 
+  /* Terminal chrome */
+  --color-terminal-fg: var(--fd-terminal-fg);
+  --color-terminal-cursor: var(--fd-terminal-cursor);
+  --color-terminal-selection: var(--fd-terminal-selection-bg);
+
   /* Editor chrome */
   --color-editor-gutter: var(--fd-editor-gutter-bg);
   --color-line-number: var(--fd-editor-line-number);

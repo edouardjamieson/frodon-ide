@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type {
   EditorWindow,
+  TerminalWindow,
   WindowState,
   WindowStore,
   WindowType,
@@ -10,6 +11,7 @@ import {
   createWindow,
   firstFreeSlot,
   insertSplit,
+  nextSessionId,
   removeWindow,
 } from './window.service';
 
@@ -120,6 +122,74 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
     }));
   },
 
+  openTerminal: (windowId) => {
+    const { windows, focusedId } = get();
+    const target = terminalTargetFor(windows, windowId ?? focusedId);
+
+    // Every window holds an editor and the grid is full. Nowhere to put a
+    // shell, and nothing worth rearranging on the user's behalf.
+    if (!target) return;
+
+    // A window spawned for the occasion arrives with its first session
+    // already open, so there is nothing left to add to it.
+    if ('spawn' in target) {
+      set({
+        windows: [...windows, target.spawn],
+        focusedId: target.spawn.id,
+      });
+      return;
+    }
+
+    const session = nextSessionId();
+
+    set({
+      windows: windows.map((window) => {
+        if (window.id !== target.id) return window;
+        const terminal = asTerminal(window);
+        return {
+          ...terminal,
+          sessions: [...terminal.sessions, session],
+          activeSession: session,
+        };
+      }),
+      focusedId: target.id,
+    });
+  },
+
+  setActiveSession: (windowId, sessionId) => {
+    set((state) => ({
+      windows: state.windows.map((window) =>
+        window.id === windowId &&
+        window.type === 'terminal' &&
+        window.sessions.includes(sessionId)
+          ? { ...window, activeSession: sessionId }
+          : window
+      ),
+    }));
+  },
+
+  closeSession: (windowId, sessionId) => {
+    // Dropping the session unmounts its terminal, and unmounting is what
+    // kills the shell — see `useTerminal`. Nothing to signal from here.
+    set((state) => ({
+      windows: state.windows.map((window) => {
+        if (window.id !== windowId || window.type !== 'terminal') return window;
+
+        const sessions = window.sessions.filter((id) => id !== sessionId);
+        if (sessions.length === window.sessions.length) return window;
+
+        return {
+          ...window,
+          sessions,
+          activeSession:
+            window.activeSession === sessionId
+              ? neighbourOf(window.sessions, sessionId)
+              : window.activeSession,
+        };
+      }),
+    }));
+  },
+
   closeFile: (windowId, path) => {
     set((state) => ({
       windows: state.windows.map((window) => {
@@ -158,9 +228,13 @@ function neighbourOf(files: string[], closing: string): string | null {
 /** An untyped window, given its module. */
 function typed(window: WindowState, type: WindowType): WindowState {
   const { id, row, col } = window;
-  return type === 'editor'
-    ? { id, row, col, type, files: [], activeFile: null }
-    : { id, row, col, type };
+  if (type === 'editor') {
+    return { id, row, col, type, files: [], activeFile: null };
+  }
+
+  // A terminal is useless without a shell, so choosing it starts one.
+  const session = nextSessionId();
+  return { id, row, col, type, sessions: [session], activeSession: session };
 }
 
 /** The same window as an editor, typing it on the spot if it was empty. */
@@ -168,6 +242,16 @@ function asEditor(window: WindowState): EditorWindow {
   if (window.type === 'editor') return window;
   const { id, row, col } = window;
   return { id, row, col, type: 'editor', files: [], activeFile: null };
+}
+
+/**
+ * The same window as a terminal. The empty case starts with no sessions
+ * because the caller is about to add the one it came for.
+ */
+function asTerminal(window: WindowState): TerminalWindow {
+  if (window.type === 'terminal') return window;
+  const { id, row, col } = window;
+  return { id, row, col, type: 'terminal', sessions: [], activeSession: null };
 }
 
 /**
@@ -196,4 +280,24 @@ function editorTargetFor(
   if (!slot) return null;
 
   return { spawn: createWindow(slot.row, slot.col, 'editor') };
+}
+
+/** The same question for a shell. An editor window cannot host one. */
+function terminalTargetFor(
+  windows: WindowState[],
+  preferredId: string
+): WindowState | { spawn: WindowState } | null {
+  const preferred = windows.find((window) => window.id === preferredId);
+  if (preferred && preferred.type !== 'editor') return preferred;
+
+  const terminal = windows.find((window) => window.type === 'terminal');
+  if (terminal) return terminal;
+
+  const empty = windows.find((window) => window.type === null);
+  if (empty) return empty;
+
+  const slot = firstFreeSlot(windows);
+  if (!slot) return null;
+
+  return { spawn: createWindow(slot.row, slot.col, 'terminal') };
 }

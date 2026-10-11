@@ -8,7 +8,12 @@
 import { useMemo } from 'react';
 import { useWindowStore } from './window.store';
 import { canSplit, rowsOf } from './window.service';
-import type { EditorWindow, WindowState, WindowType } from './window.def';
+import type {
+  EditorWindow,
+  TerminalWindow,
+  WindowState,
+  WindowType,
+} from './window.def';
 
 /**
  * The grid, as rows of windows.
@@ -63,6 +68,21 @@ export const useEditorWindow = (window: EditorWindow) => {
     activeFile: window.activeFile,
     activate: (path: string) => setActiveFile(window.id, path),
     close: (path: string) => closeFile(window.id, path),
+  };
+};
+
+/** Everything a terminal window's tabs and shells need. */
+export const useTerminalWindow = (window: TerminalWindow) => {
+  const setActiveSession = useWindowStore((state) => state.setActiveSession);
+  const closeSession = useWindowStore((state) => state.closeSession);
+  const openTerminal = useWindowStore((state) => state.openTerminal);
+
+  return {
+    sessions: window.sessions,
+    activeSession: window.activeSession,
+    activate: (sessionId: string) => setActiveSession(window.id, sessionId),
+    close: (sessionId: string) => closeSession(window.id, sessionId),
+    open: () => openTerminal(window.id),
   };
 };
 

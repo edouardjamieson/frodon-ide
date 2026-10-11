@@ -11,6 +11,12 @@ import { dialog, BrowserWindow } from 'electron';
 import { handle } from './ipc.service';
 import { openProject } from '@main/project';
 import { readFileText, writeFileText } from '@main/fs';
+import {
+  createSession,
+  killSession,
+  resizeSession,
+  writeSession,
+} from '@main/terminal';
 import type { Platform } from '@shared/ipc.def';
 
 export function registerIpcHandlers(): void {
@@ -29,6 +35,20 @@ export function registerIpcHandlers(): void {
   handle('file:read', ({ path }) => readFileText(path));
 
   handle('file:write', ({ path, content }) => writeFileText(path, content));
+
+  // The sender is what ties a shell to a window: its output is sent back to
+  // the window that asked for it and to no other.
+  handle('terminal:create', (options, event) =>
+    createSession(options, event.sender.id)
+  );
+
+  handle('terminal:write', ({ id, data }) => writeSession(id, data));
+
+  handle('terminal:resize', ({ id, cols, rows }) =>
+    resizeSession(id, cols, rows)
+  );
+
+  handle('terminal:kill', ({ id }) => killSession(id));
 
   handle('app:info', () => ({
     platform: process.platform as Platform,

@@ -40,5 +40,16 @@ export default tseslint.config(
     rules: { 'no-console': 'off' },
   },
 
+  // Install-time scripts: plain Node ESM run from `postinstall`, never
+  // bundled and never type-checked with the rest. They are the only files
+  // here that need Node's globals spelled out, so they are spelled out rather
+  // than pulling in the `globals` package for two names.
+  {
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: { console: 'readonly', process: 'readonly' },
+    },
+  },
+
   prettier
 );

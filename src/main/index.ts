@@ -10,6 +10,7 @@ import { electronApp, optimizer } from '@electron-toolkit/utils';
 import { createWindow } from '@main/app';
 import { registerIpcHandlers } from '@main/ipc';
 import { disposeProject } from '@main/project';
+import { disposeTerminals } from '@main/terminal';
 import { createLogger } from '@main/logger';
 
 const log = createLogger('main');
@@ -47,6 +48,10 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 
-// Release the filesystem watcher before teardown. Once PTYs land this is also
-// where their process trees get killed — see docs/migration.md.
-app.on('will-quit', disposeProject);
+// Release the filesystem watcher and kill every shell before teardown. A PTY
+// holds a whole process tree — a dev server, a watcher — and nothing else is
+// going to reap it: see `terminal.registry.ts`.
+app.on('will-quit', () => {
+  disposeProject();
+  disposeTerminals();
+});

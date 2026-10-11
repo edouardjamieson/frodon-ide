@@ -126,6 +126,12 @@ export interface ThemeRoles {
   buttonAccentHoverBg: string;
   buttonAccentFg: string;
 
+  // Terminal chrome. The sixteen ANSI colors are their own layer — see
+  // `ThemeAnsi` — because they are a fixed convention rather than surfaces.
+  terminalFg: string;
+  terminalCursor: string;
+  terminalSelectionBg: string;
+
   // Editor chrome
   editorGutterBg: string;
   editorLineNumber: string;
@@ -171,6 +177,38 @@ export interface ThemeSyntax {
   punctuation: string;
 }
 
+/**
+ * The sixteen colors a shell can ask for by number.
+ *
+ * A fourth layer, and the only one whose membership is dictated from outside:
+ * `\e[31m` means "red" to every program ever written, and a theme that
+ * renames it is simply wrong. So unlike roles, these are not overridable
+ * individually against the palette — a theme either ships a terminal palette
+ * or inherits the one it extends.
+ *
+ * They are deliberately *not* derived from `syntax`. A terminal's red is
+ * `git diff`'s deletions, `npm`'s errors and `ls`'s broken symlink; the
+ * editor's keyword color is a stylistic choice that happens to be reddish.
+ */
+export interface ThemeAnsi {
+  black: string;
+  red: string;
+  green: string;
+  yellow: string;
+  blue: string;
+  magenta: string;
+  cyan: string;
+  white: string;
+  brightBlack: string;
+  brightRed: string;
+  brightGreen: string;
+  brightYellow: string;
+  brightBlue: string;
+  brightMagenta: string;
+  brightCyan: string;
+  brightWhite: string;
+}
+
 /** A fully resolved theme: what the store holds and components read. */
 export interface Theme {
   name: string;
@@ -182,6 +220,7 @@ export interface Theme {
   /** Resolved roles — always literal hex, never a palette key name. */
   colors: ThemeRoles;
   syntax: ThemeSyntax;
+  ansi: ThemeAnsi;
 }
 
 /**
@@ -206,6 +245,7 @@ export interface ThemeDefinition {
     /** Each value is a literal hex color or the name of a palette key. */
     roles?: Partial<Record<RoleKey, string>>;
     syntax?: Partial<ThemeSyntax>;
+    ansi?: Partial<ThemeAnsi>;
   };
 }
 

@@ -70,6 +70,16 @@ Apply the same discipline to git polling and to anything per-keystroke.
 security boundary.
 
 **Streams don't fit this model.** A PTY emits thousands of small writes a
-second and `invoke` round-trips are the wrong shape for it. When terminals
-land, they want a dedicated high-frequency event channel carrying batched
-`Uint8Array` chunks — see `docs/migration.md`.
+second and one `invoke` round-trip per write would be absurd. `terminal:data`
+is how that is handled: a one-way event channel, with main pooling output for
+8ms or 64KB before it crosses (`main/terminal/terminal.constant.ts`). The
+round-trip survives in the _other_ direction — `terminal:write` is one call
+per keystroke, which is a few bytes at human speed.
+
+**An event can outlive what it describes.** `terminal:exit` is sent for a
+session that main has already dropped, and a chunk can be in flight when the
+window that asked for it closes. Both are normal. What is _not_ normal is
+acting on an event whose id has since been reused: main checks that the
+session it is reporting on is still the registered one before sending, and
+the preload filters output by id so a chunk only wakes the terminal it
+belongs to.

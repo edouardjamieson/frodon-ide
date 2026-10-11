@@ -82,7 +82,7 @@ export default function Window({ window: win }: { window: WindowState }) {
       </header>
 
       <div className="min-h-0 flex-1">
-        <WindowBody window={win} />
+        <WindowBody window={win} focused={focused} />
       </div>
     </section>
   );
@@ -98,18 +98,26 @@ function WindowHeader({ window: win }: { window: WindowState }) {
     case 'editor':
       return <EditorWindowHeader window={win} />;
     case 'terminal':
-      return <TerminalWindowHeader />;
+      return <TerminalWindowHeader window={win} />;
     default:
       return <EmptyWindowHeader />;
   }
 }
 
-function WindowBody({ window: win }: { window: WindowState }) {
+function WindowBody({
+  window: win,
+  focused,
+}: {
+  window: WindowState;
+  focused: boolean;
+}) {
   switch (win.type) {
     case 'editor':
       return <EditorWindowBody window={win} />;
     case 'terminal':
-      return <TerminalWindowBody />;
+      // The only module that needs to know: a shell takes keystrokes, and
+      // exactly one shell in the workbench may have them.
+      return <TerminalWindowBody window={win} focused={focused} />;
     default:
       return <EmptyWindowBody window={win} />;
   }

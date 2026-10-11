@@ -23,6 +23,17 @@ export function nextWindowId(): string {
   return `w${lastId}`;
 }
 
+/**
+ * Session ids, on the same terms — except that these *do* leave the renderer:
+ * main keys its PTY registry by them. They still only have to be unique
+ * within this page, because a session belongs to the window that made it.
+ */
+let lastSessionId = 0;
+export function nextSessionId(): string {
+  lastSessionId += 1;
+  return `s${lastSessionId}`;
+}
+
 /** A window of the requested kind, at the given slot. */
 export function createWindow(
   row: number,
@@ -34,8 +45,12 @@ export function createWindow(
   switch (type) {
     case 'editor':
       return { ...base, type, files: [], activeFile: null };
-    case 'terminal':
-      return { ...base, type };
+    case 'terminal': {
+      // A terminal window with no shell in it would be an empty box with a
+      // button, so it arrives with its first session already named.
+      const session = nextSessionId();
+      return { ...base, type, sessions: [session], activeSession: session };
+    }
     default:
       return { ...base, type: null };
   }

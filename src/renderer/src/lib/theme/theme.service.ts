@@ -16,6 +16,7 @@ import type {
   PaletteKey,
   RoleKey,
   Theme,
+  ThemeAnsi,
   ThemeDefinition,
   ThemePalette,
   ThemeRoles,
@@ -138,11 +139,15 @@ export function resolveTheme(
 
   const palette = {} as ThemePalette;
   const syntax = {} as ThemeSyntax;
+  const ansi = {} as ThemeAnsi;
   const roleOverrides: Partial<Record<RoleKey, string>> = {};
 
   for (const definition of chain) {
     Object.assign(palette, validColors(definition.colors?.palette, 'palette'));
     Object.assign(syntax, validColors(definition.colors?.syntax, 'syntax'));
+    // The sixteen terminal colors merge like syntax does, so a theme that
+    // only recolors the UI keeps the terminal palette it inherited.
+    Object.assign(ansi, validColors(definition.colors?.ansi, 'ansi'));
     // Roles resolve against the *final* palette, so they're collected across
     // the chain and applied once everything has been merged.
     Object.assign(roleOverrides, definition.colors?.roles ?? {});
@@ -160,6 +165,7 @@ export function resolveTheme(
     palette,
     colors,
     syntax,
+    ansi,
   };
 }
 
@@ -177,9 +183,10 @@ export function toCssVarName(key: string): string {
  * restyles the app without React doing anything at all, which also means a
  * theme preview can follow the arrow keys through a list at no cost.
  *
- * Roles become `--fd-<role>`, syntax groups `--fd-syntax-<group>`. Tailwind
- * picks these up through `@theme inline` in styles.css, so `bg-sidebar` and
- * friends resolve to whatever the live theme says.
+ * Roles become `--fd-<role>`, syntax groups `--fd-syntax-<group>`, terminal
+ * colors `--fd-ansi-<name>`. Tailwind picks these up through `@theme inline`
+ * in styles.css, so `bg-sidebar` and friends resolve to whatever the live
+ * theme says.
  */
 export function applyTheme(theme: Theme, target?: HTMLElement): void {
   const root = target ?? document.documentElement;
@@ -189,6 +196,13 @@ export function applyTheme(theme: Theme, target?: HTMLElement): void {
   }
   for (const [group, value] of Object.entries(theme.syntax)) {
     root.style.setProperty(`--fd-syntax-${toCssVarName(group)}`, value);
+  }
+  // xterm reads these through its own JS theme API rather than from CSS, the
+  // same way CodeMirror does. They are published anyway so that the whole
+  // theme is inspectable in DevTools from one place, and so a future diff
+  // view can color itself without a second source of truth.
+  for (const [name, value] of Object.entries(theme.ansi)) {
+    root.style.setProperty(`--fd-ansi-${toCssVarName(name)}`, value);
   }
 
   // Tells the engine which way to render native widgets — scrollbars, form

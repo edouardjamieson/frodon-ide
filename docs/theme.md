@@ -6,7 +6,7 @@ Three layers, each narrower than the last:
 ```
 palette   ~18 colors a theme author writes
   ↓       ROLE_DEFAULTS maps each role to a palette entry
-roles     57 named surfaces the UI reads
+roles     60 named surfaces the UI reads
   ↓       applyTheme() writes --fd-* onto :root
 CSS       @theme inline turns them into Tailwind utilities
   ↓
@@ -52,9 +52,10 @@ one write to `document.documentElement` and **zero React re-renders**. That is
 why previewing a theme as you arrow through a picker costs nothing.
 
 `useTheme()` exists for the handful of places that must hand a color to
-something CSS doesn't style — CodeMirror's `EditorView.theme`, a canvas, an SVG
-gradient. `editor.theme.ts` is the only current caller. If you find yourself
-reaching for it in a regular component, you want a utility class instead.
+something CSS doesn't style — CodeMirror's `EditorView.theme`, xterm's
+`ITheme`, a canvas, an SVG gradient. `editor.theme.ts` and `terminal.theme.ts`
+are the only current callers. If you find yourself reaching for it in a
+regular component, you want a utility class instead.
 
 ## Adding a role
 
@@ -83,6 +84,28 @@ console.log("missing from styles.css:", roles.filter(r=>!used.has(r)));
 console.log("in css but not a role:", [...used].filter(r=>!roles.includes(r)));
 '
 ```
+
+## The two layers beside the roles
+
+`syntax` and `ansi` sit next to the roles rather than under them, because
+neither is a _surface_: they are vocabularies the role layer has no opinion
+about.
+
+- **`syntax`** — ten semantic groups the editor maps grammar tokens onto. A
+  theme author colors `keyword` and `string`, never `propertyName`.
+- **`ansi`** — the sixteen colors a program asks for by number. These are the
+  one part of a theme whose meaning is fixed from outside: `\e[31m` means red
+  to every program ever written. Unlike a role, they take no palette-key
+  shorthand — a theme ships a terminal palette or inherits the one it extends.
+
+Don't derive one from the other. A terminal's red is `git diff`'s deletions,
+`npm`'s errors and `ls`'s broken symlink; the editor's keyword color is a
+stylistic choice that happens to be reddish. They drift apart the moment a
+theme has any character.
+
+Both are published as custom properties (`--fd-syntax-*`, `--fd-ansi-*`) even
+though their consumers read them through JS, so the whole live theme is
+inspectable from one place in DevTools.
 
 ## Why there are no icons here
 

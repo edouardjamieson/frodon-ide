@@ -11,8 +11,12 @@
  * crosses the boundary as an opaque `Error: Error invoking remote method ...`,
  * which tells the renderer nothing. Logging it here with its channel keeps the
  * real stack where someone can read it.
+ *
+ * The invoke event is passed through as a second argument for the handlers
+ * that need to know *which* window asked — a terminal's output belongs to the
+ * window that spawned it, not to everyone. Most handlers ignore it.
  */
-import { ipcMain } from 'electron';
+import { ipcMain, type IpcMainInvokeEvent } from 'electron';
 import { createLogger } from '@main/logger';
 import type { Channel, Req, Res } from '@shared/ipc.def';
 
@@ -20,11 +24,11 @@ const log = createLogger('ipc');
 
 export function handle<C extends Channel>(
   channel: C,
-  handler: (req: Req<C>) => Res<C> | Promise<Res<C>>
+  handler: (req: Req<C>, event: IpcMainInvokeEvent) => Res<C> | Promise<Res<C>>
 ): void {
-  ipcMain.handle(channel, async (_event, req: Req<C>) => {
+  ipcMain.handle(channel, async (event, req: Req<C>) => {
     try {
-      return await handler(req);
+      return await handler(req, event);
     } catch (error) {
       log.error(`${channel} failed`, error);
       throw error;

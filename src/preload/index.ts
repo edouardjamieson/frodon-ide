@@ -21,6 +21,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { File } from '@shared/fs.def';
 import type { FrodonApi } from '@shared/ipc.def';
+import type { TerminalData, TerminalExit } from '@shared/terminal.def';
 
 const api: FrodonApi = {
   project: {
@@ -36,6 +37,30 @@ const api: FrodonApi = {
     read: (path) => ipcRenderer.invoke('file:read', { path }),
     write: (path, content) =>
       ipcRenderer.invoke('file:write', { path, content }),
+  },
+  terminal: {
+    create: (options) => ipcRenderer.invoke('terminal:create', options),
+    write: (id, data) => ipcRenderer.invoke('terminal:write', { id, data }),
+    resize: (id, cols, rows) =>
+      ipcRenderer.invoke('terminal:resize', { id, cols, rows }),
+    kill: (id) => ipcRenderer.invoke('terminal:kill', { id }),
+    // Output is a single channel carrying every session's bytes, so the id
+    // check happens here rather than in each terminal component: a chunk for
+    // one shell must not cross into the renderer's other nine.
+    onData: (id, listener) => {
+      const handler = (_event: unknown, payload: TerminalData) => {
+        if (payload.id === id) listener(payload.data);
+      };
+      ipcRenderer.on('terminal:data', handler);
+      return () => ipcRenderer.removeListener('terminal:data', handler);
+    },
+    onExit: (id, listener) => {
+      const handler = (_event: unknown, payload: TerminalExit) => {
+        if (payload.id === id) listener(payload);
+      };
+      ipcRenderer.on('terminal:exit', handler);
+      return () => ipcRenderer.removeListener('terminal:exit', handler);
+    },
   },
   app: {
     info: () => ipcRenderer.invoke('app:info'),

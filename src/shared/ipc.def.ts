@@ -21,6 +21,7 @@
  * data only.
  */
 import type { File, FsResult } from './fs.def';
+import type { TerminalData, TerminalExit, TerminalInfo } from './terminal.def';
 
 /**
  * Every request/response channel: renderer asks, main answers.
@@ -42,6 +43,28 @@ export interface IpcContract {
   /** Writes a file, creating parent directories as needed. */
   'file:write': { req: { path: string; content: string }; res: FsResult };
 
+  /**
+   * Spawns a shell on a pseudo-terminal, named by the renderer. Creating a
+   * session whose id is already live replaces it — see `createSession`.
+   */
+  'terminal:create': {
+    req: { id: string; cwd: string; cols: number; rows: number };
+    res: TerminalInfo;
+  };
+  /**
+   * Keystrokes, on their way to the shell. One call per keypress: the payload
+   * is a few bytes, and the alternative — a second, untyped one-way path
+   * alongside the contract — buys less than it costs.
+   */
+  'terminal:write': { req: { id: string; data: string }; res: void };
+  /** Tells the PTY its new size, which the kernel turns into a SIGWINCH. */
+  'terminal:resize': {
+    req: { id: string; cols: number; rows: number };
+    res: void;
+  };
+  /** Ends a session and everything the shell started. */
+  'terminal:kill': { req: { id: string }; res: void };
+
   /** Host facts the renderer can't ask the DOM for. */
   'app:info': { req: void; res: AppInfo };
 }
@@ -55,6 +78,18 @@ export interface IpcContract {
 export interface IpcEvents {
   /** The watched project tree changed on disk. Payload is the new tree. */
   'project:changed': File[];
+
+  /**
+   * Shell output, batched.
+   *
+   * The one genuinely high-frequency channel in the app: `yes` or a build log
+   * can emit thousands of small writes a second, and one message per write
+   * would spend more time in structured clone than in the terminal. Main
+   * coalesces them — see `FLUSH_MS` in `main/terminal/`.
+   */
+  'terminal:data': TerminalData;
+  /** The shell exited. The session is gone from main's registry by then. */
+  'terminal:exit': TerminalExit;
 }
 
 /**
@@ -102,6 +137,21 @@ export interface FrodonApi {
   file: {
     read: (path: string) => Promise<Res<'file:read'>>;
     write: (path: string, content: string) => Promise<Res<'file:write'>>;
+  };
+  terminal: {
+    create: (
+      options: Req<'terminal:create'>
+    ) => Promise<Res<'terminal:create'>>;
+    write: (id: string, data: string) => Promise<void>;
+    resize: (id: string, cols: number, rows: number) => Promise<void>;
+    kill: (id: string) => Promise<void>;
+    /**
+     * Subscribes to one session's output. Filtering happens in the preload so
+     * that a workbench full of terminals doesn't wake every one of them for
+     * every chunk. Returns an unsubscribe function.
+     */
+    onData: (id: string, listener: (data: string) => void) => () => void;
+    onExit: (id: string, listener: (exit: TerminalExit) => void) => () => void;
   };
   app: {
     info: () => Promise<Res<'app:info'>>;

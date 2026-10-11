@@ -55,8 +55,13 @@ export interface EditorWindow extends WindowBase {
 
 export interface TerminalWindow extends WindowBase {
   type: 'terminal';
-  // Sessions land here with node-pty — see docs/migration.md §1. Modelling
-  // them now would mean shipping a list nothing can fill.
+  /**
+   * Session ids, in tab order. Each one names a live shell in main, which is
+   * the authority on it — these are the renderer's handles, nothing more.
+   */
+  sessions: string[];
+  /** The session on screen. The others stay mounted and keep running. */
+  activeSession: string | null;
 }
 
 /** A window that has been spawned but not yet told what it is. */
@@ -100,4 +105,13 @@ export interface WindowStore {
   openFile: (path: string, windowId?: string) => void;
   closeFile: (windowId: string, path: string) => void;
   setActiveFile: (windowId: string, path: string) => void;
+
+  /**
+   * Opens a shell, routing the same way `openFile` does — the window asked
+   * for, else the focused one, else any terminal, else a newly spawned one.
+   * Always a *new* session: a terminal window is a stack of shells.
+   */
+  openTerminal: (windowId?: string) => void;
+  closeSession: (windowId: string, sessionId: string) => void;
+  setActiveSession: (windowId: string, sessionId: string) => void;
 }

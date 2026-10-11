@@ -72,11 +72,11 @@ through a barrel `index.ts`:
 
 Import across features through the barrel and a path alias:
 
-| Alias      | Resolves to          | Available in      |
-| ---------- | -------------------- | ----------------- |
-| `~/*`      | `src/renderer/src/*` | renderer          |
-| `@main/*`  | `src/main/*`         | main              |
-| `@shared/*`| `src/shared/*`       | all three bundles |
+| Alias       | Resolves to          | Available in      |
+| ----------- | -------------------- | ----------------- |
+| `~/*`       | `src/renderer/src/*` | renderer          |
+| `@main/*`   | `src/main/*`         | main              |
+| `@shared/*` | `src/shared/*`       | all three bundles |
 
 ## State: who owns what
 
@@ -95,8 +95,8 @@ in a renderer store and never crosses.
 ## The workbench
 
 Next to the sidebar is the window manager: a small grid of tiles, each holding
-one module — an editor with its own tabs, a terminal (a placeholder until
-node-pty lands), or nothing yet.
+one module — an editor with its own tabs, a terminal with its own shells, or
+nothing yet.
 
 ```
 windows: [{ id, row, col, …contents }]      flat, each carrying its coordinates
@@ -116,8 +116,15 @@ Two rules keep it small:
   on that union, a module file, and the two switches in
   `window.component.tsx` that TypeScript will point at.
 
-A *window* here is a tile, not an OS window. The thing `main/app/` creates is a
+A _window_ here is a tile, not an OS window. The thing `main/app/` creates is a
 `BrowserWindow`, and the two never meet.
+
+The terminal module is where the process split pays for itself twice over.
+The shell, its PTY, its signals and its process tree live in main; the
+renderer has an emulator, a byte stream and a size, and never learns the pid.
+Everything hard about a terminal — the controlling tty, the line discipline
+that turns `0x03` into SIGINT, SIGWINCH, killing a tree of orphans — belongs
+to the kernel and to `main/terminal/`.
 
 ## Theming
 
@@ -126,10 +133,15 @@ Three layers, carried over intact from the TUI:
 ```
 palette (~18 colors an author writes)
    ↓ ROLE_DEFAULTS
-roles   (57 named surfaces the UI actually reads)
+roles   (60 named surfaces the UI actually reads)
    ↓ applyTheme()
 CSS custom properties on :root  →  Tailwind @theme inline  →  bg-sidebar
 ```
+
+Two layers sit beside the roles rather than under them: `syntax`, the ten
+semantic groups the editor colors grammar with, and `ansi`, the sixteen
+colors a shell asks for by number. Neither derives from the other — a
+terminal's red is `git diff`'s deletions, not a keyword.
 
 Components **never read a color in JS**. They write `bg-sidebar` or
 `text-fg-muted` and Tailwind resolves it to `var(--fd-sidebar-bg)`. Switching

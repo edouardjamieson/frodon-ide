@@ -1,5 +1,8 @@
 # pnpm blocks dependency build scripts unless they are allowed here. A new
-# native dependency — node-pty is the next one — needs an entry, or its build
-# step is silently skipped. `pnpm approve-builds` writes this file for you.
+# native dependency needs an entry, or its build step is silently skipped —
+# `pnpm approve-builds` writes this file for you. node-pty's entry is what
+# puts its prebuilt binary in place; see scripts/fix-spawn-helper.mjs for the
+# second half of that story.
 allowBuilds:
   esbuild: true
+  node-pty: true

@@ -9,14 +9,15 @@ deliberately left behind.
 
 ## Already ported
 
-| From the TUI | Lands at | Notes |
-| --- | --- | --- |
-| `lib/fs/fs.service.ts` | `main/fs/` | `Bun.file` → `fs.promises`. Logic unchanged: filter-before-descend, `sameTree`, the max-delay-capped watch debounce. |
-| `lib/ignore/` | `main/ignore/` | `Bun.Glob` → `picomatch`. Same pattern semantics. |
-| `lib/theme/` | `renderer/src/lib/theme/` | Palettes, `ROLE_DEFAULTS`, the `extends` chain, hex validation. Roles now emit CSS custom properties. |
-| `lib/project/` | split | The scan and watcher went to `main/project/`; the store and hooks stayed in the renderer. |
-| `lib/window/` | split | The model came over whole — windows on a row/col grid, contents per window. `useCalculateLayout` did not: see below. |
-| Module convention | everywhere | Unchanged. |
+| From the TUI                   | Lands at                                    | Notes                                                                                                                                                            |
+| ------------------------------ | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/fs/fs.service.ts`         | `main/fs/`                                  | `Bun.file` → `fs.promises`. Logic unchanged: filter-before-descend, `sameTree`, the max-delay-capped watch debounce.                                             |
+| `lib/ignore/`                  | `main/ignore/`                              | `Bun.Glob` → `picomatch`. Same pattern semantics.                                                                                                                |
+| `lib/theme/`                   | `renderer/src/lib/theme/`                   | Palettes, `ROLE_DEFAULTS`, the `extends` chain, hex validation. Roles now emit CSS custom properties.                                                            |
+| `lib/project/`                 | split                                       | The scan and watcher went to `main/project/`; the store and hooks stayed in the renderer.                                                                        |
+| `lib/window/`                  | split                                       | The model came over whole — windows on a row/col grid, contents per window. `useCalculateLayout` did not: see below.                                             |
+| `components/modules/terminal/` | `main/terminal/` + `renderer/.../terminal/` | The PTY moved to main and the emulator became `@xterm/xterm`. Most of the TUI's hard-won handling turned out to be worked around rather than solved — see below. |
+| Module convention              | everywhere                                  | Unchanged.                                                                                                                                                       |
 
 ### What changed in the window port
 
@@ -43,42 +44,54 @@ Worth writing down, because the diff is bigger than the table suggests:
   input dialog and moving wanted the arrow-key overlay; both belong with the
   keybinding registry and the command palette rather than in the layout code.
 
+### What changed in the terminal port
+
+The TUI's terminal was a PTY opened from the same process that drew the
+screen. Here it is a shell in main and an emulator in the renderer, with a
+batched event channel between them — and most of what the old code had to do
+by hand turned out to be _compensation_ for a PTY that was never a controlling
+terminal:
+
+- **Ctrl+C handling is gone, and that is the fix.** The TUI read the termios
+  `ISIG` flag to decide between sending `SIGINT` to the process group and
+  forwarding the raw `0x03` byte. node-pty uses `forkpty`, so the child gets a
+  real controlling terminal with a line discipline that does exactly that
+  decision in the kernel. The renderer now forwards whatever xterm encoded and
+  nothing reads a termios flag anywhere. Verified: `sleep 30` + Ctrl+C returns
+  to the prompt.
+- **Manual SIGWINCH is gone for the same reason.** `resize()` is an ioctl on a
+  master that has a foreground process group, so the kernel raises the signal.
+  Verified: a program printing `process.stdout.columns` on SIGWINCH reports
+  the new width when a splitter moves.
+- **Teardown stayed, and got worse before it got better.** `IPty.kill()`
+  signals the shell alone, so the registry and its process-group kill are
+  still needed. Two things the TUI did not have to handle: a real tty means
+  zsh turns **job control on**, so `sleep 600 &` sits in its own process group
+  and survives a kill aimed at the shell's — the `pgrep` walk is what reaches
+  it, and it has to run _before_ the shell dies or the children are already
+  reparented to init. And Electron's `will-quit` does not fire for a signal,
+  so `SIGINT`/`SIGTERM`/`SIGHUP` handlers are installed on the first spawn.
+  Each of these leaked a process until it was fixed.
+- **Output is batched; input is not.** Shell output is pooled in main for 8ms
+  (or 64KB) before it crosses, because a build log is thousands of writes a
+  second. Keystrokes go one per `invoke`, which is a few bytes and ten times a
+  second at worst.
+- **A fourth theme layer.** `ThemeAnsi` — the sixteen colors a shell asks for
+  by number. They are not derived from `syntax`: a terminal's red is `git
+diff`'s deletions, not a keyword.
+
+node-pty 1.1.0 ships **N-API prebuilds**, so the `@electron/rebuild` step this
+file used to predict is not needed — the same binary loads under Node and
+under Electron 44. What it does need is `scripts/fix-spawn-helper.mjs`: the
+prebuilt `spawn-helper` arrives without its executable bit and the first
+terminal dies with `posix_spawnp failed`. Packaging will also need the
+`prebuilds/` directory unpacked from the asar.
+
 ## Still to port
 
 Roughly in the order they are worth doing.
 
-### 1. Terminals — `node-pty` + `@xterm/xterm`
-
-The biggest single piece, and the one the TUI files are still worth reading
-for. `terminal.hook.ts` and `terminal.registry.ts` in the old repo encode
-things that took real debugging:
-
-- **Ctrl+C is not one behavior.** When the foreground program uses
-  signal-driven interrupt (`ISIG` set — a shell prompt, `npm run dev`), Ctrl+C
-  must become `SIGINT` to the process *group*. When it is in raw mode (an
-  editor, an agent, a REPL), the raw `0x03` byte must be forwarded instead.
-  `node-pty` handles more of this than Bun's PTY did, but verify it rather than
-  assuming.
-- **Resize has to signal the group by hand.** Setting the PTY size is not
-  enough; full-screen programs redraw on `SIGWINCH` and will keep painting at
-  the old dimensions otherwise.
-- **Killing the shell orphans its children.** Signal the process group, and
-  keep the `pgrep` tree-walk as a fallback. Keep a registry of live PTYs and
-  tear them all down on `will-quit`.
-
-New here: PTY output must **not** go through `invoke`. Use a dedicated event
-channel with batched `Uint8Array` chunks (see `docs/ipc.md`).
-
-`node-pty` is a native module, which means two pieces of install friction:
-
-- Add it to `allowBuilds` in `pnpm-workspace.yaml` — or just run
-  `pnpm approve-builds` — or pnpm will silently skip its build script.
-- It needs rebuilding against Electron's ABI — `@electron/rebuild`, or
-  `electron-builder`'s automatic rebuild on package. Node's ABI and Electron's
-  are not the same, and a module built for the wrong one fails at `require`
-  time with a version mismatch rather than at install.
-
-### 2. Config layering — `lib/config/`
+### 1. Config layering — `lib/config/`
 
 Port the model wholesale; it was right. Four layers, lowest precedence first:
 
@@ -95,7 +108,7 @@ Lives in main; the resolved config is pushed to the renderer over IPC.
 `DEFAULT_EXCLUDE` in `main/project/project.service.ts` is the placeholder
 waiting for this.
 
-### 3. Language map — `lib/language/language.constant.ts`
+### 2. Language map — `lib/language/language.constant.ts`
 
 556 entries of extension → language. Pure data. Retarget the values from
 refractor ids to CodeMirror language packages and drop it into
@@ -104,7 +117,7 @@ refractor ids to CodeMirror language packages and drop it into
 Note CodeMirror needs a package per language rather than one bundle, so this
 also wants lazy `import()` so opening a `.rs` file doesn't cost every grammar.
 
-### 4. Git — `lib/git/`
+### 3. Git — `lib/git/`
 
 Ports nearly as-is. `Bun.spawn` → `execFile`. Keep all of it:
 
@@ -115,32 +128,32 @@ Ports nearly as-is. `Bun.spawn` → `execFile`. Keep all of it:
   it every tick notifies every subscriber and re-renders the tree. This matters
   exactly as much under React DOM as it did under OpenTUI.
 
-### 5. Search — `lib/search/`
+### 4. Search — `lib/search/`
 
 The batching, abort-signal and binary-sniffing logic ports fine. But consider
 shipping `ripgrep` as a sidecar binary instead: it is an order of magnitude
 faster than reading files from JS, and in a desktop app bundling a binary is
 routine. The TUI couldn't easily do this; this can.
 
-### 6. Actions — `lib/actions/`
+### 5. Actions — `lib/actions/`
 
 `{{variable}}` resolution is pure and ports untouched. The spawn becomes
 `execFile`. Runs on main, results pushed to the renderer.
 
 ## Deliberately left behind
 
-| Dropped | Why |
-| --- | --- |
-| **`editor.hook.ts`** — all 829 lines | CodeMirror does cursors, selections, column-preserving movement, undo, search projection, and clipboard. It also gives multi-cursor, folding and bracket matching, which the TUI never had. Only `SYNTAX_GROUP_BY_TOKEN` was worth keeping, as the shape of `editor.theme.ts`. |
-| All `*.component.tsx` | OpenTUI views. ~2,000 lines, none portable. |
-| `lib/theme`'s `icons` layer | It existed because a terminal can't ship a font and every glyph had to measure 1–2 cells. Icons are SVG now; the entire problem is gone. |
-| `lib/preflight/` | A Bun version gate. Electron bundles its own Node. |
-| `lib/crash/` | OpenTUI renderer-specific. Electron has `crashReporter` and real DevTools. |
-| `lib/logger/` | `console.log` works again. Kept only as a scope-tagging wrapper in main. |
-| `lib/clipboard/` | Shelled out to `pbcopy`/`pbpaste`, macOS-only. Electron's `clipboard` module is cross-platform and synchronous. |
-| `ui/ascii-animation`, `ui/icon`, `ui/tooltip`, `ui/loader` | Cell-grid primitives with no meaning here. |
-| `utils/shortcut.hook.ts` | `ctrl+${string}` against OpenTUI's key events. Rebuild as a real keybinding registry with a config layer — the TUI wanted one and never got it. |
-| Bun entirely | Electron embeds Node and cannot be made to run on Bun, so Bun was only ever the package manager here. The project now uses pnpm for that. |
+| Dropped                                                    | Why                                                                                                                                                                                                                                                                            |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **`editor.hook.ts`** — all 829 lines                       | CodeMirror does cursors, selections, column-preserving movement, undo, search projection, and clipboard. It also gives multi-cursor, folding and bracket matching, which the TUI never had. Only `SYNTAX_GROUP_BY_TOKEN` was worth keeping, as the shape of `editor.theme.ts`. |
+| All `*.component.tsx`                                      | OpenTUI views. ~2,000 lines, none portable.                                                                                                                                                                                                                                    |
+| `lib/theme`'s `icons` layer                                | It existed because a terminal can't ship a font and every glyph had to measure 1–2 cells. Icons are SVG now; the entire problem is gone.                                                                                                                                       |
+| `lib/preflight/`                                           | A Bun version gate. Electron bundles its own Node.                                                                                                                                                                                                                             |
+| `lib/crash/`                                               | OpenTUI renderer-specific. Electron has `crashReporter` and real DevTools.                                                                                                                                                                                                     |
+| `lib/logger/`                                              | `console.log` works again. Kept only as a scope-tagging wrapper in main.                                                                                                                                                                                                       |
+| `lib/clipboard/`                                           | Shelled out to `pbcopy`/`pbpaste`, macOS-only. Electron's `clipboard` module is cross-platform and synchronous.                                                                                                                                                                |
+| `ui/ascii-animation`, `ui/icon`, `ui/tooltip`, `ui/loader` | Cell-grid primitives with no meaning here.                                                                                                                                                                                                                                     |
+| `utils/shortcut.hook.ts`                                   | `ctrl+${string}` against OpenTUI's key events. Rebuild as a real keybinding registry with a config layer — the TUI wanted one and never got it.                                                                                                                                |
+| Bun entirely                                               | Electron embeds Node and cannot be made to run on Bun, so Bun was only ever the package manager here. The project now uses pnpm for that.                                                                                                                                      |
 
 ## The thing this unlocks
 

@@ -29,8 +29,14 @@ There is no test runner yet.
 
 **pnpm blocks dependency build scripts.** The allowed ones are listed under
 `allowBuilds` in `pnpm-workspace.yaml` — `pnpm approve-builds` writes that file
-for you. Every future native dependency — `node-pty` first — has to be added
-there, or its build step is skipped in silence.
+for you. Every native dependency has to be added there, or its build step is
+skipped in silence. `node-pty` is the one that matters today.
+
+**node-pty needs no `electron-rebuild`,** but it does need its permissions
+fixed. Version 1.1.0 ships N-API prebuilds, so the same binary loads under
+Node and under Electron — but the prebuilt `spawn-helper` arrives without its
+executable bit, and the first terminal then fails with `posix_spawnp failed`.
+`scripts/fix-spawn-helper.mjs` runs from `postinstall` and puts it back.
 
 **Electron is a separate case.** As of Electron 44 it has no `postinstall` at
 all, only an `install-electron` bin that downloads the binary, so no allowlist
@@ -60,7 +66,7 @@ Consequences, which are not negotiable:
   `package.json` is `"type": "module"`, electron-vite would emit `.mjs` by
   default, so `electron.vite.config.ts` pins the preload output to `cjs`.
   Getting this wrong fails quietly: the preload throws `Cannot use import
-  statement outside a module`, `window.frodon` is never defined, and the
+statement outside a module`, `window.frodon` is never defined, and the
   renderer dies on its first hook.
 
 `docs/architecture.md` has the full picture.
@@ -71,7 +77,7 @@ Go through `src/shared/ipc.def.ts`. Channel strings are declared there once and
 written nowhere else. The four-step recipe is in `docs/ipc.md`.
 
 Never add a generic `invoke(channel, payload)` passthrough to the preload — the
-exposed method list *is* the security boundary, so widening it must be a
+exposed method list _is_ the security boundary, so widening it must be a
 visible act.
 
 ## Module convention
@@ -138,6 +144,6 @@ renderer output to DevTools (F12, development builds only).
 Early. What works: opening a folder, the explorer tree, live tree sync from a
 filesystem watcher, the window manager — splitting the workbench into tiles
 that hold an editor or a terminal — opening files into tabs in a themed
-CodeMirror editor, switching themes. Everything else — terminals themselves,
-git, config layering, saving, the command palette, LSP — is listed in
+CodeMirror editor, real shells on real PTYs, switching themes. Everything else
+— git, config layering, saving, the command palette, LSP — is listed in
 `docs/migration.md` roughly in the order it is worth building.

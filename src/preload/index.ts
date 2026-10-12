@@ -20,6 +20,7 @@
  */
 import { contextBridge, ipcRenderer } from 'electron';
 import type { File } from '@shared/fs.def';
+import type { GitStatus } from '@shared/git.def';
 import type { FrodonApi } from '@shared/ipc.def';
 import type { TerminalData, TerminalExit } from '@shared/terminal.def';
 
@@ -37,6 +38,21 @@ const api: FrodonApi = {
     read: (path) => ipcRenderer.invoke('file:read', { path }),
     write: (path, content) =>
       ipcRenderer.invoke('file:write', { path, content }),
+  },
+  git: {
+    status: () => ipcRenderer.invoke('git:status'),
+    branches: () => ipcRenderer.invoke('git:branches'),
+    fetch: () => ipcRenderer.invoke('git:fetch'),
+    pull: () => ipcRenderer.invoke('git:pull'),
+    push: () => ipcRenderer.invoke('git:push'),
+    checkout: (branch) => ipcRenderer.invoke('git:checkout', { branch }),
+    createBranch: (branch) =>
+      ipcRenderer.invoke('git:create-branch', { branch }),
+    onChanged: (listener) => {
+      const handler = (_event: unknown, status: GitStatus) => listener(status);
+      ipcRenderer.on('git:changed', handler);
+      return () => ipcRenderer.removeListener('git:changed', handler);
+    },
   },
   terminal: {
     create: (options) => ipcRenderer.invoke('terminal:create', options),

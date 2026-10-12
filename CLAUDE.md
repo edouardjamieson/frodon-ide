@@ -144,6 +144,8 @@ renderer output to DevTools (F12, development builds only).
 Early. What works: opening a folder, the explorer tree, live tree sync from a
 filesystem watcher, the window manager — splitting the workbench into tiles
 that hold an editor or a terminal — opening files into tabs in a themed
-CodeMirror editor, real shells on real PTYs, switching themes. Everything else
-— git, config layering, saving, the command palette, LSP — is listed in
-`docs/migration.md` roughly in the order it is worth building.
+CodeMirror editor, real shells on real PTYs, git status polled in main with
+pull/push/branch in the header and changed files colored in the tree,
+switching themes. Everything else — config layering, saving, the command
+palette, LSP — is listed in `docs/migration.md` roughly in the order it is
+worth building.

@@ -146,6 +146,8 @@ export interface ThemeRoles {
   gitStagedFg: string;
   gitChangedFg: string;
   gitUntrackedFg: string;
+  /** A file with an unresolved merge conflict — the one you cannot commit. */
+  gitConflictedFg: string;
 
   // Scrollbars
   scrollbarThumb: string;

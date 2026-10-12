@@ -1,0 +1,188 @@
+import { useState, type FormEvent } from 'react';
+import { Check, GitBranch, LoaderCircle, Plus, RefreshCw } from 'lucide-react';
+import { cn } from 'cn';
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  Input,
+  Label,
+} from '~/components/ui';
+import { relativeTime, useBranchLabel, useGit, useGitStore } from '~/lib/git';
+
+/**
+ * The branch, and everything you can do to it.
+ *
+ * The list is read when the menu opens rather than polled: branches change
+ * when someone makes one, which is roughly never on the timescale of a
+ * three-second tick, and a `git branch` per tick would double the cost of the
+ * whole feature for a list nobody is looking at.
+ */
+export default function BranchMenu() {
+  const label = useBranchLabel();
+  const branches = useGitStore((state) => state.branches);
+  const current = useGitStore((state) => state.status.branch);
+  const upstream = useGitStore((state) => state.status.upstream);
+  const head = useGitStore((state) => state.status.head);
+
+  const { checkout, createBranch, fetch, refreshBranches, operation } =
+    useGit();
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [name, setName] = useState('');
+
+  const busy = operation !== null;
+
+  const onOpenChange = (open: boolean) => {
+    setMenuOpen(open);
+    if (open) void refreshBranches();
+  };
+
+  const onCreate = async (event: FormEvent) => {
+    event.preventDefault();
+    const result = await createBranch(name);
+    // Left open on failure, with the message already in the header's error
+    // indicator and the name still in the field to fix.
+    if (!result.ok) return;
+    setCreating(false);
+    setName('');
+  };
+
+  return (
+    <>
+      <DropdownMenu open={menuOpen} onOpenChange={onOpenChange}>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            className="cursor-pointer gap-2"
+            disabled={busy}
+          >
+            {operation === 'checkout' || operation === 'branch' ? (
+              <LoaderCircle className="size-4 animate-spin text-fg-muted" />
+            ) : (
+              <GitBranch className="size-4 text-fg-muted" />
+            )}
+            <span className="text-xs font-semibold">{label}</span>
+          </Button>
+        </DropdownMenuTrigger>
+
+        <DropdownMenuContent align="end" className="w-64">
+          {head ? (
+            <>
+              <DropdownMenuLabel className="flex flex-col gap-0.5 font-normal">
+                <span className="truncate text-xs font-medium">
+                  {head.subject}
+                </span>
+                <span className="text-[11px] text-fg-subtle">
+                  {head.shortSha} · {head.author} · {relativeTime(head.date)}
+                </span>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+            </>
+          ) : null}
+
+          <DropdownMenuLabel className="text-[11px] text-fg-subtle">
+            {upstream ? `Tracking ${upstream}` : 'No upstream'}
+          </DropdownMenuLabel>
+
+          {branches.map((branch) => (
+            <DropdownMenuItem
+              key={branch}
+              disabled={busy}
+              className="cursor-pointer gap-2"
+              onSelect={() => void checkout(branch)}
+            >
+              <Check
+                className={cn('size-3.5', {
+                  'opacity-0': branch !== current,
+                })}
+              />
+              <span className="truncate">{branch}</span>
+            </DropdownMenuItem>
+          ))}
+
+          <DropdownMenuSeparator />
+
+          <DropdownMenuItem
+            className="cursor-pointer gap-2"
+            disabled={busy}
+            onSelect={(event) => {
+              // The dialog has to outlive the menu, and letting the item
+              // close it the usual way hands focus back to the trigger just
+              // as the dialog is trying to take it.
+              event.preventDefault();
+              setMenuOpen(false);
+              setCreating(true);
+            }}
+          >
+            <Plus className="size-3.5" />
+            New branch…
+          </DropdownMenuItem>
+
+          <DropdownMenuItem
+            className="cursor-pointer gap-2"
+            disabled={busy}
+            onSelect={() => void fetch()}
+          >
+            <RefreshCw className="size-3.5" />
+            Fetch
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <Dialog open={creating} onOpenChange={setCreating}>
+        <DialogContent className="sm:max-w-sm">
+          <form onSubmit={(event) => void onCreate(event)}>
+            <DialogHeader>
+              <DialogTitle>New branch</DialogTitle>
+              <DialogDescription>
+                Branches from {label} and checks it out.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="flex flex-col gap-2 py-4">
+              <Label htmlFor="branch-name">Name</Label>
+              <Input
+                id="branch-name"
+                autoFocus
+                spellCheck={false}
+                autoComplete="off"
+                value={name}
+                placeholder="feature/terminals"
+                onChange={(event) => setName(event.target.value)}
+              />
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCreating(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={busy || name.trim().length === 0}>
+                {operation === 'branch' ? (
+                  <LoaderCircle className="size-4 animate-spin" />
+                ) : null}
+                Create branch
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}

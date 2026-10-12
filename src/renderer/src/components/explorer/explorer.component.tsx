@@ -1,9 +1,22 @@
 import { useProjectStore } from '~/lib/project';
+import { useGitFileStatus } from '~/lib/git';
 import { useActiveFilePath, useOpenFile, useOpenFilePaths } from '~/lib/window';
 import type { File } from '@shared/fs.def';
+import type { GitFileStatus } from '@shared/git.def';
 import { ChevronRight } from 'lucide-react';
 import { cn } from 'cn';
 import FileIcon from '~/components/file-icon';
+
+/**
+ * How a file's git state colors its name. Roles, not colors: a theme decides
+ * what "changed" looks like, and the explorer never learns.
+ */
+const GIT_FG: Record<GitFileStatus, string> = {
+  staged: 'text-git-staged',
+  changed: 'text-git-changed',
+  untracked: 'text-git-untracked',
+  conflicted: 'text-git-conflicted',
+};
 
 interface NodeProps {
   file: File;
@@ -12,6 +25,8 @@ interface NodeProps {
   openPaths: Set<string>;
   /** The tab on screen in the focused window, or null. */
   activePath: string | null;
+  /** Git state by absolute path, derived once — see `Explorer`. */
+  gitByPath: Map<string, GitFileStatus>;
 }
 
 /**
@@ -27,11 +42,12 @@ interface NodeProps {
  * system, which routes it to a window that can host it. The explorer has no
  * opinion about where a file lands, and no editor of its own.
  */
-function Node({ file, depth, openPaths, activePath }: NodeProps) {
+function Node({ file, depth, openPaths, activePath, gitByPath }: NodeProps) {
   const expanded = useProjectStore((state) => state.expanded);
   const toggleExpanded = useProjectStore((state) => state.toggleExpanded);
   const openFile = useOpenFile();
 
+  const gitStatus = gitByPath.get(file.path);
   const isExpanded = expanded.has(file.path);
   const isActive = activePath === file.path;
   const isOpen = openPaths.has(file.path);
@@ -70,7 +86,11 @@ function Node({ file, depth, openPaths, activePath }: NodeProps) {
           )}
         />
         <FileIcon file={file} open={isExpanded} />
-        <span className="truncate text-[12px] text-neutral-300">
+        {/* No color of its own: the row above sets one for each of its three
+            states, and git overrides it when it has something to say. */}
+        <span
+          className={cn('truncate text-[12px]', gitStatus && GIT_FG[gitStatus])}
+        >
           {file.name}
         </span>
       </button>
@@ -83,6 +103,7 @@ function Node({ file, depth, openPaths, activePath }: NodeProps) {
               depth={depth + 1}
               openPaths={openPaths}
               activePath={activePath}
+              gitByPath={gitByPath}
             />
           ))
         : null}
@@ -93,9 +114,11 @@ function Node({ file, depth, openPaths, activePath }: NodeProps) {
 export default function Explorer({ files }: { files: File[] }) {
   // Derived once and threaded down, not asked per row: a tree of a few
   // thousand nodes would otherwise rebuild the same Set once per visible row
-  // on every render. Same reason git status will be a Map.
+  // on every render. Git status is a Map for the same reason — one
+  // subscription here, one lookup per row.
   const openPaths = useOpenFilePaths();
   const activePath = useActiveFilePath();
+  const gitByPath = useGitFileStatus();
 
   if (files.length === 0) return null;
 
@@ -108,6 +131,7 @@ export default function Explorer({ files }: { files: File[] }) {
           depth={0}
           openPaths={openPaths}
           activePath={activePath}
+          gitByPath={gitByPath}
         />
       ))}
     </div>

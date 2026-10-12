@@ -17,6 +17,7 @@ deliberately left behind.
 | `lib/project/`                 | split                                       | The scan and watcher went to `main/project/`; the store and hooks stayed in the renderer.                                                                        |
 | `lib/window/`                  | split                                       | The model came over whole — windows on a row/col grid, contents per window. `useCalculateLayout` did not: see below.                                             |
 | `components/modules/terminal/` | `main/terminal/` + `renderer/.../terminal/` | The PTY moved to main and the emulator became `@xterm/xterm`. Most of the TUI's hard-won handling turned out to be worked around rather than solved — see below. |
+| `lib/git/`                     | `main/git/` + `renderer/src/lib/git/`       | `Bun.spawn` → `execFile`, porcelain v1 → v2, and the poll moved to main. See below.                                                                              |
 | Module convention              | everywhere                                  | Unchanged.                                                                                                                                                       |
 
 ### What changed in the window port
@@ -87,6 +88,39 @@ prebuilt `spawn-helper` arrives without its executable bit and the first
 terminal dies with `posix_spawnp failed`. Packaging will also need the
 `prebuilds/` directory unpacked from the asar.
 
+### What changed in the git port
+
+The TUI polled git from a hook, so every component that wanted repository
+state had its own interval and its own subprocesses. Here main polls once for
+the whole app and pushes a snapshot, which is the same arrangement the project
+tree has: main owns the fact, the renderer owns a view of it.
+
+- **Porcelain v2, in one call.** The TUI ran four processes per tick —
+  `rev-parse`, `branch`, `status` and `rev-list` — because v1 says nothing
+  about the branch. v2's `--branch` headers carry the oid, the branch, the
+  upstream and the ahead/behind pair, so a tick is one `git status`. `-z` came
+  with it, which removes the quoting of non-ASCII paths that v1 forces a
+  parser to undo.
+- **The comparison moved, and grew teeth.** `sameStatus` runs in main now, in
+  front of the push rather than in front of a `set`. An idle repo costs one
+  subprocess every three seconds and no IPC at all — which matters more than
+  it did in the TUI, where a pointless notify only cost a re-render.
+- **`statusByPath` is keyed by absolute path.** Git reports paths relative to
+  the repository, which is not necessarily the project root; the snapshot
+  carries `repoRoot` so the renderer can join once and the explorer can look a
+  row up with the path it already holds.
+- **Conflicts are their own state.** The TUI read `UU` letter by letter and
+  called the file staged, which is backwards — the one thing you cannot do
+  with a conflicted file is commit it. There is a fourth `GitFileStatus` and a
+  `gitConflictedFg` role.
+- **HEAD's commit is read only when HEAD moves.** `git status` reports the
+  oid, so comparing it against the one held turns a second subprocess per tick
+  into one per commit. It is stored with an ISO date and rendered relative, or
+  a commit made "2 minutes ago" would still say so tomorrow.
+- **Nothing fetches on its own.** `behind` is only as current as the last
+  fetch, and a background fetch is a network call made on the user's behalf
+  against a remote that may want credentials. It is a menu item.
+
 ## Still to port
 
 Roughly in the order they are worth doing.
@@ -117,25 +151,14 @@ refractor ids to CodeMirror language packages and drop it into
 Note CodeMirror needs a package per language rather than one bundle, so this
 also wants lazy `import()` so opening a `.rs` file doesn't cost every grammar.
 
-### 3. Git — `lib/git/`
-
-Ports nearly as-is. `Bun.spawn` → `execFile`. Keep all of it:
-
-- porcelain v1 parsing with `--untracked-files=all`
-- `rev-list --left-right --count @{upstream}...HEAD` for ahead/behind
-- the `statusByPath` Map, derived once per change rather than scanned per row
-- **the compare-before-`set` discipline in the store.** The repo is polled; without
-  it every tick notifies every subscriber and re-renders the tree. This matters
-  exactly as much under React DOM as it did under OpenTUI.
-
-### 4. Search — `lib/search/`
+### 3. Search — `lib/search/`
 
 The batching, abort-signal and binary-sniffing logic ports fine. But consider
 shipping `ripgrep` as a sidecar binary instead: it is an order of magnitude
 faster than reading files from JS, and in a desktop app bundling a binary is
 routine. The TUI couldn't easily do this; this can.
 
-### 5. Actions — `lib/actions/`
+### 4. Actions — `lib/actions/`
 
 `{{variable}}` resolution is pure and ports untouched. The spawn becomes
 `execFile`. Runs on main, results pushed to the renderer.

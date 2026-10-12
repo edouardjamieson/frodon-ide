@@ -5,6 +5,7 @@ import {
   useProjectColorEffect,
   useProjectSync,
 } from '~/lib/project';
+import { useGitSync } from '~/lib/git';
 import { Header, Sidebar, Welcome } from '~/components/workbench';
 import WindowManager from '~/components/window';
 import Backdrop from '~/components/backdrop';
@@ -12,15 +13,16 @@ import Backdrop from '~/components/backdrop';
 /**
  * The shell. The effects that must be mounted exactly once live here:
  * `useThemeEffect` (writes theme variables to `:root`), `useAppInfoEffect`
- * (fetches the host facts main holds, once), `useProjectSync` (subscribes to
- * tree pushes from main), and `useProjectColorEffect` (publishes the
- * project's color as a CSS variable). Mounting any of them twice would double
- * the work on every change.
+ * (fetches the host facts main holds, once), `useProjectSync` and
+ * `useGitSync` (subscribe to the tree and the repository main pushes), and
+ * `useProjectColorEffect` (publishes the project's color as a CSS variable).
+ * Mounting any of them twice would double the work on every change.
  */
 export default function App() {
   useThemeEffect();
   useAppInfoEffect();
   useProjectSync();
+  useGitSync();
   useProjectColorEffect();
 
   const { isOpen, open } = useProject();

@@ -10,6 +10,7 @@ import { electronApp, optimizer } from '@electron-toolkit/utils';
 import { createWindow } from '@main/app';
 import { registerIpcHandlers } from '@main/ipc';
 import { disposeProject } from '@main/project';
+import { disposeGit } from '@main/git';
 import { disposeTerminals } from '@main/terminal';
 import { createLogger } from '@main/logger';
 
@@ -53,5 +54,6 @@ app.on('window-all-closed', () => {
 // going to reap it: see `terminal.registry.ts`.
 app.on('will-quit', () => {
   disposeProject();
+  disposeGit();
   disposeTerminals();
 });

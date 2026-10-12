@@ -21,6 +21,7 @@
  * data only.
  */
 import type { File, FsResult } from './fs.def';
+import type { GitResult, GitStatus } from './git.def';
 import type { TerminalData, TerminalExit, TerminalInfo } from './terminal.def';
 
 /**
@@ -42,6 +43,29 @@ export interface IpcContract {
   'file:read': { req: { path: string }; res: string };
   /** Writes a file, creating parent directories as needed. */
   'file:write': { req: { path: string; content: string }; res: FsResult };
+
+  /**
+   * The repository as main last saw it.
+   *
+   * Takes no root and runs no subprocess: the poller armed by `project:tree`
+   * already holds a current snapshot, and this hands back a copy of it. A
+   * window asks once — on open, or after a reload replaced its store — and
+   * then listens on `git:changed` for everything after that.
+   */
+  'git:status': { req: void; res: GitStatus };
+  /** Local branch names, current one first. Read when the branch menu opens. */
+  'git:branches': { req: void; res: string[] };
+  /**
+   * The five operations that change something. All of them act on the open
+   * project's repository, all of them refresh it on the way out, and all of
+   * them report git's own stderr rather than throwing — a failed push is a
+   * message to show, not an exception.
+   */
+  'git:fetch': { req: void; res: GitResult };
+  'git:pull': { req: void; res: GitResult };
+  'git:push': { req: void; res: GitResult };
+  'git:checkout': { req: { branch: string }; res: GitResult };
+  'git:create-branch': { req: { branch: string }; res: GitResult };
 
   /**
    * Spawns a shell on a pseudo-terminal, named by the renderer. Creating a
@@ -78,6 +102,16 @@ export interface IpcContract {
 export interface IpcEvents {
   /** The watched project tree changed on disk. Payload is the new tree. */
   'project:changed': File[];
+
+  /**
+   * The repository moved: a commit, a checkout, a file edited or staged.
+   *
+   * Polled rather than watched, so this fires on a timer — but only when the
+   * tick actually found something different. See `sameStatus` in
+   * `main/git/`: an idle repo costs one `git status` every few seconds and no
+   * IPC at all.
+   */
+  'git:changed': GitStatus;
 
   /**
    * Shell output, batched.
@@ -137,6 +171,17 @@ export interface FrodonApi {
   file: {
     read: (path: string) => Promise<Res<'file:read'>>;
     write: (path: string, content: string) => Promise<Res<'file:write'>>;
+  };
+  git: {
+    status: () => Promise<Res<'git:status'>>;
+    branches: () => Promise<Res<'git:branches'>>;
+    fetch: () => Promise<Res<'git:fetch'>>;
+    pull: () => Promise<Res<'git:pull'>>;
+    push: () => Promise<Res<'git:push'>>;
+    checkout: (branch: string) => Promise<Res<'git:checkout'>>;
+    createBranch: (branch: string) => Promise<Res<'git:create-branch'>>;
+    /** Subscribes to repository changes. Returns an unsubscribe function. */
+    onChanged: (listener: (status: GitStatus) => void) => () => void;
   };
   terminal: {
     create: (

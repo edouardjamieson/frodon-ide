@@ -1,5 +1,6 @@
 import { useProject } from '~/lib/project';
 import { ChevronDown } from 'lucide-react';
+import GitControls from '~/components/git';
 
 export default function Header() {
   const { name, isOpen, open } = useProject();
@@ -18,6 +19,8 @@ export default function Header() {
         <span className="text-xs font-semibold">{name}</span>
         <ChevronDown className="size-4 opacity-40 group-hover:opacity-100 transition-opacity" />
       </button>
+
+      <GitControls />
     </header>
   );
 }

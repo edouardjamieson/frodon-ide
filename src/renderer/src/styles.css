@@ -99,6 +99,7 @@
   --color-git-staged: var(--fd-git-staged-fg);
   --color-git-changed: var(--fd-git-changed-fg);
   --color-git-untracked: var(--fd-git-untracked-fg);
+  --color-git-conflicted: var(--fd-git-conflicted-fg);
 
   /* Scrollbars */
   --color-scrollbar-thumb: var(--fd-scrollbar-thumb);

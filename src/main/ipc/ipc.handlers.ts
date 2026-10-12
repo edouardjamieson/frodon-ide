@@ -10,6 +10,16 @@ import { homedir } from 'node:os';
 import { dialog, BrowserWindow } from 'electron';
 import { handle } from './ipc.service';
 import { openProject } from '@main/project';
+import {
+  checkout,
+  createBranch,
+  fetchRemote,
+  getStatus,
+  listBranches,
+  openRepo,
+  pull,
+  push,
+} from '@main/git';
 import { readFileText, writeFileText } from '@main/fs';
 import {
   createSession,
@@ -30,11 +40,35 @@ export function registerIpcHandlers(): void {
     return result.filePaths[0] ?? null;
   });
 
-  handle('project:tree', ({ root }) => openProject(root));
+  // Opening a project arms two things, because they are the same event: the
+  // tree watcher and the git poller. Git is never told a root by the
+  // renderer — it follows the project, which main already knows about.
+  handle('project:tree', ({ root }) => {
+    const files = openProject(root);
+    openRepo(root);
+    return files;
+  });
 
   handle('file:read', ({ path }) => readFileText(path));
 
   handle('file:write', ({ path, content }) => writeFileText(path, content));
+
+  // Reads the snapshot main already holds; the poller is what keeps it
+  // current. Returning a stale-by-at-most-one-tick answer instantly is worth
+  // more here than a fresh one that costs a subprocess per window.
+  handle('git:status', () => getStatus());
+
+  handle('git:branches', () => listBranches());
+
+  handle('git:fetch', () => fetchRemote());
+
+  handle('git:pull', () => pull());
+
+  handle('git:push', () => push());
+
+  handle('git:checkout', ({ branch }) => checkout(branch));
+
+  handle('git:create-branch', ({ branch }) => createBranch(branch));
 
   // The sender is what ties a shell to a window: its output is sent back to
   // the window that asked for it and to no other.

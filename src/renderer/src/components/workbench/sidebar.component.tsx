@@ -1,5 +1,12 @@
 import { cn } from 'cn';
-import { FolderClosed, FolderGit2, LayoutTemplate, Search } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  FolderClosed,
+  FolderGit2,
+  LayoutTemplate,
+  Search,
+} from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useProject } from '~/lib/project';
 import { useSidebar, useSidebarResize } from '~/lib/sidebar';
@@ -75,6 +82,8 @@ function SidebarMenu({
   collapsed: boolean;
   onToggle: () => void;
 }) {
+  const { toggleCollapsed } = useSidebar();
+
   const items: SidebarMenuItem[] = [
     {
       icon: <FolderClosed className="size-5" />,
@@ -106,6 +115,19 @@ function SidebarMenu({
       {items.map((item, i) => (
         <SidebarMenuItem key={i} item={item} focused={i === 0 && !collapsed} />
       ))}
+      <SidebarMenuItem
+        item={{
+          icon: collapsed ? (
+            <ChevronRight className="size-5" />
+          ) : (
+            <ChevronLeft className="size-5" />
+          ),
+          onClick: toggleCollapsed,
+          label: collapsed ? 'Show explorer' : 'Hide explorer',
+        }}
+        focused={false}
+        className="mt-auto"
+      />
     </div>
   );
 }

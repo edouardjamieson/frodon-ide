@@ -1,5 +1,8 @@
 import { FileCode, FolderGit2, SquareTerminal } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { Dither } from '~/components/ui';
+import { useProjectColor } from '~/lib/project';
+import { useTheme } from '~/lib/theme';
 import { useWindow, type EmptyWindow, type WindowType } from '~/lib/window';
 
 /**
@@ -20,12 +23,40 @@ export function EmptyWindowHeader() {
 
 export function EmptyWindowBody({ window: win }: { window: EmptyWindow }) {
   const { setType } = useWindow(win);
+  const theme = useTheme();
+  const color = useProjectColor();
 
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-4 px-4">
+    <div className="flex h-full flex-col items-center justify-center gap-4 px-4 relative">
       <p className="text-[12px] text-fg-subtle">
         Open a code editor, a terminal or the repository to get started.
       </p>
+
+      <div className="w-full h-full absolute opacity-10 z-0 pointer-events-none">
+        <Dither
+          waveColor={color}
+          backgroundColor={theme.colors.appBg}
+          ditherMode="bayer"
+          className="pointer-events-none"
+          colorNum={4}
+          pixelSize={2}
+          waveSpeed={0.05}
+          waveFrequency={3}
+          waveAmplitude={0.24}
+          mouseEffect="reveal"
+          mouseRadius={0.3}
+          palette={[]}
+          scale={1}
+          contrast={1}
+          brightness={-0.18}
+          mouseStrength={0.3}
+          trail={0.5}
+          enableMouseInteraction={false}
+          clickRipple={false}
+          intro
+          disableAnimation={false}
+        />
+      </div>
 
       <div className="flex items-center gap-2">
         <Choice type="editor" label="Code editor" onPick={setType}>

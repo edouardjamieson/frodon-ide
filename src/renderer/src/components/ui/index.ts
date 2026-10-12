@@ -1,15 +1,17 @@
 /**
- * shadcn's components, vendored.
+ * Vendored components — shadcn's, and React Bits' for the few visual pieces
+ * shadcn has no equivalent of.
  *
  * Third-party source living in-tree by design: `shadcn add` writes these
  * files, and they are meant to be edited rather than upgraded. They are the
  * one place in `src/renderer` that does not follow the `*.component.tsx`
- * naming, because the CLI decides those names and fighting it would mean
- * renaming every file on every add.
+ * naming, because the CLI decides those names — including the PascalCase the
+ * React Bits registry uses — and fighting it would mean renaming every file
+ * on every add.
  *
- * They carry no Frodon colors of their own — their tokens are aliased onto
+ * They carry no Frodon colors of their own — shadcn's tokens are aliased onto
  * theme roles in `styles.css`, so they follow a theme switch like everything
- * else.
+ * else, and `Dither` paints a canvas from colors its caller hands it.
  *
  * Adding a component means adding a line here. The CLI will not do it.
  */
@@ -27,6 +29,8 @@ export {
   DialogTitle,
   DialogTrigger,
 } from './dialog';
+export { default as Dither } from './Dither';
+export type { DitherMode, DitherMouseEffect, DitherProps } from './Dither';
 export {
   DropdownMenu,
   DropdownMenuCheckboxItem,

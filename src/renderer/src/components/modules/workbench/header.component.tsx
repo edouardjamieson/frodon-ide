@@ -1,6 +1,6 @@
 import { useProject } from '~/lib/project';
 import { ChevronDown } from 'lucide-react';
-import GitControls from '~/components/git';
+import GitControls from '~/components/modules/git';
 
 export default function Header() {
   const { name, isOpen, open } = useProject();

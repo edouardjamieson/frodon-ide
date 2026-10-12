@@ -10,8 +10,8 @@ import {
 import type { ReactNode } from 'react';
 import { useProject } from '~/lib/project';
 import { useSidebar, useSidebarResize } from '~/lib/sidebar';
-import { Tooltip, TooltipContent, TooltipTrigger } from '../ui';
-import Explorer from '../explorer';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../../../ui';
+import Explorer from '../../explorer';
 
 interface SidebarMenuItem {
   icon: ReactNode;

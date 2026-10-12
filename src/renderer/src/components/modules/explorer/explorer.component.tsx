@@ -5,7 +5,7 @@ import type { File } from '@shared/fs.def';
 import type { GitFileStatus } from '@shared/git.def';
 import { ChevronRight } from 'lucide-react';
 import { cn } from 'cn';
-import FileIcon from '~/components/file-icon';
+import FileIcon from '~/components/utils/file-icon';
 
 /**
  * How a file's git state colors its name. Roles, not colors: a theme decides

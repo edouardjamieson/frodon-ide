@@ -6,9 +6,9 @@ import {
   useProjectSync,
 } from '~/lib/project';
 import { useGitSync } from '~/lib/git';
-import { Header, Sidebar, Welcome } from '~/components/workbench';
-import WindowManager from '~/components/window';
-import Backdrop from '~/components/backdrop';
+import { Header, Sidebar, Welcome } from '~/components/modules/workbench';
+import WindowManager from '~/components/modules/window';
+import Backdrop from './components/ui/backdrop';
 
 /**
  * The shell. The effects that must be mounted exactly once live here:

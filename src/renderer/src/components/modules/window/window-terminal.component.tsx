@@ -2,7 +2,7 @@ import { cn } from 'cn';
 import { Plus, SquareTerminal, X } from 'lucide-react';
 import { useTerminalWindow, type TerminalWindow } from '~/lib/window';
 import { useProjectStore } from '~/lib/project';
-import Terminal from '~/components/terminal';
+import Terminal from '~/components/modules/terminal';
 
 /**
  * The terminal module: a tab per shell in the window's header, and every one

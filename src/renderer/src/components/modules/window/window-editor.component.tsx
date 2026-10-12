@@ -1,8 +1,8 @@
 import { cn } from 'cn';
 import { X } from 'lucide-react';
 import { useEditorWindow, fileName, type EditorWindow } from '~/lib/window';
-import FileIcon from '~/components/file-icon';
-import Editor from '~/components/editor';
+import FileIcon from '~/components/utils/file-icon';
+import Editor from '~/components/modules/editor';
 
 /**
  * The editor module: a tab bar in the window's header, CodeMirror in its body.

@@ -21,6 +21,15 @@ const initial = createWindow(0, 0);
 export const useWindowStore = create<WindowStore>((set, get) => ({
   windows: [initial],
   focusedId: initial.id,
+  pendingReveal: null,
+
+  clearReveal: () => {
+    // Guarded, because every editor window runs the same consume effect and
+    // all but the first will find nothing to do. A `set` from each of them
+    // would re-render the whole workbench once per pane.
+    if (get().pendingReveal === null) return;
+    set({ pendingReveal: null });
+  },
 
   focus: (id) => {
     // Focus is set on every pointer-down inside a window, so the overwhelming
@@ -79,7 +88,7 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
     });
   },
 
-  openFile: (path, windowId) => {
+  openFile: (path, windowId, reveal) => {
     const { windows, focusedId } = get();
     const target = editorTargetFor(windows, windowId ?? focusedId);
 
@@ -107,6 +116,9 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
         };
       }),
       focusedId: host.id,
+      // Set — or cleared — in the same commit that opens the tab, so an
+      // editor never sees a jump left over from a file opened before it.
+      pendingReveal: reveal ? { path, ...reveal } : null,
     });
   },
 

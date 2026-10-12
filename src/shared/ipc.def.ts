@@ -22,6 +22,12 @@
  */
 import type { File, FsResult } from './fs.def';
 import type { GitResult, GitStatus } from './git.def';
+import type {
+  ReplaceRequest,
+  ReplaceResult,
+  SearchRequest,
+  SearchResult,
+} from './search.def';
 import type { TerminalData, TerminalExit, TerminalInfo } from './terminal.def';
 
 /**
@@ -66,6 +72,24 @@ export interface IpcContract {
   'git:push': { req: void; res: GitResult };
   'git:checkout': { req: { branch: string }; res: GitResult };
   'git:create-branch': { req: { branch: string }; res: GitResult };
+
+  /**
+   * Every match of a query in the open project, walked in main.
+   *
+   * One channel, called per keystroke after a debounce — which is why main
+   * abandons a walk the moment a newer one starts rather than running two.
+   * Takes no root: the project is already open on the other side.
+   */
+  'search:query': { req: SearchRequest; res: SearchResult };
+  /**
+   * Rewrites every match, either across the project or in named files.
+   *
+   * Lives beside the query rather than on `file:write` because it must not be
+   * a read-modify-write across the boundary: the renderer holds previews, not
+   * file contents, and sending a whole file back to be saved would race with
+   * anything else editing it.
+   */
+  'search:replace': { req: ReplaceRequest; res: ReplaceResult };
 
   /**
    * Spawns a shell on a pseudo-terminal, named by the renderer. Creating a
@@ -182,6 +206,10 @@ export interface FrodonApi {
     createBranch: (branch: string) => Promise<Res<'git:create-branch'>>;
     /** Subscribes to repository changes. Returns an unsubscribe function. */
     onChanged: (listener: (status: GitStatus) => void) => () => void;
+  };
+  search: {
+    query: (request: Req<'search:query'>) => Promise<Res<'search:query'>>;
+    replace: (request: Req<'search:replace'>) => Promise<Res<'search:replace'>>;
   };
   terminal: {
     create: (

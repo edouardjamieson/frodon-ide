@@ -72,6 +72,30 @@ export interface EmptyWindow extends WindowBase {
 /** Where a split puts the new window relative to the one being split. */
 export type SplitDirection = 'right' | 'down';
 
+/** A position in a file, as a search result reports one. */
+export interface RevealTarget {
+  /** 1-based, counted the way every editor and every error message counts. */
+  line: number;
+  /** 1-based column of the first character to select. */
+  column: number;
+  /** How much to select from there — the matched text, for a search hit. */
+  length: number;
+}
+
+/**
+ * A jump waiting to be honored, consumed by whichever editor ends up showing
+ * the file.
+ *
+ * It lives here rather than in the editor because the editor is not what
+ * decides where a file opens — `openFile` is, and by the time it has routed a
+ * path to a window, the component that will mount it does not exist yet. So
+ * the request is parked and the editor picks it up once its document is
+ * loaded, which may be a read later.
+ */
+export interface PendingReveal extends RevealTarget {
+  path: string;
+}
+
 export interface WindowStore {
   windows: WindowState[];
   /** The window that owns keyboard intent, and the only one drawn focused. */
@@ -98,11 +122,26 @@ export interface WindowStore {
   close: (id: string) => void;
 
   /**
+   * Where the editor should land once the file is on screen, or null.
+   *
+   * One-shot: the editor that honors it clears it. Parking it on the store is
+   * what lets a click in the search panel land on line 412 of a file that was
+   * not open a moment ago.
+   */
+  pendingReveal: PendingReveal | null;
+  /** Drops the parked jump. Called by the editor that has just performed it. */
+  clearReveal: () => void;
+
+  /**
    * Opens a file in an editor window, routing to one that can take it — the
    * window asked for, else the focused one, else any editor, else a newly
    * spawned one. Re-opening a file that is already a tab just activates it.
+   *
+   * `reveal` asks the editor to put the cursor somewhere in particular, which
+   * is the difference between the explorer opening a file and the search panel
+   * opening a match.
    */
-  openFile: (path: string, windowId?: string) => void;
+  openFile: (path: string, windowId?: string, reveal?: RevealTarget) => void;
   closeFile: (windowId: string, path: string) => void;
   setActiveFile: (windowId: string, path: string) => void;
 

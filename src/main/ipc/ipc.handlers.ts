@@ -21,6 +21,7 @@ import {
   push,
 } from '@main/git';
 import { readFileText, writeFileText } from '@main/fs';
+import { replaceInProject, searchProject } from '@main/search';
 import {
   createSession,
   killSession,
@@ -69,6 +70,13 @@ export function registerIpcHandlers(): void {
   handle('git:checkout', ({ branch }) => checkout(branch));
 
   handle('git:create-branch', ({ branch }) => createBranch(branch));
+
+  // Both of these walk the tree main already holds, so neither takes a root.
+  // A query that is superseded while it runs comes back saying so rather than
+  // empty — see `searchProject`.
+  handle('search:query', (request) => searchProject(request));
+
+  handle('search:replace', (request) => replaceInProject(request));
 
   // The sender is what ties a shell to a window: its output is sent back to
   // the window that asked for it and to no other.

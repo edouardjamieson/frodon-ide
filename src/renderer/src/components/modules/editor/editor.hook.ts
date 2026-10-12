@@ -43,6 +43,7 @@ import {
 import { javascript } from '@codemirror/lang-javascript';
 import { useTheme } from '~/lib/theme';
 import type { Theme } from '~/lib/theme';
+import { useWindowStore } from '~/lib/window';
 import { codeMirrorTheme } from './editor.theme';
 
 /**
@@ -107,6 +108,42 @@ function createState(doc: string, theme: Theme, path: string | null) {
 }
 
 /**
+ * Performs the parked jump, if there is one and it is for this document.
+ *
+ * Reading the store here rather than taking the reveal as an argument is what
+ * makes it one-shot across the two places that call this: the effect that
+ * handles a jump into a file already on screen, and the one that handles a
+ * jump into a file that had to be read first. Whichever gets there first
+ * clears it, and every other editor window mounted on the same file finds
+ * nothing to do.
+ */
+function applyReveal(view: EditorView, path: string | null): void {
+  const { pendingReveal, clearReveal } = useWindowStore.getState();
+  if (!pendingReveal || pendingReveal.path !== path) return;
+
+  const { doc } = view.state;
+  // Clamped at every step: the file may have been edited since the search
+  // walked it, and a line number past the end of the document is a thrown
+  // RangeError rather than a missed jump.
+  const line = doc.line(Math.min(Math.max(pendingReveal.line, 1), doc.lines));
+  const from = Math.min(
+    line.from + Math.max(pendingReveal.column - 1, 0),
+    line.to
+  );
+  const to = Math.min(from + pendingReveal.length, line.to);
+
+  view.dispatch({
+    // Selected rather than merely scrolled to: the match is what was clicked,
+    // so it is what should be ready to be typed over.
+    selection: { anchor: from, head: to },
+    effects: EditorView.scrollIntoView(from, { y: 'center' }),
+  });
+  view.focus();
+
+  clearReveal();
+}
+
+/**
  * @param path    the tab on screen, or null when the window has none open
  * @param openPaths  every tab the window has open, so documents belonging to
  *                   closed tabs can be dropped instead of held forever
@@ -127,6 +164,8 @@ export function useEditor(path: string | null, openPaths: string[] = []) {
    * one place a theme change is meant to be handled.
    */
   const themeRef = useRef(theme);
+  /** A jump waiting to be honored — see `applyReveal`. */
+  const reveal = useWindowStore((state) => state.pendingReveal);
   const [error, setError] = useState<string | null>(null);
 
   // Built once for the component's lifetime, with an empty document: the path
@@ -167,6 +206,7 @@ export function useEditor(path: string | null, openPaths: string[] = []) {
       view.setState(known);
       shownRef.current = path;
       setError(null);
+      applyReveal(view, path);
       return;
     }
 
@@ -181,6 +221,9 @@ export function useEditor(path: string | null, openPaths: string[] = []) {
         view.setState(createState(content, themeRef.current, path));
         shownRef.current = path;
         setError(null);
+        // The jump that opened this tab has been waiting on the read; the
+        // effect below fired long before the document existed.
+        applyReveal(view, path);
       } catch (cause) {
         if (!cancelled) setError(String(cause));
       }
@@ -190,6 +233,16 @@ export function useEditor(path: string | null, openPaths: string[] = []) {
       cancelled = true;
     };
   }, [path]);
+
+  // Jump into a document that is already on screen — clicking a second match
+  // in the file being looked at. A jump into a file that still has to be read
+  // is honored by the effect above, once there is something to jump into.
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view || !reveal || shownRef.current !== path) return;
+
+    applyReveal(view, path);
+  }, [reveal, path]);
 
   // Forget documents whose tabs have been closed. Without this a window that
   // has had a hundred files through it holds a hundred documents, and

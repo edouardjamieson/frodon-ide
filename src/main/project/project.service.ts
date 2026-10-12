@@ -66,6 +66,18 @@ export function getRoot(): string | null {
   return root;
 }
 
+/**
+ * The tree as main last scanned it.
+ *
+ * Handed out rather than rescanned so that a feature which needs the project's
+ * files — search, for one — walks the same filtered list the explorer is
+ * showing, instead of reading every directory again and re-deriving the
+ * exclusions. The array is the live one: callers read it, they do not keep it.
+ */
+export function getFiles(): File[] {
+  return files;
+}
+
 export function disposeProject(): void {
   unwatch?.();
   unwatch = null;

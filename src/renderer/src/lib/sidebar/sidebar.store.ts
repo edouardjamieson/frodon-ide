@@ -14,6 +14,7 @@ import {
 export const useSidebarStore = create<SidebarStore>((set) => ({
   width: DEFAULT_SIDEBAR_WIDTH,
   collapsed: false,
+  module: 'EXPLORER',
 
   // Clamped here rather than at the drag, so every caller gets the bounds and
   // the drag handler stays a subtraction.
@@ -23,4 +24,6 @@ export const useSidebarStore = create<SidebarStore>((set) => ({
     }),
 
   toggleCollapsed: () => set((state) => ({ collapsed: !state.collapsed })),
+
+  setModule: (module) => set({ module }),
 }));

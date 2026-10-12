@@ -7,21 +7,38 @@ import {
   LayoutTemplate,
   Search,
 } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { useProject } from '~/lib/project';
-import { useSidebar, useSidebarResize } from '~/lib/sidebar';
+import {
+  useSidebar,
+  useSidebarResize,
+  type SidebarModule,
+} from '~/lib/sidebar';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../../ui';
-import Explorer from '../../explorer';
+import Explorer from './explorer';
+import GlobalSearch from './search';
 
 interface SidebarMenuItem {
   icon: ReactNode;
   onClick: () => void;
   label: string;
+  focused?: boolean;
 }
 
 export default function Sidebar() {
   const { files } = useProject();
-  const { width, collapsed, toggleCollapsed } = useSidebar();
+  const { width, collapsed, module } = useSidebar();
+
+  const Module = useMemo(() => {
+    switch (module) {
+      case 'EXPLORER':
+        return <Explorer files={files} />;
+      case 'SEARCH':
+        return <GlobalSearch />;
+      default:
+        return null;
+    }
+  }, [module, files]);
 
   return (
     // Width is inline because it is a dragged pixel value, not one of a set of
@@ -33,12 +50,12 @@ export default function Sidebar() {
         'w-8': collapsed,
       })}
     >
-      <SidebarMenu collapsed={collapsed} onToggle={toggleCollapsed} />
+      <SidebarMenu collapsed={collapsed} />
 
       {collapsed ? null : (
         <>
           <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-project/15 bg-sidebar">
-            <Explorer files={files} />
+            {Module}
           </div>
           <SidebarResizer />
         </>
@@ -75,45 +92,51 @@ function SidebarResizer() {
   );
 }
 
-function SidebarMenu({
-  collapsed,
-  onToggle,
-}: {
-  collapsed: boolean;
-  onToggle: () => void;
-}) {
-  const { toggleCollapsed } = useSidebar();
+function SidebarMenu({ collapsed }: { collapsed: boolean }) {
+  const { toggleCollapsed, setModule, module } = useSidebar();
+
+  const toggleModule = (newModule: SidebarModule) => {
+    if (module === newModule) {
+      toggleCollapsed();
+    } else {
+      setModule(newModule);
+      if (collapsed) {
+        toggleCollapsed();
+      }
+    }
+  };
 
   const items: SidebarMenuItem[] = [
     {
       icon: <FolderClosed className="size-5" />,
-      // Clicking the panel you are already looking at hides it, the way every
-      // other activity bar behaves. With no keybinding registry yet (see
-      // `docs/migration.md`) this is the only way back and forth.
-      onClick: onToggle,
-      label: collapsed ? 'Show explorer' : 'Hide explorer',
+      onClick: () => toggleModule('EXPLORER'),
+      label: 'Explorer',
+      focused: module === 'EXPLORER' && !collapsed,
     },
     {
       icon: <Search className="size-5" />,
-      onClick: () => {},
+      onClick: () => toggleModule('SEARCH'),
       label: 'Search',
+      focused: module === 'SEARCH' && !collapsed,
     },
     {
       icon: <FolderGit2 className="size-5" />,
       onClick: () => {},
       label: 'Source Control',
+      focused: false,
     },
     {
       icon: <LayoutTemplate className="size-5" />,
       onClick: () => {},
       label: 'Manage windows',
+      focused: false,
     },
   ];
 
   return (
     <div className="w-8 h-full flex flex-col gap-3 pt-1 shrink-0">
       {items.map((item, i) => (
-        <SidebarMenuItem key={i} item={item} focused={i === 0 && !collapsed} />
+        <SidebarMenuItem key={i} item={item} />
       ))}
       <SidebarMenuItem
         item={{
@@ -125,7 +148,6 @@ function SidebarMenu({
           onClick: toggleCollapsed,
           label: collapsed ? 'Show explorer' : 'Hide explorer',
         }}
-        focused={false}
         className="mt-auto"
       />
     </div>
@@ -134,11 +156,9 @@ function SidebarMenu({
 
 function SidebarMenuItem({
   item,
-  focused,
   className,
 }: {
   item: SidebarMenuItem;
-  focused: boolean;
   className?: string;
 }) {
   return (
@@ -149,8 +169,8 @@ function SidebarMenuItem({
           className={cn(
             'w-8 h-8 flex items-center justify-center rounded-lg opacity-60 hover:opacity-100 transition-all cursor-pointer',
             {
-              'bg-project/80 opacity-100': focused,
-              'hover:bg-project/20': !focused,
+              'bg-project/80 opacity-100': item.focused,
+              'hover:bg-project/20': !item.focused,
             },
             className
           )}

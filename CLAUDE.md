@@ -146,6 +146,7 @@ filesystem watcher, the window manager — splitting the workbench into tiles
 that hold an editor or a terminal — opening files into tabs in a themed
 CodeMirror editor, real shells on real PTYs, git status polled in main with
 pull/push/branch in the header and changed files colored in the tree,
-switching themes. Everything else — config layering, saving, the command
-palette, LSP — is listed in `docs/migration.md` roughly in the order it is
-worth building.
+project-wide search — with find & replace — walked in main and jumped to in
+the editor, switching themes. Everything else — config layering, saving, the
+command palette, LSP — is listed in `docs/migration.md` roughly in the order
+it is worth building.

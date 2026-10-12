@@ -13,8 +13,10 @@ export const useSidebar = () => {
   const width = useSidebarStore((state) => state.width);
   const collapsed = useSidebarStore((state) => state.collapsed);
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed);
+  const module = useSidebarStore((state) => state.module);
+  const setModule = useSidebarStore((state) => state.setModule);
 
-  return { width, collapsed, toggleCollapsed };
+  return { width, collapsed, toggleCollapsed, module, setModule };
 };
 
 /**

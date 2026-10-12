@@ -54,6 +54,10 @@ const api: FrodonApi = {
       return () => ipcRenderer.removeListener('git:changed', handler);
     },
   },
+  search: {
+    query: (request) => ipcRenderer.invoke('search:query', request),
+    replace: (request) => ipcRenderer.invoke('search:replace', request),
+  },
   terminal: {
     create: (options) => ipcRenderer.invoke('terminal:create', options),
     write: (id, data) => ipcRenderer.invoke('terminal:write', { id, data }),

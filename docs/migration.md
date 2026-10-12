@@ -18,6 +18,7 @@ deliberately left behind.
 | `lib/window/`                  | split                                       | The model came over whole — windows on a row/col grid, contents per window. `useCalculateLayout` did not: see below.                                             |
 | `components/modules/terminal/` | `main/terminal/` + `renderer/.../terminal/` | The PTY moved to main and the emulator became `@xterm/xterm`. Most of the TUI's hard-won handling turned out to be worked around rather than solved — see below. |
 | `lib/git/`                     | `main/git/` + `renderer/src/lib/git/`       | `Bun.spawn` → `execFile`, porcelain v1 → v2, and the poll moved to main. See below.                                                                              |
+| `lib/search/`                  | `main/search/` + `renderer/src/lib/search/` | The walk moved to main and the abort signal became a generation counter. Still JS, not `ripgrep` — see below.                                                    |
 | Module convention              | everywhere                                  | Unchanged.                                                                                                                                                       |
 
 ### What changed in the window port
@@ -121,6 +122,37 @@ tree has: main owns the fact, the renderer owns a view of it.
   fetch, and a background fetch is a network call made on the user's behalf
   against a remote that may want credentials. It is a menu item.
 
+### What changed in the search port
+
+- **The walk reads a tree instead of a directory.** Main already holds the
+  project's scan with exclusions applied, so `searchProject` flattens that
+  rather than descending itself. A search never enters `node_modules` because
+  the tree never did, and the exclusion rules can only be configured in one
+  place.
+- **The abort signal became a generation counter.** The TUI threaded an
+  `AbortSignal` through the walk. Across IPC there is nothing to thread —
+  `invoke` has no cancel — so a new query increments a counter in main and the
+  older walk gives up at its next file and answers `superseded`. The renderer
+  drops that answer; the newer one is already coming.
+- **Everything is capped, and the panel says so.** Per file, per result set,
+  per file size. The TUI could afford to count everything; here each match
+  also costs a line of text through structured clone, so the walk stops and
+  the summary reads "more than".
+- **Previews are cut in main, not in CSS.** A match in a minified bundle is
+  windowed around the hit before it crosses. Truncating in the renderer would
+  mean cloning the whole line first, which is the entire cost.
+- **Replace is not a read-modify-write across the boundary.** The renderer
+  holds previews, never contents, so main reads, rewrites and saves. A file
+  whose match count comes back zero is left alone rather than rewritten
+  identically, which would otherwise wake the watcher for the whole project.
+- **Jumping to a match needed something the explorer never did.** `openFile`
+  takes a `RevealTarget` and parks it on the window store; whichever editor
+  ends up showing the file consumes it once its document exists — which may be
+  a disk read later than the click.
+- **It is still JS.** `ripgrep` as a sidecar remains the right answer and the
+  contract is shaped so the engine can be swapped without the renderer
+  noticing: a request in, a bounded result set out.
+
 ## Still to port
 
 Roughly in the order they are worth doing.
@@ -151,14 +183,7 @@ refractor ids to CodeMirror language packages and drop it into
 Note CodeMirror needs a package per language rather than one bundle, so this
 also wants lazy `import()` so opening a `.rs` file doesn't cost every grammar.
 
-### 3. Search — `lib/search/`
-
-The batching, abort-signal and binary-sniffing logic ports fine. But consider
-shipping `ripgrep` as a sidecar binary instead: it is an order of magnitude
-faster than reading files from JS, and in a desktop app bundling a binary is
-routine. The TUI couldn't easily do this; this can.
-
-### 4. Actions — `lib/actions/`
+### 3. Actions — `lib/actions/`
 
 `{{variable}}` resolution is pure and ports untouched. The spawn becomes
 `execFile`. Runs on main, results pushed to the renderer.

@@ -100,6 +100,10 @@
   --color-git-changed: var(--fd-git-changed-fg);
   --color-git-untracked: var(--fd-git-untracked-fg);
   --color-git-conflicted: var(--fd-git-conflicted-fg);
+  --color-git-added: var(--fd-git-diff-added-fg);
+  --color-git-removed: var(--fd-git-diff-removed-fg);
+  --color-git-edge: var(--fd-git-graph-edge);
+  --color-git-node: var(--fd-git-graph-node);
 
   /* Scrollbars */
   --color-scrollbar-thumb: var(--fd-scrollbar-thumb);

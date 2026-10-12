@@ -83,6 +83,10 @@ export const ROLE_DEFAULTS: Record<RoleKey, PaletteKey> = {
   gitChangedFg: 'warning',
   gitUntrackedFg: 'fgSubtle',
   gitConflictedFg: 'danger',
+  gitDiffAddedFg: 'success',
+  gitDiffRemovedFg: 'danger',
+  gitGraphEdge: 'border',
+  gitGraphNode: 'fgMuted',
 
   // Scrollbars
   scrollbarThumb: 'bgHighlight',

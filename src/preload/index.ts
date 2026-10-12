@@ -48,6 +48,12 @@ const api: FrodonApi = {
     checkout: (branch) => ipcRenderer.invoke('git:checkout', { branch }),
     createBranch: (branch) =>
       ipcRenderer.invoke('git:create-branch', { branch }),
+    branchDetails: () => ipcRenderer.invoke('git:branch-details'),
+    log: (request) => ipcRenderer.invoke('git:log', request),
+    diff: (request) => ipcRenderer.invoke('git:diff', request),
+    stage: (paths) => ipcRenderer.invoke('git:stage', { paths }),
+    unstage: (paths) => ipcRenderer.invoke('git:unstage', { paths }),
+    commit: (request) => ipcRenderer.invoke('git:commit', request),
     onChanged: (listener) => {
       const handler = (_event: unknown, status: GitStatus) => listener(status);
       ipcRenderer.on('git:changed', handler);

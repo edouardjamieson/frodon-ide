@@ -95,8 +95,8 @@ in a renderer store and never crosses.
 ## The workbench
 
 Next to the sidebar is the window manager: a small grid of tiles, each holding
-one module — an editor with its own tabs, a terminal with its own shells, or
-nothing yet.
+one module — an editor with its own tabs, a terminal with its own shells, a
+view of the repository, or nothing yet.
 
 ```
 windows: [{ id, row, col, …contents }]      flat, each carrying its coordinates
@@ -118,6 +118,11 @@ Two rules keep it small:
 
 A _window_ here is a tile, not an OS window. The thing `main/app/` creates is a
 `BrowserWindow`, and the two never meet.
+
+The git module is the one window type that does not open twice. There is one
+repository, every one of its tabs — history, branches, staging — is a view of
+it, and `openGit` focuses the window that exists rather than spawning a
+second. Nothing breaks if a split makes another one; they read the same store.
 
 The terminal module is where the process split pays for itself twice over.
 The shell, its PTY, its signals and its process tree live in main; the

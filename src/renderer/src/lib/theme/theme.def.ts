@@ -148,6 +148,16 @@ export interface ThemeRoles {
   gitUntrackedFg: string;
   /** A file with an unresolved merge conflict — the one you cannot commit. */
   gitConflictedFg: string;
+  /** Added and removed lines in a patch. The row tint is these at low alpha. */
+  gitDiffAddedFg: string;
+  gitDiffRemovedFg: string;
+  /**
+   * The history graph. Lanes are told apart by position rather than by color
+   * — the branch you are on is drawn in the project color instead, which is
+   * the same "you are here" signal the focused pane uses.
+   */
+  gitGraphEdge: string;
+  gitGraphNode: string;
 
   // Scrollbars
   scrollbarThumb: string;

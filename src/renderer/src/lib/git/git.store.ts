@@ -38,6 +38,17 @@ export const useGitStore = create<GitStore>((set) => ({
   operation: null,
   error: null,
 
+  log: [],
+  logLoading: false,
+  logScope: 'branch',
+  branchDetails: { base: '', branches: [] },
+  branchesLoading: false,
+  selected: '',
+  selectedStaged: false,
+  diff: null,
+  diffLoading: false,
+  message: '',
+
   // Main compares before it pushes, so anything arriving here is a real
   // change and is stored without comparison — the same arrangement the
   // project tree has.
@@ -47,4 +58,18 @@ export const useGitStore = create<GitStore>((set) => ({
   setBranches: (branches) => set({ branches }),
   setOperation: (operation) => set({ operation }),
   setError: (error) => set({ error }),
+
+  setLog: (log) => set({ log }),
+  setLogLoading: (logLoading) => set({ logLoading }),
+  setLogScope: (logScope) => set({ logScope }),
+  setBranchDetails: (branchDetails) => set({ branchDetails }),
+  setBranchesLoading: (branchesLoading) => set({ branchesLoading }),
+
+  // Selecting clears the patch rather than leaving the previous file's on
+  // screen under the new file's name while the read is in flight.
+  select: (selected, selectedStaged) =>
+    set({ selected, selectedStaged, diff: null }),
+  setDiff: (diff) => set({ diff }),
+  setDiffLoading: (diffLoading) => set({ diffLoading }),
+  setMessage: (message) => set({ message }),
 }));

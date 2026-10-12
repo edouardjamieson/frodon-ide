@@ -168,6 +168,49 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
     });
   },
 
+  openGit: () => {
+    const { windows } = get();
+
+    // One repository, one window onto it. Clicking source control again is a
+    // request to look at it, and it is already on screen.
+    const existing = windows.find((window) => window.type === 'git');
+    if (existing) {
+      set({ focusedId: existing.id });
+      return;
+    }
+
+    // An empty window is taken over rather than split away from: it is what
+    // the user is looking at and it has nothing to lose.
+    const empty = windows.find((window) => window.type === null);
+    if (empty) {
+      set({
+        windows: windows.map((window) =>
+          window.id === empty.id ? typed(window, 'git') : window
+        ),
+        focusedId: empty.id,
+      });
+      return;
+    }
+
+    const slot = firstFreeSlot(windows);
+    // The grid is full of editors and terminals. Nothing worth closing on the
+    // user's behalf, so the click does nothing rather than something clever.
+    if (!slot) return;
+
+    const spawned = createWindow(slot.row, slot.col, 'git');
+    set({ windows: [...windows, spawned], focusedId: spawned.id });
+  },
+
+  setGitTab: (windowId, tab) => {
+    set((state) => ({
+      windows: state.windows.map((window) =>
+        window.id === windowId && window.type === 'git' && window.tab !== tab
+          ? { ...window, tab }
+          : window
+      ),
+    }));
+  },
+
   setActiveSession: (windowId, sessionId) => {
     set((state) => ({
       windows: state.windows.map((window) =>
@@ -240,13 +283,25 @@ function neighbourOf(files: string[], closing: string): string | null {
 /** An untyped window, given its module. */
 function typed(window: WindowState, type: WindowType): WindowState {
   const { id, row, col } = window;
-  if (type === 'editor') {
-    return { id, row, col, type, files: [], activeFile: null };
-  }
 
-  // A terminal is useless without a shell, so choosing it starts one.
-  const session = nextSessionId();
-  return { id, row, col, type, sessions: [session], activeSession: session };
+  switch (type) {
+    case 'editor':
+      return { id, row, col, type, files: [], activeFile: null };
+    case 'git':
+      return { id, row, col, type, tab: 'history' };
+    default: {
+      // A terminal is useless without a shell, so choosing it starts one.
+      const session = nextSessionId();
+      return {
+        id,
+        row,
+        col,
+        type: 'terminal',
+        sessions: [session],
+        activeSession: session,
+      };
+    }
+  }
 }
 
 /** The same window as an editor, typing it on the spot if it was empty. */
@@ -280,7 +335,11 @@ function editorTargetFor(
   preferredId: string
 ): WindowState | { spawn: WindowState } | null {
   const preferred = windows.find((window) => window.id === preferredId);
-  if (preferred && preferred.type !== 'terminal') return preferred;
+  // A git window is as wrong a host for a file as a terminal is: both already
+  // hold something that is not an editor.
+  if (preferred && (preferred.type === 'editor' || preferred.type === null)) {
+    return preferred;
+  }
 
   const editor = windows.find((window) => window.type === 'editor');
   if (editor) return editor;
@@ -300,7 +359,9 @@ function terminalTargetFor(
   preferredId: string
 ): WindowState | { spawn: WindowState } | null {
   const preferred = windows.find((window) => window.id === preferredId);
-  if (preferred && preferred.type !== 'editor') return preferred;
+  if (preferred && (preferred.type === 'terminal' || preferred.type === null)) {
+    return preferred;
+  }
 
   const terminal = windows.find((window) => window.type === 'terminal');
   if (terminal) return terminal;

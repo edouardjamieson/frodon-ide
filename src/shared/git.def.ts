@@ -81,3 +81,107 @@ export function emptyGitStatus(): GitStatus {
     head: null,
   };
 }
+
+/**
+ * One commit as the history view reads it.
+ *
+ * A `GitCommit` plus the two things a graph needs and a single commit does
+ * not: who its parents are, and which refs point at it. Both come free with
+ * the `git log` that is already being run — `%P` and `%D` — so the graph
+ * costs no extra process.
+ */
+export interface GitLogCommit extends GitCommit {
+  /** Full shas, first parent first. Empty for a root commit. */
+  parents: string[];
+  /** `main`, `origin/main`, `HEAD`… as `%D` reports them, already split. */
+  refs: string[];
+}
+
+/** Which commits the history view wants, and how far back. */
+export interface GitLogRequest {
+  /**
+   * `branch` walks HEAD *and* the base branch, so the point where they fork
+   * is on screen — which is the whole question the view exists to answer.
+   * `all` walks every local branch.
+   */
+  scope: 'branch' | 'all';
+  /**
+   * How many commits to walk. The graph is drawn from exactly what arrives,
+   * so this is also the view's depth: there is no "load more" that would have
+   * to re-lane everything above it.
+   */
+  limit: number;
+}
+
+/** A local branch, with both comparisons the UI shows. */
+export interface GitBranchInfo {
+  name: string;
+  current: boolean;
+  /** Tracking branch, e.g. `origin/main`, or '' when none is configured. */
+  upstream: string;
+  /** Against `upstream`, as of the last fetch. Both 0 when there is none. */
+  ahead: number;
+  behind: number;
+  /** Against the base branch. Both 0 when this *is* the base, or there is none. */
+  aheadBase: number;
+  behindBase: number;
+  /** The branch tip, for the subject and the age shown on the row. */
+  tip: GitCommit | null;
+}
+
+/**
+ * Every local branch, and what they are all being compared against.
+ *
+ * `base` is resolved in main rather than guessed in the renderer: it comes
+ * from `origin/HEAD` when the remote says so, and falls back to the first of
+ * `main`/`master`/`develop`/`trunk` that exists.
+ */
+export interface GitBranches {
+  /** The base branch's short name, or '' when the repo has none of them. */
+  base: string;
+  branches: GitBranchInfo[];
+}
+
+/** Which version of a file's changes to diff. */
+export interface GitDiffRequest {
+  /** Repository-relative, the way git reports and accepts paths. */
+  path: string;
+  /** The staged diff (`--cached`) rather than the working tree's. */
+  staged: boolean;
+}
+
+export type GitDiffLineKind = 'add' | 'remove' | 'context' | 'hunk' | 'meta';
+
+export interface GitDiffLine {
+  kind: GitDiffLineKind;
+  /** The line without its leading `+`/`-`/space — the marker is the `kind`. */
+  text: string;
+  /** 1-based line in the old file, null on an added line or a header. */
+  oldLine: number | null;
+  /** 1-based line in the new file, null on a removed line or a header. */
+  newLine: number | null;
+}
+
+/**
+ * A parsed patch for one file.
+ *
+ * Parsed in main, not in the renderer: the parse is a pure function of
+ * git's own output and the renderer would otherwise re-run it on every
+ * render of the pane. Only lines cross the boundary, already numbered.
+ */
+export interface GitDiff {
+  path: string;
+  staged: boolean;
+  /** Git declined to diff it. `lines` is empty. */
+  binary: boolean;
+  lines: GitDiffLine[];
+  added: number;
+  removed: number;
+}
+
+/** What `git commit` is being asked to record. */
+export interface GitCommitRequest {
+  message: string;
+  /** Rewrites the previous commit instead of adding one. */
+  amend: boolean;
+}

@@ -1,4 +1,4 @@
-import { FileCode, SquareTerminal } from 'lucide-react';
+import { FileCode, FolderGit2, SquareTerminal } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useWindow, type EmptyWindow, type WindowType } from '~/lib/window';
 
@@ -24,7 +24,7 @@ export function EmptyWindowBody({ window: win }: { window: EmptyWindow }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 px-4">
       <p className="text-[12px] text-fg-subtle">
-        Open a code editor or a terminal to get started.
+        Open a code editor, a terminal or the repository to get started.
       </p>
 
       <div className="flex items-center gap-2">
@@ -33,6 +33,9 @@ export function EmptyWindowBody({ window: win }: { window: EmptyWindow }) {
         </Choice>
         <Choice type="terminal" label="Terminal" onPick={setType}>
           <SquareTerminal className="size-4" />
+        </Choice>
+        <Choice type="git" label="Source control" onPick={setType}>
+          <FolderGit2 className="size-4" />
         </Choice>
       </div>
     </div>

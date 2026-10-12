@@ -12,6 +12,7 @@ import { handle } from './ipc.service';
 import { openProject } from '@main/project';
 import {
   checkout,
+  commit,
   createBranch,
   fetchRemote,
   getStatus,
@@ -19,6 +20,11 @@ import {
   openRepo,
   pull,
   push,
+  readBranches,
+  readDiff,
+  readLog,
+  stage,
+  unstage,
 } from '@main/git';
 import { readFileText, writeFileText } from '@main/fs';
 import { replaceInProject, searchProject } from '@main/search';
@@ -70,6 +76,21 @@ export function registerIpcHandlers(): void {
   handle('git:checkout', ({ branch }) => checkout(branch));
 
   handle('git:create-branch', ({ branch }) => createBranch(branch));
+
+  // The git window's three tabs. None of them is polled: main pushes
+  // `git:changed` when the repository moves and the window re-reads what it
+  // is showing, so a history nobody has open costs nothing.
+  handle('git:branch-details', () => readBranches());
+
+  handle('git:log', (request) => readLog(request));
+
+  handle('git:diff', (request) => readDiff(request));
+
+  handle('git:stage', ({ paths }) => stage(paths));
+
+  handle('git:unstage', ({ paths }) => unstage(paths));
+
+  handle('git:commit', (request) => commit(request));
 
   // Both of these walk the tree main already holds, so neither takes a root.
   // A query that is superseded while it runs comes back saying so rather than

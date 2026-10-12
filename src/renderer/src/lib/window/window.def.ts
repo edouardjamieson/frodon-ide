@@ -28,14 +28,15 @@
  * interface below, and a case to the two switches in `window.component.tsx` —
  * TypeScript will point at both of them.
  */
-export type WindowType = 'editor' | 'terminal';
+export type WindowType = 'editor' | 'terminal' | 'git';
 
 /**
  * Named `WindowState` and not `Window` on purpose: the renderer is a browser
  * page, `Window` is the DOM's own global interface, and a module-level
  * `interface Window` would shadow it everywhere this type is imported.
  */
-export type WindowState = EditorWindow | TerminalWindow | EmptyWindow;
+export type WindowState =
+  EditorWindow | TerminalWindow | GitWindow | EmptyWindow;
 
 interface WindowBase {
   id: string;
@@ -62,6 +63,21 @@ export interface TerminalWindow extends WindowBase {
   sessions: string[];
   /** The session on screen. The others stay mounted and keep running. */
   activeSession: string | null;
+}
+
+/**
+ * Which view of the repository a git window is showing.
+ *
+ * On the window rather than in the git store, for the same reason an editor's
+ * tabs are: it is where you are looking, not a fact about the repository, and
+ * two git windows should be able to show the history and the staging area at
+ * once.
+ */
+export type GitTab = 'history' | 'branches' | 'commit';
+
+export interface GitWindow extends WindowBase {
+  type: 'git';
+  tab: GitTab;
 }
 
 /** A window that has been spawned but not yet told what it is. */
@@ -151,6 +167,17 @@ export interface WindowStore {
    * Always a *new* session: a terminal window is a stack of shells.
    */
   openTerminal: (windowId?: string) => void;
+
+  /**
+   * Shows the repository, in the one window that does.
+   *
+   * Unlike `openFile` and `openTerminal` this does not open a second one: an
+   * existing git window is focused instead. There is only ever one repository
+   * open, every tab in the window is a view of it, and a grid of three
+   * identical copies would be a way of running out of room, not a feature.
+   */
+  openGit: () => void;
+  setGitTab: (windowId: string, tab: GitTab) => void;
   closeSession: (windowId: string, sessionId: string) => void;
   setActiveSession: (windowId: string, sessionId: string) => void;
 }

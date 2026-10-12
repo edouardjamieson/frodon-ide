@@ -51,6 +51,10 @@ export function createWindow(
       const session = nextSessionId();
       return { ...base, type, sessions: [session], activeSession: session };
     }
+    // The history is what you want to see first after clicking "source
+    // control": the branch you are on and how far it has come.
+    case 'git':
+      return { ...base, type, tab: 'history' };
     default:
       return { ...base, type: null };
   }

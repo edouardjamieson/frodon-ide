@@ -76,3 +76,55 @@ export const STATUS_ARGS = [
  * renderer renders it against the current clock instead.
  */
 export const LOG_FORMAT = '%H%n%h%n%an%n%aI%n%s';
+
+/**
+ * `sha`, `shortSha`, `author`, `date`, `parents`, `refs`, `subject`.
+ *
+ * Unit-separated (`%x1f`) rather than newline-separated like `LOG_FORMAT`,
+ * and read with `-z` so each commit is one NUL-terminated record. A subject
+ * is the one field that can contain anything, newlines included, and the
+ * history view reads thousands of these at once — splitting on a character no
+ * commit message has ever contained is cheaper than being careful.
+ *
+ * `%aI` again, not `%ar`: the renderer ages a commit against the current
+ * clock, so a relative string baked in here would be wrong by tomorrow.
+ */
+export const GRAPH_FORMAT = '%H%x1f%h%x1f%an%x1f%aI%x1f%P%x1f%D%x1f%s';
+
+/**
+ * How many commits the history view walks.
+ *
+ * It draws exactly what arrives, so this is the depth of the view rather
+ * than a page size — there is no "load more" that would have to re-lane
+ * everything above it. Two hundred is more history than anyone reads in a
+ * side pane, and bounds both the clone and the lane arithmetic.
+ */
+export const LOG_LIMIT = 200;
+
+/**
+ * One record per local branch, NUL-separated fields and NUL-terminated rows.
+ *
+ * `for-each-ref` has no `%x1f`, but it does have `%00`, which serves the same
+ * purpose. The fields are: name, upstream, its track string, the `*` marking
+ * HEAD, then the tip's sha, short sha, author, date and subject.
+ *
+ * `%(ahead-behind:<base>)` is appended as a tenth field when there is a base
+ * branch to compare against, which is what makes this one subprocess instead
+ * of one `rev-list` per branch. It needs git 2.41, so the caller runs the
+ * long format first and retries without it — hence appended last, where its
+ * absence shifts nothing.
+ */
+export const BRANCH_FIELDS = [
+  '%(refname:short)',
+  '%(upstream:short)',
+  '%(upstream:track,nobracket)',
+  '%(HEAD)',
+  '%(objectname)',
+  '%(objectname:short)',
+  '%(authorname)',
+  '%(authordate:iso-strict)',
+  '%(contents:subject)',
+];
+
+/** Branches whose names every repository with a remote agrees to look at. */
+export const BASE_CANDIDATES = ['main', 'master', 'develop', 'trunk'];

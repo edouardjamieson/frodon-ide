@@ -3,7 +3,7 @@ import { ChevronDown } from 'lucide-react';
 import GitControls from '~/components/modules/git';
 
 export default function Header() {
-  const { name, isOpen, open } = useProject();
+  const { name, isOpen, open, shortPath } = useProject();
 
   if (!isOpen) return <header className="h-12 shrink-0" />;
 
@@ -16,7 +16,7 @@ export default function Header() {
         <div className="flex h-6 w-6 items-center justify-center rounded-md bg-project text-sm font-bold text-shadow-lg">
           {name.slice(0, 1).toUpperCase()}
         </div>
-        <span className="text-xs font-semibold">{name}</span>
+        <span className="text-xs font-semibold">{shortPath}</span>
         <ChevronDown className="size-4 opacity-40 group-hover:opacity-100 transition-opacity" />
       </button>
 

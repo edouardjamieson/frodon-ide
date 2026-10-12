@@ -10,6 +10,8 @@ import { useWindowStore } from './window.store';
 import { canSplit, rowsOf } from './window.service';
 import type {
   EditorWindow,
+  GitTab,
+  GitWindow,
   TerminalWindow,
   WindowState,
   WindowType,
@@ -85,6 +87,29 @@ export const useTerminalWindow = (window: TerminalWindow) => {
     open: () => openTerminal(window.id),
   };
 };
+
+/** Which view a git window is on, and how to change it. */
+export const useGitWindow = (window: GitWindow) => {
+  const setGitTab = useWindowStore((state) => state.setGitTab);
+
+  return {
+    tab: window.tab,
+    setTab: (tab: GitTab) => setGitTab(window.id, tab),
+  };
+};
+
+/**
+ * Shows the repository: the sidebar's source-control button and the header's
+ * both call this. Whether that means spawning a window or focusing the one
+ * that exists is the store's business — see `openGit`.
+ */
+export const useOpenGit = () => useWindowStore((state) => state.openGit);
+
+/** Whether a git window is already on screen, for the buttons that open one. */
+export const useHasGitWindow = (): boolean =>
+  useWindowStore((state) =>
+    state.windows.some((window) => window.type === 'git')
+  );
 
 /**
  * Opens a file in whichever window can take it. This is what the explorer

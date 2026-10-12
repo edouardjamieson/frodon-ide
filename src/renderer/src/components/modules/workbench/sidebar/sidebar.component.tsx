@@ -14,6 +14,7 @@ import {
   useSidebarResize,
   type SidebarModule,
 } from '~/lib/sidebar';
+import { useOpenGit } from '~/lib/window';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../../ui';
 import Explorer from './explorer';
 import GlobalSearch from './search';
@@ -94,6 +95,11 @@ function SidebarResizer() {
 
 function SidebarMenu({ collapsed }: { collapsed: boolean }) {
   const { toggleCollapsed, setModule, module } = useSidebar();
+  // Source control is the one rail item that is not a sidebar module: it
+  // opens a window in the workbench, because a graph log and a diff want the
+  // width the sidebar does not have. Clicking it again focuses that window
+  // rather than opening a second.
+  const openGit = useOpenGit();
 
   const toggleModule = (newModule: SidebarModule) => {
     if (module === newModule) {
@@ -121,8 +127,8 @@ function SidebarMenu({ collapsed }: { collapsed: boolean }) {
     },
     {
       icon: <FolderGit2 className="size-5" />,
-      onClick: () => {},
-      label: 'Source Control',
+      onClick: openGit,
+      label: 'Source control',
       focused: false,
     },
     {

@@ -11,6 +11,7 @@ import {
   TerminalWindowBody,
   TerminalWindowHeader,
 } from './window-terminal.component';
+import { GitWindowBody, GitWindowHeader } from './window-git.component';
 import { EmptyWindowBody, EmptyWindowHeader } from './window-welcome.component';
 
 /**
@@ -99,6 +100,8 @@ function WindowHeader({ window: win }: { window: WindowState }) {
       return <EditorWindowHeader window={win} />;
     case 'terminal':
       return <TerminalWindowHeader window={win} />;
+    case 'git':
+      return <GitWindowHeader window={win} />;
     default:
       return <EmptyWindowHeader />;
   }
@@ -118,6 +121,8 @@ function WindowBody({
       // The only module that needs to know: a shell takes keystrokes, and
       // exactly one shell in the workbench may have them.
       return <TerminalWindowBody window={win} focused={focused} />;
+    case 'git':
+      return <GitWindowBody window={win} />;
     default:
       return <EmptyWindowBody window={win} />;
   }
@@ -130,6 +135,9 @@ function surfaceOf(win: WindowState): string {
       return 'bg-editor';
     case 'terminal':
       return 'bg-terminal';
+    // A tool panel, not a document: the same surface the sidebar sits on.
+    case 'git':
+      return 'bg-sidebar';
     default:
       return 'bg-app';
   }

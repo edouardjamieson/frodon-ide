@@ -28,11 +28,31 @@ import { execFile } from 'node:child_process';
 import { BrowserWindow } from 'electron';
 import { createLogger } from '@main/logger';
 import { emptyGitStatus } from '@shared/git.def';
-import type { GitCommit, GitResult, GitStatus } from '@shared/git.def';
-import { parseCommit, parseStatus } from './git.parser';
+import type {
+  GitBranches,
+  GitCommit,
+  GitCommitRequest,
+  GitDiff,
+  GitDiffRequest,
+  GitLogCommit,
+  GitLogRequest,
+  GitResult,
+  GitStatus,
+} from '@shared/git.def';
 import {
+  parseBranches,
+  parseCommit,
+  parseDiff,
+  parseLog,
+  parseStatus,
+} from './git.parser';
+import {
+  BASE_CANDIDATES,
+  BRANCH_FIELDS,
   GIT_ENV,
+  GRAPH_FORMAT,
   LOG_FORMAT,
+  LOG_LIMIT,
   MAX_BUFFER,
   OPERATION_TIMEOUT_MS,
   POLL_MS,
@@ -401,4 +421,266 @@ export function createBranch(branch: string): Promise<GitResult> {
   if (invalid) return Promise.resolve({ ok: false, error: invalid });
 
   return operate(['checkout', '-b', branch.trim()]);
+}
+
+/**
+ * The base branch everything is compared against.
+ *
+ * `origin/HEAD` first, because a remote that has been cloned normally says so
+ * itself and gets it right for repositories whose trunk is called something
+ * else entirely. Only when there is no remote — or `origin/HEAD` was never
+ * set, which happens on a repo created locally — does this fall back to the
+ * four names anyone actually uses.
+ *
+ * Resolved per call rather than cached: `git fetch --prune` can create it,
+ * and the branch view is opened rarely enough that one `rev-parse` is free.
+ */
+async function resolveBase(): Promise<string> {
+  const remote = await run([
+    'symbolic-ref',
+    '--short',
+    'refs/remotes/origin/HEAD',
+  ]);
+
+  if (remote.code === 0) {
+    const name = remote.stdout.trim();
+    // `origin/main` -> `main`: the comparison is against the local branch,
+    // which is the one the user would check out.
+    const local = name.replace(/^origin\//, '');
+    const exists = await run(['rev-parse', '--verify', '--quiet', local]);
+    if (exists.code === 0 && exists.stdout.trim()) return local;
+  }
+
+  for (const candidate of BASE_CANDIDATES) {
+    const { code, stdout } = await run([
+      'rev-parse',
+      '--verify',
+      '--quiet',
+      candidate,
+    ]);
+    if (code === 0 && stdout.trim()) return candidate;
+  }
+
+  return '';
+}
+
+/**
+ * The commits the history view draws.
+ *
+ * `--topo-order` rather than git's default date order: a graph laned from
+ * date-ordered commits has edges that cross back on themselves whenever two
+ * branches were committed to in an interleaved way, which is most of the
+ * time. Topological order is what makes the lanes readable.
+ *
+ * The scope is two tips, not `--all`: HEAD and the base branch, so the point
+ * where they fork is on screen. That is the question the view exists to
+ * answer, and walking every branch in a repository with a hundred of them
+ * would bury it.
+ */
+export async function readLog(request: GitLogRequest): Promise<GitLogCommit[]> {
+  if (!root) return [];
+
+  const limit = Math.max(1, Math.min(request.limit || LOG_LIMIT, LOG_LIMIT));
+  const scope: string[] = [];
+
+  if (request.scope === 'all') {
+    scope.push('--branches', '--remotes');
+  } else {
+    scope.push('HEAD');
+    const base = await resolveBase();
+    // Not when HEAD *is* the base: naming it twice is harmless to git but
+    // makes the intent of the args unreadable.
+    if (base && base !== status.branch) scope.push(base);
+  }
+
+  const { code, stdout, stderr } = await run([
+    'log',
+    `--max-count=${limit}`,
+    '--topo-order',
+    `--format=${GRAPH_FORMAT}`,
+    '-z',
+    ...scope,
+  ]);
+
+  if (code !== 0) {
+    // An unborn branch has no commits and `git log` says so rather than
+    // returning nothing, which is not a failure worth logging every time a
+    // fresh repository is opened.
+    if (!/does not have any commits|unknown revision/i.test(stderr)) {
+      log.warn(`log failed: ${stderr.trim()}`);
+    }
+    return [];
+  }
+
+  return parseLog(stdout);
+}
+
+/**
+ * Every local branch, with ahead/behind against both its upstream and the
+ * base branch.
+ *
+ * One subprocess for the whole list. `%(ahead-behind:<base>)` is what buys
+ * that — the obvious implementation is a `rev-list --left-right --count` per
+ * branch, which in a repository with forty branches is forty processes for a
+ * list the user glances at. The atom needs git 2.41, so a failure retries
+ * without it and the base columns come back as zeros rather than nothing.
+ */
+export async function readBranches(): Promise<GitBranches> {
+  if (!root) return { base: '', branches: [] };
+
+  const base = await resolveBase();
+  const fields = BRANCH_FIELDS.join('%00');
+  const withBase = base
+    ? `${fields}%00%(ahead-behind:refs/heads/${base})%00`
+    : `${fields}%00`;
+
+  let result = await run([
+    'for-each-ref',
+    `--format=${withBase}`,
+    'refs/heads',
+  ]);
+
+  if (result.code !== 0 && base) {
+    result = await run(['for-each-ref', `--format=${fields}%00`, 'refs/heads']);
+  }
+
+  if (result.code !== 0) {
+    log.warn(`for-each-ref failed: ${result.stderr.trim()}`);
+    return { base, branches: [] };
+  }
+
+  const branches = parseBranches(result.stdout);
+
+  // Current branch first, then alphabetical — the same order the branch menu
+  // uses, so the two lists don't disagree about where a branch is.
+  branches.sort((a, b) => {
+    if (a.current !== b.current) return a.current ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  return { base, branches };
+}
+
+/**
+ * A repository-relative path as a pathspec git will read literally.
+ *
+ * Two problems in one prefix. `top` makes the path relative to the
+ * repository rather than to the process's cwd — which matters because git
+ * runs in the *project* root, and opening `~/dev/frodon/src` gives a project
+ * two levels below the repository that reports its paths from. `literal`
+ * stops git from reading a file actually named `a[1].txt` as a glob.
+ *
+ * Every path the renderer sends came from git in the first place, so this is
+ * the round trip closing rather than an escape hatch.
+ */
+function pathspec(path: string): string {
+  return `:(top,literal)${path}`;
+}
+
+/**
+ * One file's changes, staged or not.
+ *
+ * An untracked file has nothing to diff against, so git says nothing about
+ * it: `--no-index` against `/dev/null` is what turns "this file is new" into
+ * a patch of every line added. It exits 1 when the files differ, which here
+ * is the normal case rather than a failure.
+ */
+export async function readDiff(request: GitDiffRequest): Promise<GitDiff> {
+  const empty: GitDiff = {
+    path: request.path,
+    staged: request.staged,
+    binary: false,
+    lines: [],
+    added: 0,
+    removed: 0,
+  };
+
+  if (!root || !request.path) return empty;
+
+  const spec = pathspec(request.path);
+  const args = request.staged
+    ? ['diff', '--no-color', '--cached', '--', spec]
+    : ['diff', '--no-color', '--', spec];
+
+  const tracked = await run(args);
+
+  // `git diff` exits 1 when it found differences, which is the normal answer
+  // here rather than a failure. Anything else is one.
+  if (tracked.code !== 0 && tracked.code !== 1) {
+    log.warn(`diff failed: ${tracked.stderr.trim()}`);
+    return empty;
+  }
+
+  let stdout = tracked.stdout;
+
+  // Nothing came back and the file is not staged: it is probably untracked,
+  // which `git diff` ignores entirely.
+  if (!stdout && !request.staged) {
+    // `--no-index` compares two files on disk rather than two trees, so this
+    // is the one place that wants a filesystem path and not a pathspec.
+    const untracked = await run([
+      'diff',
+      '--no-color',
+      '--no-index',
+      '--',
+      '/dev/null',
+      repoRoot ? `${repoRoot}/${request.path}` : request.path,
+    ]);
+    if (untracked.code === 0 || untracked.code === 1) stdout = untracked.stdout;
+  }
+
+  return { ...empty, ...parseDiff(stdout) };
+}
+
+/**
+ * Stages paths, or everything when the list is empty.
+ *
+ * `--` before the paths, always: a file called `-f` is a legal file name and
+ * an illegal argument, and the renderer sends whatever git reported.
+ */
+export function stage(paths: string[]): Promise<GitResult> {
+  const files = paths.filter(Boolean);
+  // `add -A` with no pathspec has staged the whole working tree, not the
+  // current directory, since git 2.0 — which is what "stage all" means here.
+  return operate(
+    files.length === 0 ? ['add', '-A'] : ['add', '--', ...files.map(pathspec)]
+  );
+}
+
+/**
+ * Unstages paths, or everything.
+ *
+ * `restore --staged` rather than `reset HEAD --`: it is the verb git itself
+ * now recommends, and unlike `reset` it cannot be talked into moving the
+ * branch when the path list turns out to be empty.
+ */
+export function unstage(paths: string[]): Promise<GitResult> {
+  const files = paths.filter(Boolean);
+  return operate([
+    'restore',
+    '--staged',
+    '--',
+    // `.` would mean the project directory, which is not necessarily the
+    // repository — `:/` is the whole tree, matching what `add -A` stages.
+    ...(files.length === 0 ? [':/'] : files.map(pathspec)),
+  ]);
+}
+
+/**
+ * Records a commit.
+ *
+ * `-m`, so git never reaches for an editor it has no terminal to open. A
+ * failing hook comes back as git's own stderr — which is what the author
+ * needs to read — rather than as a swallowed non-zero exit.
+ */
+export function commit(request: GitCommitRequest): Promise<GitResult> {
+  const message = request.message.trim();
+  if (!message) {
+    return Promise.resolve({ ok: false, error: 'A commit needs a message.' });
+  }
+
+  const args = ['commit', '-m', message];
+  if (request.amend) args.push('--amend');
+
+  return operate(args);
 }

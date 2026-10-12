@@ -21,7 +21,16 @@
  * data only.
  */
 import type { File, FsResult } from './fs.def';
-import type { GitResult, GitStatus } from './git.def';
+import type {
+  GitBranches,
+  GitCommitRequest,
+  GitDiff,
+  GitDiffRequest,
+  GitLogCommit,
+  GitLogRequest,
+  GitResult,
+  GitStatus,
+} from './git.def';
 import type {
   ReplaceRequest,
   ReplaceResult,
@@ -62,7 +71,33 @@ export interface IpcContract {
   /** Local branch names, current one first. Read when the branch menu opens. */
   'git:branches': { req: void; res: string[] };
   /**
-   * The five operations that change something. All of them act on the open
+   * The same branches with everything the branch view shows: both ahead/behind
+   * pairs, and the tip's subject and date.
+   *
+   * A second channel rather than a richer `git:branches`, because the two have
+   * different costs and different readers. The header's menu wants a list of
+   * names every time it opens; this runs a `for-each-ref` wide enough to
+   * compare every branch against the base, and is read when a window is
+   * looking at it.
+   */
+  'git:branch-details': { req: void; res: GitBranches };
+  /**
+   * Commits for the history graph, newest first and topologically ordered.
+   *
+   * Read on demand and on every HEAD move, never polled: a repository that
+   * nobody is looking at must not be walking its history every three seconds.
+   */
+  'git:log': { req: GitLogRequest; res: GitLogCommit[] };
+  /**
+   * One file's patch, already parsed into numbered lines.
+   *
+   * Parsing in main is the point — see `GitDiff`. The renderer holds rows, not
+   * a patch, the same way the search panel holds previews and not file
+   * contents.
+   */
+  'git:diff': { req: GitDiffRequest; res: GitDiff };
+  /**
+   * The operations that change something. All of them act on the open
    * project's repository, all of them refresh it on the way out, and all of
    * them report git's own stderr rather than throwing — a failed push is a
    * message to show, not an exception.
@@ -72,6 +107,12 @@ export interface IpcContract {
   'git:push': { req: void; res: GitResult };
   'git:checkout': { req: { branch: string }; res: GitResult };
   'git:create-branch': { req: { branch: string }; res: GitResult };
+  /** Stages the given repository-relative paths, or everything when empty. */
+  'git:stage': { req: { paths: string[] }; res: GitResult };
+  /** The inverse. Same convention: an empty list means all of it. */
+  'git:unstage': { req: { paths: string[] }; res: GitResult };
+  /** Records what is staged. Fails with git's own message if a hook rejects it. */
+  'git:commit': { req: GitCommitRequest; res: GitResult };
 
   /**
    * Every match of a query in the open project, walked in main.
@@ -204,6 +245,12 @@ export interface FrodonApi {
     push: () => Promise<Res<'git:push'>>;
     checkout: (branch: string) => Promise<Res<'git:checkout'>>;
     createBranch: (branch: string) => Promise<Res<'git:create-branch'>>;
+    branchDetails: () => Promise<Res<'git:branch-details'>>;
+    log: (request: Req<'git:log'>) => Promise<Res<'git:log'>>;
+    diff: (request: Req<'git:diff'>) => Promise<Res<'git:diff'>>;
+    stage: (paths: string[]) => Promise<Res<'git:stage'>>;
+    unstage: (paths: string[]) => Promise<Res<'git:unstage'>>;
+    commit: (request: Req<'git:commit'>) => Promise<Res<'git:commit'>>;
     /** Subscribes to repository changes. Returns an unsubscribe function. */
     onChanged: (listener: (status: GitStatus) => void) => () => void;
   };

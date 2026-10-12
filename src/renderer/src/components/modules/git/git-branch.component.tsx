@@ -18,10 +18,16 @@ import {
   Input,
   Label,
 } from '~/components/ui';
-import { relativeTime, useBranchLabel, useGit, useGitStore } from '~/lib/git';
+import { useBranchLabel, useGit, useGitStore } from '~/lib/git';
 
 /**
- * The branch, and everything you can do to it.
+ * The branch, and the three things worth doing to it from a title bar:
+ * switch, create, fetch.
+ *
+ * Deliberately no history. The last commit used to be at the top of this
+ * menu, which made it the only place in the app to see one — a dropdown that
+ * closes when you look away is the wrong home for something you read. That
+ * lives in the git window now, and this stays a switcher.
  *
  * The list is read when the menu opens rather than polled: branches change
  * when someone makes one, which is roughly never on the timescale of a
@@ -33,7 +39,6 @@ export default function BranchMenu() {
   const branches = useGitStore((state) => state.branches);
   const current = useGitStore((state) => state.status.branch);
   const upstream = useGitStore((state) => state.status.upstream);
-  const head = useGitStore((state) => state.status.head);
   const { staged, untracked, unstaged } = useGitStore((state) => state.status);
   const changeSet = {
     staged: staged.length,
@@ -92,20 +97,6 @@ export default function BranchMenu() {
         </DropdownMenuTrigger>
 
         <DropdownMenuContent align="end" className="w-64">
-          {head ? (
-            <>
-              <DropdownMenuLabel className="flex flex-col gap-0.5 font-normal">
-                <span className="truncate text-xs font-medium">
-                  {head.subject}
-                </span>
-                <span className="text-[11px] text-fg-subtle">
-                  {head.shortSha} · {head.author} · {relativeTime(head.date)}
-                </span>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-            </>
-          ) : null}
-
           <DropdownMenuLabel className="text-[11px] text-fg-subtle">
             {upstream ? `Tracking ${upstream}` : 'No upstream'}
           </DropdownMenuLabel>

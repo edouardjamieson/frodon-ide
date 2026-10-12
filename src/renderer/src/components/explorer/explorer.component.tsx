@@ -65,7 +65,7 @@ function Node({ file, depth, openPaths, activePath, gitByPath }: NodeProps) {
         // backgrounds still span the full width of the panel.
         style={{ paddingLeft: `${depth * 12 + 8}px` }}
         className={cn(
-          'flex w-full items-center gap-1.5 rounded-md py-[3px] pr-2 text-left text-[12px] hover:bg-row-hover',
+          'flex w-full shrink-0 items-center gap-1.5 rounded-md py-[3px] pr-2 text-left text-[12px] hover:bg-row-hover',
           // Three states, not two: open in some window, and open *and* being
           // looked at. Without the first, splitting the workbench in four
           // leaves no trace in the tree of what is where.
@@ -78,7 +78,7 @@ function Node({ file, depth, openPaths, activePath, gitByPath }: NodeProps) {
       >
         <ChevronRight
           className={cn(
-            'size-3 inline-block text-neutral-500 transition-transform',
+            'size-3 shrink-0 inline-block text-neutral-500 transition-transform',
             {
               'opacity-0': !file.isDir,
               'rotate-90': isExpanded,
@@ -88,8 +88,13 @@ function Node({ file, depth, openPaths, activePath, gitByPath }: NodeProps) {
         <FileIcon file={file} open={isExpanded} />
         {/* No color of its own: the row above sets one for each of its three
             states, and git overrides it when it has something to say. */}
+        {/* Nowrap rather than `truncate`: the panel scrolls now, so a long
+            name is something to reach, not something to cut off. */}
         <span
-          className={cn('truncate text-[12px]', gitStatus && GIT_FG[gitStatus])}
+          className={cn(
+            'whitespace-nowrap text-[12px]',
+            gitStatus && GIT_FG[gitStatus]
+          )}
         >
           {file.name}
         </span>
@@ -123,17 +128,28 @@ export default function Explorer({ files }: { files: File[] }) {
   if (files.length === 0) return null;
 
   return (
+    // Two elements, because one cannot do both jobs: the outer div scrolls,
+    // the inner one is sized by its widest row. `w-max` is what makes the
+    // horizontal scrollbar appear at all — a `w-full` column can never be
+    // wider than the box it scrolls in, so deep trees used to truncate
+    // instead. `min-w-full` keeps the rows spanning the panel when the tree
+    // is narrower than it, so a hover or selection background still reaches
+    // both edges. The scroller is a flex container so that Chromium keeps its
+    // trailing padding at the far end of a horizontal scroll, which a block
+    // one drops.
     <div className="flex h-full w-full flex-col overflow-auto p-1.5">
-      {files.map((file) => (
-        <Node
-          key={file.path}
-          file={file}
-          depth={0}
-          openPaths={openPaths}
-          activePath={activePath}
-          gitByPath={gitByPath}
-        />
-      ))}
+      <div className="flex w-max min-w-full flex-col">
+        {files.map((file) => (
+          <Node
+            key={file.path}
+            file={file}
+            depth={0}
+            openPaths={openPaths}
+            activePath={activePath}
+            gitByPath={gitByPath}
+          />
+        ))}
+      </div>
     </div>
   );
 }

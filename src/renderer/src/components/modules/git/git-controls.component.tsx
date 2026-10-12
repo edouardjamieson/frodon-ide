@@ -2,7 +2,6 @@ import type { ComponentType, ReactNode } from 'react';
 import {
   ArrowDownToLine,
   ArrowUpToLine,
-  FolderGit2,
   LoaderCircle,
   TriangleAlert,
 } from 'lucide-react';
@@ -13,7 +12,6 @@ import {
   TooltipTrigger,
 } from '~/components/ui';
 import { useGit, useGitStore, useIsRepo } from '~/lib/git';
-import { useHasGitWindow, useOpenGit } from '~/lib/window';
 import BranchMenu from './git-branch.component';
 
 /**
@@ -34,8 +32,6 @@ export default function GitControls() {
   const behind = useGitStore((state) => state.status.behind);
 
   const { pull, push, operation, error, dismissError } = useGit();
-  const openGit = useOpenGit();
-  const gitOpen = useHasGitWindow();
 
   if (!isRepo) return null;
 
@@ -44,21 +40,6 @@ export default function GitControls() {
   return (
     <div className="flex items-center gap-2">
       {error ? <GitError message={error} onDismiss={dismissError} /> : null}
-
-      {/* The way into the full view. The same click as the sidebar's source
-          control icon, and the same rule: an open git window is focused, not
-          duplicated. */}
-      <Hint label={gitOpen ? 'Focus source control' : 'Open source control'}>
-        <Button
-          variant="outline"
-          size="icon-sm"
-          className="cursor-pointer"
-          onClick={openGit}
-          aria-label="Open source control"
-        >
-          <FolderGit2 className="size-4" />
-        </Button>
-      </Hint>
 
       <GitAction
         icon={ArrowDownToLine}

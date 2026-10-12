@@ -34,6 +34,11 @@ export default function BranchMenu() {
   const current = useGitStore((state) => state.status.branch);
   const upstream = useGitStore((state) => state.status.upstream);
   const head = useGitStore((state) => state.status.head);
+  const { staged, untracked, unstaged } = useGitStore((state) => state.status);
+  const changeSet = {
+    staged: staged.length,
+    dirty: unstaged.length + untracked.length,
+  };
 
   const { checkout, createBranch, fetch, refreshBranches, operation } =
     useGit();
@@ -75,6 +80,14 @@ export default function BranchMenu() {
               <GitBranch className="size-4 text-fg-muted" />
             )}
             <span className="text-xs font-semibold">{label}</span>
+            <div className="flex items-center gap-1">
+              {changeSet.staged > 0 && (
+                <div className="size-2 border border-green-500 bg-green-500/40 rounded-full"></div>
+              )}
+              {changeSet.dirty > 0 && (
+                <div className="size-2 border border-yellow-500 bg-yellow-500/40 rounded-full"></div>
+              )}
+            </div>
           </Button>
         </DropdownMenuTrigger>
 

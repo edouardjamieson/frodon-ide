@@ -99,8 +99,8 @@ function GitAction({
         )}
 
         {count > 0 && !busy ? (
-          <div className="absolute left-[70%] top-[60%] flex size-4 items-center justify-center rounded-full bg-project/50 text-xs backdrop-blur-sm">
-            <span className="font-bold text-fg text-shadow-sm">
+          <div className="absolute left-[70%] top-[60%] flex size-4 items-center justify-center rounded-full bg-project/50  backdrop-blur-sm">
+            <span className="font-bold text-fg text-[10px] text-shadow-sm">
               {count > 9 ? '9+' : count}
             </span>
           </div>

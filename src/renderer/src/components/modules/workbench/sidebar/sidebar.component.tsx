@@ -18,6 +18,7 @@ import { useOpenGit } from '~/lib/window';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../../ui';
 import Explorer from './explorer';
 import GlobalSearch from './search';
+import AnimatedLogo from '~/components/utils/animated-logo';
 
 interface SidebarMenuItem {
   icon: ReactNode;
@@ -156,6 +157,9 @@ function SidebarMenu({ collapsed }: { collapsed: boolean }) {
         }}
         className="mt-auto"
       />
+      <div className="w-full flex justify-center">
+        <AnimatedLogo className="w-6" />
+      </div>
     </div>
   );
 }

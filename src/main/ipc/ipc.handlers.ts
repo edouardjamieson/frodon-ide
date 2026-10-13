@@ -44,7 +44,12 @@ export function registerIpcHandlers(): void {
       : await dialog.showOpenDialog({ properties: ['openDirectory'] });
 
     if (result.canceled || result.filePaths.length === 0) return null;
-    return result.filePaths[0] ?? null;
+    if (result.filePaths[0]) {
+      win?.setSize(1400, 900, true);
+      win?.setResizable(true);
+      return result.filePaths[0];
+    }
+    return null;
   });
 
   // Opening a project arms two things, because they are the same event: the

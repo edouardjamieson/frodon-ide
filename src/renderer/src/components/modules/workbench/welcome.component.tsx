@@ -1,4 +1,6 @@
-import { Dither } from '~/components/ui';
+import { FolderOpen } from 'lucide-react';
+import { Button, Silk } from '~/components/ui';
+import AnimatedLogo from '~/components/utils/animated-logo';
 import { useTheme } from '~/lib/theme';
 
 export default function Welcome({ onOpen }: { onOpen: () => void }) {
@@ -6,21 +8,24 @@ export default function Welcome({ onOpen }: { onOpen: () => void }) {
 
   return (
     <div className="flex h-full flex-col items-center justify-center gap-5 bg-app">
-      <div className="text-center z-10">
-        <h1 className="text-2xl font-semibold tracking-tight text-fg">
-          Frodon
-        </h1>
-        <p className="mt-1 text-[13px] text-fg-subtle">
-          Open a folder to get started.
+      <div className="absolute top-0 left-0 w-full h-11 [-webkit-app-region:drag]" />
+
+      <div className="flex flex-col items-center text-center z-10">
+        <AnimatedLogo className="w-16" />
+
+        <p className="mt-4 text-[13px] text-fg-subtle">
+          Open a project to get started.
         </p>
       </div>
 
-      <button
+      <Button
+        variant={'outline'}
+        className="cursor-pointer z-10"
         onClick={onOpen}
-        className="no-drag z-10 rounded-md bg-button-accent px-4 py-2 text-[13px] font-medium text-button-accent-fg hover:bg-button-accent-hover"
       >
-        Open folder
-      </button>
+        <FolderOpen />
+        <span>Open project</span>
+      </Button>
 
       <div
         style={{
@@ -29,30 +34,25 @@ export default function Welcome({ onOpen }: { onOpen: () => void }) {
           position: 'absolute',
           opacity: 0.3,
           zIndex: 0,
+          pointerEvents: 'none',
         }}
       >
-        <Dither
-          waveColor="#a7a7a7ff"
-          backgroundColor={theme.colors.appBg}
-          ditherMode="bayer"
+        <Silk
+          color={'#141414ff'}
+          sheenColor={theme.colors.fg}
+          lightMode={!theme.dark}
           className="pointer-events-none"
-          colorNum={4}
-          pixelSize={2}
-          waveSpeed={0.05}
-          waveFrequency={3}
-          waveAmplitude={0.24}
-          mouseEffect="reveal"
-          mouseRadius={0.3}
-          palette={[]}
-          scale={1}
-          contrast={1}
-          brightness={-0.18}
-          mouseStrength={0.3}
-          trail={0.5}
-          enableMouseInteraction
+          speed={2}
+          scale={0.7}
+          noiseIntensity={1.2}
+          depth={0.6}
+          glow={0.25}
+          sheen={0.4}
+          ripple={1.4}
+          fade={0.35}
+          mouseInteraction={false}
           clickRipple={false}
           intro
-          disableAnimation={false}
         />
       </div>
     </div>

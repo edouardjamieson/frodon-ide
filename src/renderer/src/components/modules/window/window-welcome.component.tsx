@@ -1,6 +1,6 @@
 import { FileCode, FolderGit2, SquareTerminal } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { Dither } from '~/components/ui';
+import { Button, Silk } from '~/components/ui';
 import { useProjectColor } from '~/lib/project';
 import { useTheme } from '~/lib/theme';
 import { useWindow, type EmptyWindow, type WindowType } from '~/lib/window';
@@ -32,29 +32,35 @@ export function EmptyWindowBody({ window: win }: { window: EmptyWindow }) {
         Open a code editor, a terminal or the repository to get started.
       </p>
 
+      {/*
+       * Silk rather than a flat wash, for the same reason the welcome screen
+       * dithers: a window that has not been told what it is should look
+       * unfinished rather than broken. No background color is handed over —
+       * Silk draws premultiplied alpha, so the window's own themed surface
+       * stays underneath and only the folds are added on top.
+       *
+       * The folds take the project color, so an empty window says which
+       * repository it belongs to in the same hue as the rest of the chrome.
+       * `lightMode` is the theme's, not a guess: the shader shades pale silk
+       * over light backgrounds and dark silk over dark ones.
+       */}
       <div className="w-full h-full absolute opacity-10 z-0 pointer-events-none">
-        <Dither
-          waveColor={color}
-          backgroundColor={theme.colors.appBg}
-          ditherMode="bayer"
+        <Silk
+          color={color}
+          sheenColor={theme.colors.fg}
+          lightMode={!theme.dark}
           className="pointer-events-none"
-          colorNum={4}
-          pixelSize={2}
-          waveSpeed={0.05}
-          waveFrequency={3}
-          waveAmplitude={0.24}
-          mouseEffect="reveal"
-          mouseRadius={0.3}
-          palette={[]}
-          scale={1}
-          contrast={1}
-          brightness={-0.18}
-          mouseStrength={0.3}
-          trail={0.5}
-          enableMouseInteraction={false}
+          speed={2}
+          scale={0.7}
+          noiseIntensity={1.2}
+          depth={0.6}
+          glow={0.25}
+          sheen={0.4}
+          ripple={1.4}
+          fade={0.35}
+          mouseInteraction={false}
           clickRipple={false}
           intro
-          disableAnimation={false}
         />
       </div>
 
@@ -85,12 +91,13 @@ function Choice({
   children: ReactNode;
 }) {
   return (
-    <button
+    <Button
+      className="cursor-pointer"
+      variant={'outline'}
       onClick={() => onPick(type)}
-      className="flex cursor-pointer items-center gap-2 rounded-lg border border-pane-border bg-button px-3 py-2 text-[12px] text-button-fg transition-colors hover:border-pane-border-focused hover:bg-button-hover"
     >
       {children}
       {label}
-    </button>
+    </Button>
   );
 }

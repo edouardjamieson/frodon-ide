@@ -18,11 +18,12 @@ import { is } from '@electron-toolkit/utils';
 
 export function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
-    width: 1400,
-    height: 900,
+    width: 700,
+    height: 700,
     minWidth: 720,
     minHeight: 480,
     show: false,
+    resizable: false,
     // The traffic lights float over our own chrome; the title bar is ours to
     // draw. `trafficLightPosition` nudges them to sit level with the sidebar
     // header rather than crowding the top-left corner.

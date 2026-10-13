@@ -11,7 +11,8 @@
  *
  * They carry no Frodon colors of their own — shadcn's tokens are aliased onto
  * theme roles in `styles.css`, so they follow a theme switch like everything
- * else, and `Dither` paints a canvas from colors its caller hands it.
+ * else, and `Dither` and `Silk` paint a canvas from colors their caller hands
+ * them.
  *
  * Adding a component means adding a line here. The CLI will not do it.
  */
@@ -69,6 +70,8 @@ export {
   SelectValue,
 } from './select';
 export { Separator } from './separator';
+export { default as Silk } from './Silk';
+export type { SilkProps } from './Silk';
 export { Switch } from './switch';
 export {
   Tabs,

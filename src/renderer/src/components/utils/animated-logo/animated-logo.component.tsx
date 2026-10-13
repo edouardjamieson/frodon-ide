@@ -6,16 +6,19 @@ import {
   SOCKET_RADIUS,
 } from './animated-logo.constant';
 import { useEyesFollowCursor } from './animated-logo.hook';
+import { useProject, useProjectColor } from '~/lib/project';
 
 export default function AnimatedLogo({ className }: AnimatedLogoProps) {
   const { svgRef, pupilRefs } = useEyesFollowCursor();
+  const projectColor = useProjectColor();
+  const { isOpen } = useProject();
 
   return (
     <svg ref={svgRef} className={className} viewBox="0 0 277 246" fill="none">
       {/* The outline, drawn as a larger copy of the mark behind it. */}
       <path
         d="M0 24.0366C0 5.45198 20.2135 -6.08067 36.2122 3.37595L126.288 56.6184C133.821 61.0708 143.179 61.0708 150.712 56.6184L240.788 3.37594C256.787 -6.08069 277 5.45199 277 24.0366V221.971C277 235.226 266.255 245.971 253 245.971H24C10.7452 245.971 0 235.226 0 221.971V24.0366Z"
-        fill="white"
+        fill={isOpen ? projectColor : 'white'}
         opacity={0.5}
       />
       <path

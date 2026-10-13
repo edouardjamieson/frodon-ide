@@ -3,7 +3,7 @@
  * be literals in the markup. The hook needs them too, to work out where a
  * socket lands on screen and how far a pupil may wander inside it.
  */
-export const LOGO_VIEWBOX = { width: 237, height: 208 } as const;
+export const LOGO_VIEWBOX = { width: 277, height: 246 } as const;
 
 export const SOCKET_RADIUS = 27;
 export const PUPIL_RADIUS_X = 9;
@@ -11,8 +11,8 @@ export const PUPIL_RADIUS_Y = 15;
 
 /** Socket centers, left then right. */
 export const EYE_CENTERS = [
-  { x: 73, y: 135 },
-  { x: 163, y: 135 },
+  { x: 93, y: 154.971 },
+  { x: 183, y: 154.971 },
 ] as const;
 
 /**

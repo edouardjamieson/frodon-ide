@@ -110,6 +110,10 @@
   --color-board-grid: var(--fd-board-grid);
   --color-board-selection: var(--fd-board-selection);
 
+  /* Browser */
+  --color-browser: var(--fd-browser-bg);
+  --color-browser-stage: var(--fd-browser-stage-bg);
+
   /* Scrollbars */
   --color-scrollbar-thumb: var(--fd-scrollbar-thumb);
   --color-scrollbar-thumb-hover: var(--fd-scrollbar-thumb-hover);

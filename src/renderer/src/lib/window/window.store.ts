@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type {
   BoardWindow,
+  BrowserWindow,
   EditorWindow,
   TerminalWindow,
   WindowState,
@@ -13,6 +14,7 @@ import {
   firstFreeSlot,
   insertSplit,
   nextSessionId,
+  nextTabId,
   removeWindow,
 } from './window.service';
 
@@ -315,6 +317,72 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
     });
   },
 
+  openBrowser: (windowId) => {
+    const { windows, focusedId } = get();
+    const target = browserTargetFor(windows, windowId ?? focusedId);
+
+    // Nowhere for a page to go and nothing worth rearranging unasked — the
+    // same answer `openTerminal` gives when the grid is full of editors.
+    if (!target) return;
+
+    // A window spawned for the occasion arrives with its first tab already
+    // named, so there is nothing left to add to it.
+    if ('spawn' in target) {
+      set({ windows: [...windows, target.spawn], focusedId: target.spawn.id });
+      return;
+    }
+
+    const tab = nextTabId();
+
+    set({
+      windows: windows.map((window) => {
+        if (window.id !== target.id) return window;
+        const browser = asBrowser(window);
+        return {
+          ...browser,
+          tabs: [...browser.tabs, tab],
+          activeTab: tab,
+        };
+      }),
+      focusedId: target.id,
+    });
+  },
+
+  setActiveBrowserTab: (windowId, tabId) => {
+    set((state) => ({
+      windows: state.windows.map((window) =>
+        window.id === windowId &&
+        window.type === 'browser' &&
+        window.tabs.includes(tabId)
+          ? { ...window, activeTab: tabId }
+          : window
+      ),
+    }));
+  },
+
+  closeBrowserTab: (windowId, tabId) => {
+    // Dropping the id unmounts the view, and the view is what owns the guest
+    // page and its entry in the browser store — see `useWebview`. Nothing to
+    // tear down from here.
+    set((state) => ({
+      windows: state.windows.map((window) => {
+        if (window.id !== windowId || window.type !== 'browser') return window;
+
+        const tabs = window.tabs.filter((id) => id !== tabId);
+        if (tabs.length === window.tabs.length) return window;
+
+        return {
+          ...window,
+          tabs,
+          activeTab:
+            window.activeTab === tabId
+              ? neighbourOf(window.tabs, tabId)
+              : window.activeTab,
+        };
+      }),
+    }));
+  },
+
   setActiveSession: (windowId, sessionId) => {
     set((state) => ({
       windows: state.windows.map((window) =>
@@ -397,6 +465,12 @@ function typed(window: WindowState, type: WindowType): WindowState {
       // No board is opened with it: which one is a question only the person
       // can answer, and the empty window says so with a picker.
       return { id, row, col, type, boards: [], activeBoard: null };
+    case 'browser': {
+      // A browser with no tab is a box with a button. It starts on one blank
+      // tab, with the address bar focused and waiting.
+      const tab = nextTabId();
+      return { id, row, col, type, tabs: [tab], activeTab: tab };
+    }
     default: {
       // A terminal is useless without a shell, so choosing it starts one.
       const session = nextSessionId();
@@ -437,6 +511,16 @@ function asBoard(window: WindowState): BoardWindow {
   if (window.type === 'board') return window;
   const { id, row, col } = window;
   return { id, row, col, type: 'board', boards: [], activeBoard: null };
+}
+
+/**
+ * The same window as a browser. The empty case starts with no tabs because
+ * the caller is about to add the one it came for.
+ */
+function asBrowser(window: WindowState): BrowserWindow {
+  if (window.type === 'browser') return window;
+  const { id, row, col } = window;
+  return { id, row, col, type: 'browser', tabs: [], activeTab: null };
 }
 
 /**
@@ -491,6 +575,28 @@ function boardTargetFor(
   if (!slot) return null;
 
   return { spawn: createWindow(slot.row, slot.col, 'board') };
+}
+
+/** The same question for a web page. */
+function browserTargetFor(
+  windows: WindowState[],
+  preferredId: string
+): WindowState | { spawn: WindowState } | null {
+  const preferred = windows.find((window) => window.id === preferredId);
+  if (preferred && (preferred.type === 'browser' || preferred.type === null)) {
+    return preferred;
+  }
+
+  const browser = windows.find((window) => window.type === 'browser');
+  if (browser) return browser;
+
+  const empty = windows.find((window) => window.type === null);
+  if (empty) return empty;
+
+  const slot = firstFreeSlot(windows);
+  if (!slot) return null;
+
+  return { spawn: createWindow(slot.row, slot.col, 'browser') };
 }
 
 /** The same question for a shell. An editor window cannot host one. */

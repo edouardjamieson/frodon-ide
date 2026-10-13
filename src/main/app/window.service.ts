@@ -15,6 +15,7 @@
 import { join } from 'node:path';
 import { shell, BrowserWindow } from 'electron';
 import { is } from '@electron-toolkit/utils';
+import { hardenWebviews } from '@main/browser';
 
 export function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
@@ -35,6 +36,13 @@ export function createWindow(): BrowserWindow {
       sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
+      // The browser module's `<webview>` elements. This is the one flag here
+      // that widens anything, so it is worth being precise about what it
+      // buys: it lets the renderer ask for a guest page, and nothing more.
+      // What that guest is allowed to be is decided in `hardenWebviews`,
+      // which overwrites every preference the renderer set rather than
+      // trusting the element's attributes.
+      webviewTag: true,
     },
   });
 
@@ -42,14 +50,24 @@ export function createWindow(): BrowserWindow {
   // of an empty BrowserWindow before the renderer has painted anything.
   window.on('ready-to-show', () => window.show());
 
-  // Anything that would open a new window — a docs link, an http(s) href —
-  // goes to the user's real browser instead. An IDE should never be a browser.
+  // Anything that would open a new window *from our own UI* — a docs link, an
+  // http(s) href in a rendered diff — goes to the user's real browser.
+  //
+  // Not because an IDE should never show a web page: it has a browser module
+  // now, and previewing the thing you are building a window away from the code
+  // is the point of it. But a page gets to be shown there, inside a tile, on a
+  // locked-down guest session the renderer does not control — never by
+  // navigating the window that holds the preload bridge, and never by
+  // spawning a `BrowserWindow` with our own preferences on it.
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('http:') || url.startsWith('https:')) {
       void shell.openExternal(url);
     }
     return { action: 'deny' };
   });
+
+  // Every guest page this window will ever host, clamped before it exists.
+  hardenWebviews(window);
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     void window.loadURL(process.env['ELECTRON_RENDERER_URL']);

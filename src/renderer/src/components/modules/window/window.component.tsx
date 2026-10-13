@@ -13,6 +13,10 @@ import {
 } from './window-terminal.component';
 import { GitWindowBody, GitWindowHeader } from './window-git.component';
 import { BoardWindowBody, BoardWindowHeader } from './window-board.component';
+import {
+  BrowserWindowBody,
+  BrowserWindowHeader,
+} from './window-browser.component';
 import { EmptyWindowBody, EmptyWindowHeader } from './window-welcome.component';
 
 /**
@@ -105,6 +109,8 @@ function WindowHeader({ window: win }: { window: WindowState }) {
       return <GitWindowHeader window={win} />;
     case 'board':
       return <BoardWindowHeader window={win} />;
+    case 'browser':
+      return <BrowserWindowHeader window={win} />;
     default:
       return <EmptyWindowHeader />;
   }
@@ -128,6 +134,8 @@ function WindowBody({
       return <GitWindowBody window={win} />;
     case 'board':
       return <BoardWindowBody window={win} />;
+    case 'browser':
+      return <BrowserWindowBody window={win} />;
     default:
       return <EmptyWindowBody window={win} />;
   }
@@ -147,6 +155,10 @@ function surfaceOf(win: WindowState): string {
     // anyway, so this only shows in the moment before it has.
     case 'board':
       return 'bg-board';
+    // Chrome around someone else's page. The surface only shows in the
+    // address bar and in the matte around a page pinned to a device size.
+    case 'browser':
+      return 'bg-browser';
     default:
       return 'bg-app';
   }

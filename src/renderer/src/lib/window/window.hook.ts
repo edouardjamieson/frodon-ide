@@ -10,6 +10,7 @@ import { useWindowStore } from './window.store';
 import { canSplit, rowsOf } from './window.service';
 import type {
   BoardWindow,
+  BrowserWindow,
   EditorWindow,
   GitTab,
   GitWindow,
@@ -86,6 +87,21 @@ export const useTerminalWindow = (window: TerminalWindow) => {
     activate: (sessionId: string) => setActiveSession(window.id, sessionId),
     close: (sessionId: string) => closeSession(window.id, sessionId),
     open: () => openTerminal(window.id),
+  };
+};
+
+/** Everything a browser window's tabs need. */
+export const useBrowserWindow = (window: BrowserWindow) => {
+  const setActiveTab = useWindowStore((state) => state.setActiveBrowserTab);
+  const closeTab = useWindowStore((state) => state.closeBrowserTab);
+  const openBrowser = useWindowStore((state) => state.openBrowser);
+
+  return {
+    tabs: window.tabs,
+    activeTab: window.activeTab,
+    activate: (tabId: string) => setActiveTab(window.id, tabId),
+    close: (tabId: string) => closeTab(window.id, tabId),
+    open: () => openBrowser(window.id),
   };
 };
 

@@ -28,7 +28,7 @@
  * interface below, and a case to the two switches in `window.component.tsx` —
  * TypeScript will point at both of them.
  */
-export type WindowType = 'editor' | 'terminal' | 'git' | 'board';
+export type WindowType = 'editor' | 'terminal' | 'git' | 'board' | 'browser';
 
 /**
  * Named `WindowState` and not `Window` on purpose: the renderer is a browser
@@ -36,7 +36,12 @@ export type WindowType = 'editor' | 'terminal' | 'git' | 'board';
  * `interface Window` would shadow it everywhere this type is imported.
  */
 export type WindowState =
-  EditorWindow | TerminalWindow | GitWindow | BoardWindow | EmptyWindow;
+  | EditorWindow
+  | TerminalWindow
+  | GitWindow
+  | BoardWindow
+  | BrowserWindow
+  | EmptyWindow;
 
 interface WindowBase {
   id: string;
@@ -99,6 +104,35 @@ export interface BoardWindow extends WindowBase {
   boards: string[];
   /** The board on screen, or null when every tab has been closed. */
   activeBoard: string | null;
+}
+
+/**
+ * A window holding web pages, tabbed the way a terminal holds shells.
+ *
+ * The name is the one unfortunate thing in this file: Electron's own
+ * `BrowserWindow` is an OS window, and this is a tile. They can never be
+ * confused by the compiler — `electron` is a main-process import and the
+ * renderer has no typings for it — but a reader coming from `main/app/` will
+ * do a double take, so: this is the browser *module*, the thing with an
+ * address bar in it. The OS window that contains it is created in
+ * `main/app/window.service.ts` and is not reachable from here.
+ *
+ * Tabs are ids, not urls. A url is not an identity — two tabs can be on the
+ * same page, and a tab's url changes under it every time a link is clicked,
+ * which would re-key the tab bar on every navigation. The url lives on the
+ * tab's state in `lib/browser/`, where the guest reports it.
+ *
+ * Unlike a board, nothing is shared: two tabs on the same site are two pages
+ * with two scroll positions and two histories, which is what a window manager
+ * is for. Unlike a terminal, nothing survives the view — closing the tab
+ * closes the page, and there is no process in main to outlive it.
+ */
+export interface BrowserWindow extends WindowBase {
+  type: 'browser';
+  /** Tab ids, in tab order. */
+  tabs: string[];
+  /** The tab on screen. The others stay mounted and keep their pages alive. */
+  activeTab: string | null;
 }
 
 /** A window that has been spawned but not yet told what it is. */
@@ -220,6 +254,16 @@ export interface WindowStore {
    * pointing at a file that no longer exists.
    */
   renameBoardTab: (from: string, to: string) => void;
+  /**
+   * Opens a web page, routing the way `openTerminal` does — the window asked
+   * for, else the focused one, else any browser window, else a newly spawned
+   * one. Always a *new* tab: a browser window is a stack of pages, and where
+   * it goes is a question for the address bar, not for this.
+   */
+  openBrowser: (windowId?: string) => void;
+  closeBrowserTab: (windowId: string, tabId: string) => void;
+  setActiveBrowserTab: (windowId: string, tabId: string) => void;
+
   closeSession: (windowId: string, sessionId: string) => void;
   setActiveSession: (windowId: string, sessionId: string) => void;
 }

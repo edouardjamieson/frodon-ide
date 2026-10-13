@@ -93,6 +93,10 @@ export const ROLE_DEFAULTS: Record<RoleKey, PaletteKey> = {
   boardGrid: 'border',
   boardSelection: 'accent',
 
+  // Browser
+  browserBg: 'bgElevated',
+  browserStageBg: 'bg',
+
   // Scrollbars
   scrollbarThumb: 'bgHighlight',
   scrollbarThumbHover: 'bgSelection',

@@ -180,6 +180,23 @@ export interface ThemeRoles {
    */
   boardSelection: string;
 
+  // Browser
+  /**
+   * The chrome around an embedded page: the address bar and its row of
+   * controls. A tool surface rather than a document one — the page itself
+   * brings its own background and we have no say in it.
+   */
+  browserBg: string;
+  /**
+   * The matte a sized viewport sits on.
+   *
+   * Only visible when a tab has been pinned to a device size smaller than the
+   * tile, which is exactly when it earns its keep: it is what makes the page
+   * read as a device of a known width rather than as a page that failed to
+   * fill the pane.
+   */
+  browserStageBg: string;
+
   // Scrollbars
   scrollbarThumb: string;
   scrollbarThumbHover: string;

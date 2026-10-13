@@ -34,6 +34,18 @@ export function nextSessionId(): string {
   return `s${lastSessionId}`;
 }
 
+/**
+ * Browser tab ids, on the same terms as session ids — except that these never
+ * leave the renderer at all. A `<webview>` is a DOM element, so there is no
+ * registry in main to key by them; they only have to tell one tab from
+ * another inside this page.
+ */
+let lastTabId = 0;
+export function nextTabId(): string {
+  lastTabId += 1;
+  return `b${lastTabId}`;
+}
+
 /** A window of the requested kind, at the given slot. */
 export function createWindow(
   row: number,
@@ -55,6 +67,13 @@ export function createWindow(
     // control": the branch you are on and how far it has come.
     case 'git':
       return { ...base, type, tab: 'history' };
+    case 'browser': {
+      // Like a terminal, and unlike a board: a browser window with no tab in
+      // it would be a box with a button, and where the first tab *goes* is a
+      // question its own address bar asks.
+      const tab = nextTabId();
+      return { ...base, type, tabs: [tab], activeTab: tab };
+    }
     default:
       return { ...base, type: null };
   }

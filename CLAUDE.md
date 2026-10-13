@@ -69,6 +69,16 @@ Consequences, which are not negotiable:
 statement outside a module`, `window.frodon` is never defined, and the
   renderer dies on its first hook.
 
+Embedded web pages are the one place remote content enters the app, and they
+enter under their own rules: a browser tab is a `<webview>`, which is a second
+process on its own storage partition with no preload, no Node and no bridge —
+and `main/browser/` sets all of that in `will-attach-webview` rather than
+trusting the attributes the renderer wrote on the element. `webviewTag: true`
+on the host window lets the renderer _ask_ for a guest; it decides nothing
+about what the guest is allowed to be. The renderer's meta CSP does not reach a
+guest page, which is the point — it is a separate `WebContents`, not a frame of
+our document — and also why that isolation has to be real.
+
 `docs/architecture.md` has the full picture.
 
 ## Adding anything that touches the system
@@ -150,6 +160,8 @@ project-wide search — with find & replace — walked in main and jumped to in
 the editor, a git window with the history as a graph, branches with their
 ahead/behind counts, and a staging area with diffs, boards — a drawing surface
 for diagrams and notes, saved either into the project at `.frodon/boards/` or
-privately at `~/.frodon/boards/` — switching themes. Everything else — config
+privately at `~/.frodon/boards/` — a browser window with tabs, each of which
+can be pinned to a device size to preview a layout at a width the pane is not,
+switching themes. Everything else — config
 layering, saving, the command palette, LSP — is listed in `docs/migration.md`
 roughly in the order it is worth building.

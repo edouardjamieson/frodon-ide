@@ -39,6 +39,7 @@ src/
 │   └── fs.def.ts
 ├── main/            the Node process
 │   ├── app/           BrowserWindow creation + security flags
+│   ├── browser/       the lockdown every embedded web page attaches under
 │   ├── fs/            tree scanning, watching  (ported from the TUI)
 │   ├── ignore/        exclusion matching       (ported from the TUI)
 │   ├── ipc/           typed handle() + every channel's implementation
@@ -96,7 +97,7 @@ in a renderer store and never crosses.
 
 Next to the sidebar is the window manager: a small grid of tiles, each holding
 one module — an editor with its own tabs, a terminal with its own shells, a
-view of the repository, a board, or nothing yet.
+view of the repository, a board, a browser, or nothing yet.
 
 ```
 windows: [{ id, row, col, …contents }]      flat, each carrying its coordinates
@@ -145,6 +146,32 @@ theming model: a drawing made at midnight in `frodon-dark` is still legible at
 noon in `frodon-light`, with nothing on disk to migrate. The canvas resolves
 slots to hex at paint time through `board.theme.ts` — the second and last place
 `useTheme()` is the right answer.
+
+The browser module is the only one that shows something neither half of this
+app produced. A tab is a `<webview>`: a real page, from a real server, running
+in its own process inside our window. Three things are worth knowing about it.
+
+**It adds no IPC channel.** A `<webview>` is a DOM element, so the address bar,
+the history and the page all live in the renderer, and the only main-process
+code is refusal — `main/browser/` clamps every preference the renderer asked
+for before the guest exists, pins the storage partition, and sends popups to
+the user's real browser. The renderer writes the same settings onto the element
+itself, which is documentation rather than defence: the element's attributes
+are written by the side being defended against.
+
+**The element is created by hand, not by JSX.** A `<webview>` reloads its page
+when it is moved in the DOM, so a re-render of an unrelated prop could throw
+away a page and a half-filled form. It is created once in a mount effect and
+mutated through refs, which is the same shape `terminal.hook.ts` has, for a
+related reason.
+
+**A pinned viewport is a layout size, not a zoom.** Pinning a tab to 393 × 852
+sizes the frame the guest fills to exactly that, so the page's media queries
+answer for a phone; it is then CSS-transform-scaled down to whatever room the
+tile has, never up. The page is laid out at the device and drawn at the pane,
+which is the whole trick — `fitScale` is the one line that matters, and the
+percentage in the toolbar is there so a small-looking page is never mistaken
+for a design problem.
 
 The terminal module is where the process split pays for itself twice over.
 The shell, its PTY, its signals and its process tree live in main; the
@@ -198,4 +225,16 @@ language-server responses — none of which are trustworthy input. So:
 - A meta CSP in `index.html` blocks remote script and network connections
   outright.
 - `setWindowOpenHandler` denies every new window and sends http(s) URLs to the
-  user's real browser. An IDE should never become a browser.
+  user's real browser. Nothing navigates the window holding the preload bridge,
+  and nothing spawns a second `BrowserWindow` carrying our preferences.
+- The browser module is the exception that proves that rule, not a hole in it.
+  Remote pages are shown, but only ever inside a `<webview>`: a separate
+  process, on a separate storage partition, with no preload, no Node and no
+  bridge — and every one of those is set by main in `will-attach-webview`
+  rather than by the renderer that asked for the element. `webviewTag: true` is
+  the one capability this buys, and it buys only the ability to ask.
+- The renderer's meta CSP does not reach a `<webview>`, by design on
+  Chromium's part: the guest is its own `WebContents`, not a frame of our
+  document. That is what lets the IDE keep `default-src 'self'` while a tab
+  three pixels away is on the open web — and it is also why the guest's
+  isolation has to be real, since the CSP is doing nothing to help it.

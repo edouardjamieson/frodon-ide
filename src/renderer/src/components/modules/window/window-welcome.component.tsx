@@ -1,6 +1,7 @@
 import {
   FileCode,
   FolderGit2,
+  Globe,
   PencilRuler,
   SquareTerminal,
 } from 'lucide-react';
@@ -34,8 +35,8 @@ export function EmptyWindowBody({ window: win }: { window: EmptyWindow }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 px-4 relative">
       <p className="text-[12px] text-fg-subtle">
-        Open a code editor, a terminal, the repository or a board to get
-        started.
+        Open a code editor, a terminal, the repository, a board or a browser to
+        get started.
       </p>
 
       {/*
@@ -82,6 +83,9 @@ export function EmptyWindowBody({ window: win }: { window: EmptyWindow }) {
         </Choice>
         <Choice type="board" label="Board" onPick={setType}>
           <PencilRuler className="size-4" />
+        </Choice>
+        <Choice type="browser" label="Browser" onPick={setType}>
+          <Globe className="size-4" />
         </Choice>
       </div>
     </div>

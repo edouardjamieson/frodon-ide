@@ -1,4 +1,5 @@
 export * from './board.def';
+export * from './browser.def';
 export * from './fs.def';
 export * from './git.def';
 export * from './search.def';

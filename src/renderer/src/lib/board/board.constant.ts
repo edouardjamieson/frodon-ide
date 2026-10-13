@@ -5,8 +5,12 @@
  * every one of them is a feel decision that will want retuning once the thing
  * has been drawn on for a week.
  */
-import type { BoardInk, BoardStrokeStyle } from '@shared/board.def';
-import type { BoardStyle, BoardTool } from './board.def';
+import type {
+  BoardElementType,
+  BoardInk,
+  BoardStrokeStyle,
+} from '@shared/board.def';
+import type { BoardStyle, BoardStyleField, BoardTool } from './board.def';
 
 /** Zoom bounds. Below the floor nothing is legible; above it, nothing fits. */
 export const MIN_ZOOM = 0.1;
@@ -25,6 +29,23 @@ export const GRID_MIN_ZOOM = 0.45;
 
 /** Side of a resize handle, in screen pixels — handles do not scale with zoom. */
 export const HANDLE_SIZE = 8;
+/**
+ * How far above the selection box the rotate handle floats, in screen pixels.
+ *
+ * Far enough to clear the two corner handles it sits between — at a smaller
+ * gap the three of them read as one cluster and the wrong one gets grabbed.
+ */
+export const ROTATE_HANDLE_OFFSET = 22;
+
+/**
+ * The angle rotation snaps to while shift is held: 15°.
+ *
+ * The divisor of every angle anyone actually wants — 30, 45, 90 — and small
+ * enough that holding shift still feels like steering rather than like
+ * choosing from a list.
+ */
+export const ROTATE_SNAP = Math.PI / 12;
+
 /** How far from a stroke a click still counts as hitting it, in screen pixels. */
 export const HIT_THRESHOLD = 10;
 /** Below this, a drag is a click: a stray two-pixel wobble must not draw. */
@@ -80,6 +101,70 @@ export const DASH_PATTERNS: Record<BoardStrokeStyle, number[]> = {
   solid: [],
   dashed: [4, 3],
   dotted: [0.1, 2.5],
+};
+
+/**
+ * The brush controls a path carries: a pen stroke, a line, an arrow.
+ *
+ * No fill, because none of them enclose anything — a fill on an open path
+ * would flood whatever area it happened to cross.
+ */
+const PATH_FIELDS = [
+  'stroke',
+  'strokeWidth',
+  'strokeStyle',
+  'opacity',
+] as const;
+
+/** A closed primitive: a path, plus the interior it encloses. */
+const SHAPE_FIELDS = [...PATH_FIELDS, 'fill', 'fillStyle'] as const;
+
+/**
+ * Text is drawn with a fill rather than a pen, so the pen's own controls say
+ * nothing about it: there is no weight and no dash, only a color and a size.
+ */
+const TEXT_FIELDS = ['stroke', 'opacity', 'fontSize'] as const;
+
+/**
+ * Which brush controls each kind of element actually understands.
+ *
+ * One table, read by two places on purpose. The panel hides what an element
+ * ignores, and `applyStyle` refuses to write it — and those have to be the
+ * same list, or the panel grows a control that promises something the
+ * document never records. A board is also the one surface where the answer is
+ * obvious once stated and invisible until you try it: nobody wonders why a
+ * pen stroke has no fill, but a Fill row sitting above a selected pen stroke
+ * is a bug you only find by clicking it.
+ */
+export const BRUSH_FIELDS: Record<
+  BoardElementType,
+  readonly BoardStyleField[]
+> = {
+  draw: PATH_FIELDS,
+  line: PATH_FIELDS,
+  arrow: PATH_FIELDS,
+  rectangle: SHAPE_FIELDS,
+  ellipse: SHAPE_FIELDS,
+  diamond: SHAPE_FIELDS,
+  text: TEXT_FIELDS,
+};
+
+/**
+ * The element each drawing tool produces.
+ *
+ * Lets the brush panel narrow itself to the thing you are about to draw, the
+ * same way it narrows to the thing you have selected. The tools that are
+ * missing — select, hand, eraser — draw nothing, and under them the panel
+ * shows everything, because the next element could be anything.
+ */
+export const TOOL_ELEMENTS: Partial<Record<BoardTool, BoardElementType>> = {
+  draw: 'draw',
+  rectangle: 'rectangle',
+  ellipse: 'ellipse',
+  diamond: 'diamond',
+  line: 'line',
+  arrow: 'arrow',
+  text: 'text',
 };
 
 /** What a fresh brush draws with. */

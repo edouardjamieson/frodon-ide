@@ -128,6 +128,10 @@ export const useOpenBoard = () => useWindowStore((state) => state.openBoard);
 export const useRenameBoardTab = () =>
   useWindowStore((state) => state.renameBoardTab);
 
+/** Drops a deleted board from every tab bar holding it. */
+export const useCloseBoardTabs = () =>
+  useWindowStore((state) => state.closeBoardTabs);
+
 /**
  * Every board open as a tab anywhere, as a Set. Built once and handed down
  * the list, the same way the explorer gets its open paths.

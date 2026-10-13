@@ -317,6 +317,36 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
     });
   },
 
+  closeBoardTabs: (key) => {
+    const { windows } = get();
+    // The common case is deleting a board nobody has open, and a `set` that
+    // rebuilt every window to change nothing would re-render the workbench.
+    if (
+      !windows.some(
+        (window) => window.type === 'board' && window.boards.includes(key)
+      )
+    ) {
+      return;
+    }
+
+    set({
+      windows: windows.map((window) => {
+        if (window.type !== 'board' || !window.boards.includes(key)) {
+          return window;
+        }
+
+        return {
+          ...window,
+          boards: window.boards.filter((open) => open !== key),
+          activeBoard:
+            window.activeBoard === key
+              ? neighbourOf(window.boards, key)
+              : window.activeBoard,
+        };
+      }),
+    });
+  },
+
   openBrowser: (windowId) => {
     const { windows, focusedId } = get();
     const target = browserTargetFor(windows, windowId ?? focusedId);

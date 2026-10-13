@@ -32,16 +32,11 @@ import {
 } from '~/components/ui';
 import { useBoards, useBoardsByScope } from '~/lib/board';
 import {
+  useCloseBoardTabs,
   useOpenBoard,
   useOpenBoardKeys,
   useRenameBoardTab,
 } from '~/lib/window';
-
-/** Where each scope's files actually live, shown under the tabs. */
-const SCOPE_DIRECTORY: Record<BoardScope, string> = {
-  project: '.frodon/boards',
-  local: '~/.frodon/boards',
-};
 
 /**
  * Boards, in the sidebar.
@@ -68,6 +63,7 @@ export default function Boards() {
   const openBoard = useOpenBoard();
   const openKeys = useOpenBoardKeys();
   const renameTab = useRenameBoardTab();
+  const closeTabs = useCloseBoardTabs();
 
   // The board scope (local / project). Local state rather than a store, the
   // same as the search panel's sub-module: it is which tab is showing, which
@@ -102,6 +98,15 @@ export default function Boards() {
     renameTab(from, boardKey(next));
   };
 
+  const onDelete = async (board: BoardSummary) => {
+    // The tabs close first, before the file is touched. The confirmation has
+    // already been given, and leaving the canvas up for the length of an IPC
+    // round trip makes a decided action look like one that might not have
+    // taken — on a board that is, by then, already unreadable.
+    closeTabs(boardKey(board));
+    await remove(board);
+  };
+
   return (
     <div className="flex h-full w-full flex-col">
       <header className="flex w-full flex-col shrink-0 gap-2 border-b border-border p-2">
@@ -129,10 +134,9 @@ export default function Boards() {
         </Tabs>
 
         <div className="flex items-center justify-between">
-          {/* The directory rather than the word "Boards": the rail icon and
-              the tabs already say what this panel is, and where a board is
-              about to be written is the one thing the tab changes that you
-              cannot otherwise see. */}
+          {/* The count rather than the directory: the empty state already
+              says where each scope writes, and it says it at the moment that
+              is the only one where it matters. */}
           <span className="truncate font-mono text-[11px] text-fg-subtle">
             Boards ({boards.length})
           </span>
@@ -213,7 +217,7 @@ export default function Boards() {
               onClick={() => {
                 const board = deleting;
                 setDeleting(null);
-                if (board) void remove(board);
+                if (board) void onDelete(board);
               }}
             >
               Delete

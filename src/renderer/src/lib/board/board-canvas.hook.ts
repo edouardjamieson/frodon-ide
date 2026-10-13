@@ -25,6 +25,7 @@ import {
   type BoardElement,
   type BoardTextElement,
 } from '@shared/board.def';
+import { useProjectColor } from '~/lib/project';
 import { useTheme } from '~/lib/theme';
 import { useBoardStore } from './board.store';
 import { saveBoard } from './board.hook';
@@ -32,10 +33,12 @@ import {
   DRAG_THRESHOLD,
   LINE_HEIGHT,
   ONE_SHOT_TOOLS,
+  ROTATE_SNAP,
   TOOL_SHORTCUTS,
   ZOOM_STEP,
 } from './board.constant';
 import {
+  angleOf,
   boundsFromDrag,
   boundsWithin,
   createElement,
@@ -47,13 +50,15 @@ import {
   measureText,
   nextElementId,
   normalizeElement,
+  onRotateHandle,
   resizeElements,
-  selectionBounds,
+  rotateElements,
+  selectionFrame,
   simplifyPoints,
   toBoard,
   translateElement,
   zoomAt,
-  type BoardBounds,
+  type BoardFrame,
 } from './board.service';
 import { boardPaint } from './board.theme';
 import { renderBoard } from './board.render';
@@ -80,7 +85,22 @@ type Gesture =
       kind: 'resize';
       handle: BoardHandle;
       before: BoardElement[];
-      bounds: BoardBounds;
+      frame: BoardFrame;
+    }
+  /**
+   * Turning the selection about its center.
+   *
+   * `grab` is where the pointer was when the handle was taken and `from` is
+   * the angle the element already had, so what the drag contributes is the
+   * difference between the two. Holding the absolute angle instead would snap
+   * the shape to the pointer the instant the handle is touched.
+   */
+  | {
+      kind: 'rotate';
+      before: BoardElement[];
+      center: BoardPoint;
+      grab: number;
+      from: number;
     }
   | { kind: 'marquee'; from: BoardPoint; to: BoardPoint; additive: boolean }
   | { kind: 'erase'; before: BoardElement[]; erased: boolean };
@@ -94,6 +114,9 @@ const NUDGE_FAST = 10;
 export const useBoardCanvas = (session: BoardSession | null) => {
   const key = session ? boardKey(session.ref) : '';
   const theme = useTheme();
+  // The selection chrome is the project's color rather than a theme role —
+  // see `BoardPaint.selection`.
+  const project = useProjectColor();
   const tool = useBoardStore((state) => state.tool);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -119,7 +142,7 @@ export const useBoardCanvas = (session: BoardSession | null) => {
   // `invalidate` — keeps one identity for the life of the component. The
   // store subscription below is set up once as a result, instead of being
   // torn down and rebuilt every time the window shows a different board.
-  const paintRef = useRef(boardPaint(theme));
+  const paintRef = useRef(boardPaint(theme, project));
   const keyRef = useRef(key);
 
   /* ---------------------------------------------------------------------
@@ -175,9 +198,9 @@ export const useBoardCanvas = (session: BoardSession | null) => {
   // no stylesheet — the exemption `editor.theme.ts` takes. Re-resolving on a
   // theme switch is what makes a board restyle with the rest of the app.
   useEffect(() => {
-    paintRef.current = boardPaint(theme);
+    paintRef.current = boardPaint(theme, project);
     invalidate();
-  }, [theme, invalidate]);
+  }, [theme, project, invalidate]);
 
   useEffect(() => {
     keyRef.current = key;
@@ -406,15 +429,28 @@ export const useBoardCanvas = (session: BoardSession | null) => {
       // Handles take priority over whatever is under them: they are drawn on
       // top, so a click that lands on one means resize even if an element
       // happens to be beneath.
-      const bounds = selectionBounds(selected, camera.zoom);
-      if (bounds) {
-        const handle = handleAt(bounds, at, camera.zoom);
+      const frame = selectionFrame(selected, camera.zoom);
+      if (frame) {
+        // The rotate handle is tested first because it floats outside the box
+        // and can overlap an element sitting above the selection.
+        if (onRotateHandle(frame, at, camera.zoom)) {
+          gesture.current = {
+            kind: 'rotate',
+            before: current.elements,
+            center: frame.center,
+            grab: Math.atan2(at.y - frame.center.y, at.x - frame.center.x),
+            from: angleOf(selected[0] as BoardElement),
+          };
+          return;
+        }
+
+        const handle = handleAt(frame, at, camera.zoom);
         if (handle) {
           gesture.current = {
             kind: 'resize',
             handle,
             before: current.elements,
-            bounds,
+            frame,
           };
           return;
         }
@@ -473,15 +509,21 @@ export const useBoardCanvas = (session: BoardSession | null) => {
       const selected = current.elements.filter((element) =>
         current.selection.includes(element.id)
       );
-      const bounds = selectionBounds(selected, current.camera.zoom);
-      if (!bounds) {
+      const frame = selectionFrame(selected, current.camera.zoom);
+      if (!frame) {
         canvas.style.cursor = '';
         return;
       }
 
       const at = toBoard(screenPoint(event), current.camera);
-      const handle = handleAt(bounds, at, current.camera.zoom);
-      canvas.style.cursor = handle ? handleCursor(handle) : '';
+
+      if (onRotateHandle(frame, at, current.camera.zoom)) {
+        canvas.style.cursor = 'grab';
+        return;
+      }
+
+      const handle = handleAt(frame, at, current.camera.zoom);
+      canvas.style.cursor = handle ? handleCursor(handle, frame.angle) : '';
     },
     [key, screenPoint]
   );
@@ -557,15 +599,51 @@ export const useBoardCanvas = (session: BoardSession | null) => {
           const selected = active.before.filter((element) =>
             selection.has(element.id)
           );
+          // Shift locks the proportions, the way it does in every program
+          // that has a handle to drag — read live rather than at the press,
+          // so it can be taken or released mid-drag.
           const resized = new Map(
-            resizeElements(selected, active.bounds, active.handle, at).map(
-              (element) => [element.id, element]
-            )
+            resizeElements(
+              selected,
+              active.frame,
+              active.handle,
+              at,
+              event.shiftKey
+            ).map((element) => [element.id, element])
           );
 
           store.setElements(
             key,
             active.before.map((element) => resized.get(element.id) ?? element)
+          );
+          return;
+        }
+
+        case 'rotate': {
+          const at = toBoard(screenPoint(event), camera);
+          const now = Math.atan2(
+            at.y - active.center.y,
+            at.x - active.center.x
+          );
+
+          let angle = active.from + (now - active.grab);
+          // Shift snaps, matching what it does to a resize: the modifier
+          // means "keep this honest" in both places.
+          if (event.shiftKey) {
+            angle = Math.round(angle / ROTATE_SNAP) * ROTATE_SNAP;
+          }
+
+          const selection = new Set(current.selection);
+          const turned = new Map(
+            rotateElements(
+              active.before.filter((element) => selection.has(element.id)),
+              angle
+            ).map((element) => [element.id, element])
+          );
+
+          store.setElements(
+            key,
+            active.before.map((element) => turned.get(element.id) ?? element)
           );
           return;
         }
@@ -642,6 +720,7 @@ export const useBoardCanvas = (session: BoardSession | null) => {
           return;
 
         case 'resize':
+        case 'rotate':
           store.commit(key, current.elements, active.before);
           return;
 
@@ -664,7 +743,11 @@ export const useBoardCanvas = (session: BoardSession | null) => {
     gesture.current = { kind: 'none' };
 
     const store = useBoardStore.getState();
-    if (active.kind === 'move' || active.kind === 'resize') {
+    if (
+      active.kind === 'move' ||
+      active.kind === 'resize' ||
+      active.kind === 'rotate'
+    ) {
       store.setElements(key, active.before);
     }
     invalidate();

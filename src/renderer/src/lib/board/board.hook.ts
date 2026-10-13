@@ -22,8 +22,14 @@ import {
 } from '@shared/board.def';
 import { useProjectStore } from '~/lib/project';
 import { useBoardStore } from './board.store';
-import { AUTOSAVE_MS } from './board.constant';
-import type { BoardSession, BoardStyle, BoardTool } from './board.def';
+import { brushFields, brushOf } from './board.service';
+import { AUTOSAVE_MS, TOOL_ELEMENTS } from './board.constant';
+import type {
+  BoardSession,
+  BoardStyle,
+  BoardStyleField,
+  BoardTool,
+} from './board.def';
 
 /* -------------------------------------------------------------------------
  * The list
@@ -94,13 +100,20 @@ export const useBoards = () => {
 
   const remove = useCallback(
     async (ref: BoardRef): Promise<boolean> => {
+      // The session is dropped *before* the file is, not after. A session
+      // stays dirty for up to `AUTOSAVE_MS`, and a flush that lands after the
+      // delete would write the board straight back — a deleted board that
+      // reappears a second later, with no obvious cause. The cost is that a
+      // delete which fails has lost whatever was unwritten, which is the
+      // better of the two.
+      useBoardStore.getState().closeSession(boardKey(ref));
+
       const result = await window.frodon.board.remove(ref);
       if (!result.ok) {
         setError(result.error ?? 'The board could not be deleted.');
         return false;
       }
       setError(null);
-      useBoardStore.getState().closeSession(boardKey(ref));
       await refresh();
       return true;
     },
@@ -278,13 +291,56 @@ export const useBoardTool = (): [BoardTool, (tool: BoardTool) => void] => {
   return [tool, setTool];
 };
 
-export const useBoardStyle = (): [
-  BoardStyle,
-  (patch: Partial<BoardStyle>) => void,
-] => {
+/**
+ * The brush for one board: what the panel reads, and what it may show.
+ *
+ * Two things the global style alone cannot answer, both of them about the
+ * selection. `brush` is the style *described* — select a red dashed rectangle
+ * and the panel says red and dashed, rather than leaving the last thing drawn
+ * on screen as if it were a reading. `fields` is which controls are worth
+ * drawing at all, narrowed to the selection, or to the tool when there is no
+ * selection and the next element is therefore known.
+ *
+ * `setStyle` is unchanged and still global: changing a control is one intent
+ * whether or not something is selected. See `setStyle` in the store.
+ *
+ * The selectors are deliberately narrow. `sessions[key]` is a fresh object on
+ * every camera write, so taking the session would re-render the panel on
+ * every frame of a pan; `elements` and `selection` change only when they
+ * actually change.
+ */
+export const useBoardBrush = (
+  key: string
+): {
+  brush: BoardStyle;
+  fields: Set<BoardStyleField>;
+  setStyle: (patch: Partial<BoardStyle>) => void;
+} => {
   const style = useBoardStore((state) => state.style);
   const setStyle = useBoardStore((state) => state.setStyle);
-  return [style, setStyle];
+  const tool = useBoardStore((state) => state.tool);
+  const elements = useBoardStore((state) => state.sessions[key]?.elements);
+  const selection = useBoardStore((state) => state.sessions[key]?.selection);
+
+  const selected = useMemo(() => {
+    if (!elements || !selection || selection.length === 0) return [];
+    const ids = new Set(selection);
+    return elements.filter((element) => ids.has(element.id));
+  }, [elements, selection]);
+
+  const brush = useMemo(() => brushOf(style, selected), [style, selected]);
+
+  const fields = useMemo(() => {
+    if (selected.length > 0) {
+      return brushFields(selected.map((element) => element.type));
+    }
+    // Nothing selected: the tool says what the next element will be, and the
+    // tools that draw nothing leave the panel showing everything.
+    const drawn = TOOL_ELEMENTS[tool];
+    return brushFields(drawn ? [drawn] : []);
+  }, [selected, tool]);
+
+  return { brush, fields, setStyle };
 };
 
 /** Whether a board has unwritten changes, for the dot in the tab. */

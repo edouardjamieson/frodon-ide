@@ -24,14 +24,18 @@ import {
   LINE_HEIGHT,
 } from './board.constant';
 import {
+  angleOf,
   arrowHead,
+  boundsOf,
+  centerOf,
   handlePosition,
   HANDLES,
-  selectionBounds,
+  rotateHandlePosition,
+  selectionFrame,
   type BoardBounds,
 } from './board.service';
 import { fillColor, inkColor, type BoardPaint } from './board.theme';
-import type { BoardCamera } from './board.def';
+import type { BoardCamera, BoardPoint } from './board.def';
 
 export interface BoardScene {
   elements: BoardElement[];
@@ -141,6 +145,25 @@ function applyStroke(
   );
 }
 
+/**
+ * Turns the canvas about a point, for as long as the caller keeps it.
+ *
+ * Rotation is applied here rather than baked into the geometry: an element
+ * stores an upright box and an angle, so the only place that has to know
+ * about the angle is the transform it is drawn under. See
+ * `BoardElementBase.angle`.
+ */
+function turn(
+  ctx: CanvasRenderingContext2D,
+  center: BoardPoint,
+  angle: number
+): void {
+  if (angle === 0) return;
+  ctx.translate(center.x, center.y);
+  ctx.rotate(angle);
+  ctx.translate(-center.x, -center.y);
+}
+
 function drawElement(
   ctx: CanvasRenderingContext2D,
   element: BoardElement,
@@ -148,6 +171,7 @@ function drawElement(
 ): void {
   ctx.save();
   ctx.globalAlpha = element.opacity;
+  turn(ctx, centerOf(boundsOf(element)), angleOf(element));
 
   switch (element.type) {
     case 'draw':
@@ -386,30 +410,37 @@ function drawSelection(ctx: CanvasRenderingContext2D, scene: BoardScene): void {
   );
   if (selected.length === 0) return;
 
+  const frame = selectionFrame(selected, camera.zoom);
+  if (!frame) return;
+
   const scale = 1 / camera.zoom;
 
   ctx.save();
   ctx.strokeStyle = paint.selection;
   ctx.lineWidth = scale;
-  ctx.setLineDash([4 * scale, 3 * scale]);
 
   // Individual outlines are only drawn for a multi-selection: with one
   // element the outline and the bounding box would be the same rectangle
-  // drawn twice.
+  // drawn twice. Each is drawn in its own frame, so a turned element inside a
+  // group is outlined as it sits rather than boxed upright.
   if (selected.length > 1) {
+    ctx.setLineDash([4 * scale, 3 * scale]);
     ctx.globalAlpha = 0.5;
     for (const element of selected) {
+      ctx.save();
+      turn(ctx, centerOf(boundsOf(element)), angleOf(element));
       ctx.strokeRect(element.x, element.y, element.width, element.height);
+      ctx.restore();
     }
     ctx.globalAlpha = 1;
   }
 
-  const bounds = selectionBounds(selected, camera.zoom);
-  if (!bounds) {
-    ctx.restore();
-    return;
-  }
+  // Everything below is in the frame's own coordinates — see `BoardFrame`.
+  // The pointer layer turns the *pointer* into these same coordinates, which
+  // is what keeps the handles grabbable exactly where they are drawn.
+  turn(ctx, frame.center, frame.angle);
 
+  const bounds = frame.bounds;
   ctx.setLineDash([]);
   ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
 
@@ -418,11 +449,26 @@ function drawSelection(ctx: CanvasRenderingContext2D, scene: BoardScene): void {
 
   // On the padded box, not the elements' own: the handles belong to the
   // outline that is actually drawn, and `resizeElements` is handed the same
-  // box when a drag starts — see `useBoardPointer`.
+  // frame when a drag starts — see `useBoardPointer`.
   for (const handle of HANDLES) {
     const at = handlePosition(bounds, handle);
     ctx.beginPath();
     ctx.rect(at.x - size / 2, at.y - size / 2, size, size);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  if (frame.rotatable) {
+    const at = rotateHandlePosition(frame, camera.zoom);
+    // On a stalk, so it reads as belonging to the box it turns rather than as
+    // a loose dot hovering above the drawing.
+    ctx.beginPath();
+    ctx.moveTo(bounds.x + bounds.width / 2, bounds.y);
+    ctx.lineTo(at.x, at.y);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(at.x, at.y, size / 2, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
   }

@@ -87,6 +87,23 @@ interface BoardElementBase {
   width: number;
   height: number;
 
+  /**
+   * Rotation about the box's own center, in radians clockwise.
+   *
+   * Optional, and absent rather than zero on everything that has never been
+   * turned — which is almost everything. A board drawn before rotation
+   * existed opens unchanged, and a board of a thousand pen strokes does not
+   * carry a thousand `"angle": 0` for the two shapes that use it. Read it
+   * through `angleOf`, never off the field.
+   *
+   * The geometry around it stays unrotated: `x`, `y`, `width`, `height` and
+   * `points` all describe the element as if `angle` were zero, and the angle
+   * is applied at paint time. Storing turned coordinates instead would make
+   * every one of them a lie the moment the angle changed again, and would
+   * cost a pen stroke its exact points after two rotations.
+   */
+  angle?: number;
+
   stroke: BoardInk;
   strokeWidth: number;
   strokeStyle: BoardStrokeStyle;

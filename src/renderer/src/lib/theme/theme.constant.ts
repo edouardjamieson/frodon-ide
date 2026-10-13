@@ -91,7 +91,6 @@ export const ROLE_DEFAULTS: Record<RoleKey, PaletteKey> = {
   // Boards
   boardBg: 'bg',
   boardGrid: 'border',
-  boardSelection: 'accent',
 
   // Browser
   browserBg: 'bgElevated',

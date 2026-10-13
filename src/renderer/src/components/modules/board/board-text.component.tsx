@@ -3,10 +3,12 @@ import type { BoardTextElement } from '@shared/board.def';
 import {
   BOARD_FONT,
   LINE_HEIGHT,
+  angleOf,
   boardPaint,
   toScreen,
   type BoardCamera,
 } from '~/lib/board';
+import { useProjectColor } from '~/lib/project';
 import { useTheme } from '~/lib/theme';
 
 /**
@@ -36,12 +38,13 @@ export default function BoardText({
   onFinish,
 }: BoardTextProps) {
   const theme = useTheme();
-  const paint = boardPaint(theme);
+  const paint = boardPaint(theme, useProjectColor());
   const ref = useRef<HTMLTextAreaElement | null>(null);
   const [value, setValue] = useState(element.text);
 
   const at = toScreen({ x: element.x, y: element.y }, camera);
   const fontSize = element.fontSize * camera.zoom;
+  const angle = angleOf(element);
 
   useEffect(() => {
     const textarea = ref.current;
@@ -87,6 +90,14 @@ export default function BoardText({
         top: at.y,
         width: width + fontSize,
         height: lines.length * fontSize * LINE_HEIGHT,
+        // The element is turned about its own center, and the overlay sits on
+        // the element's unrotated top-left — so the origin is that center
+        // measured from this box's corner. Without it, double-clicking a
+        // turned label snaps it upright for as long as you are typing.
+        transform: angle ? `rotate(${angle}rad)` : undefined,
+        transformOrigin: `${(element.width * camera.zoom) / 2}px ${
+          (element.height * camera.zoom) / 2
+        }px`,
         fontSize,
         fontFamily: BOARD_FONT,
         lineHeight: LINE_HEIGHT,

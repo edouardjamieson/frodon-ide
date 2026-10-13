@@ -167,18 +167,13 @@ export interface ThemeRoles {
   boardBg: string;
   /** The dot grid. Must be visible enough to align to and quiet enough to ignore. */
   boardGrid: string;
-  /**
-   * Selection outlines and resize handles.
-   *
-   * The accent, like every other "you are here" marker in the app — the
-   * focused pane's border and the editor's cursor are the same signal in a
-   * different place.
-   *
-   * There is no role for the *ink* a person draws in: those are the theme's
+  /*
+   * There is no role for the selection chrome, and none for the *ink* a
+   * person draws in. The selection is the project's generated color, the same
+   * "you are here" as the focused pane's border; the inks are the theme's
    * ANSI colors, which every theme already ships in full and already chooses
-   * to be legible against its own background. See `BoardInk`.
+   * to be legible against its own background. See `BoardPaint` and `BoardInk`.
    */
-  boardSelection: string;
 
   // Browser
   /**

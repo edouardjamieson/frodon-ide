@@ -1,8 +1,13 @@
 import { create } from 'zustand';
 import { boardKey, type BoardElement, type BoardRef } from '@shared/board.def';
 import { DEFAULT_STYLE, HISTORY_LIMIT } from './board.constant';
-import { measureText } from './board.service';
-import type { BoardSession, BoardStore } from './board.def';
+import { carriesStyle, measureText } from './board.service';
+import type {
+  BoardSession,
+  BoardStore,
+  BoardStyle,
+  BoardStyleField,
+} from './board.def';
 
 /**
  * Sessions are keyed by board rather than by window, so two windows showing
@@ -266,29 +271,34 @@ function sameSelection(a: string[], b: string[]): boolean {
 /**
  * The brush fields a style change writes onto an element.
  *
- * `fontSize` only reaches text, and `fill` only reaches shapes — a pen stroke
- * with a fill would flood whatever area it happened to enclose, which is never
- * what picking a fill color meant.
+ * Filtered through `BRUSH_FIELDS`, which is the same table the panel hides
+ * its controls by. A pen stroke with a fill would flood whatever area it
+ * happened to enclose, and a weight on text would be a number the renderer
+ * never reads — in both cases the control is not shown, and this is what
+ * makes "not shown" and "not written" the same rule rather than two.
  */
 function applyStyle(
   element: BoardElement,
-  update: Partial<BoardStore['style']>
+  update: Partial<BoardStyle>
 ): BoardElement {
   const next = { ...element } as BoardElement;
+  const carries = (field: BoardStyleField) => carriesStyle(element.type, field);
 
-  if (update.stroke !== undefined) next.stroke = update.stroke;
-  if (update.strokeWidth !== undefined) next.strokeWidth = update.strokeWidth;
-  if (update.strokeStyle !== undefined) next.strokeStyle = update.strokeStyle;
-  if (update.opacity !== undefined) next.opacity = update.opacity;
-
-  const fillable =
-    element.type === 'rectangle' ||
-    element.type === 'ellipse' ||
-    element.type === 'diamond';
-
-  if (fillable) {
-    if (update.fill !== undefined) next.fill = update.fill;
-    if (update.fillStyle !== undefined) next.fillStyle = update.fillStyle;
+  if (update.stroke !== undefined && carries('stroke')) {
+    next.stroke = update.stroke;
+  }
+  if (update.strokeWidth !== undefined && carries('strokeWidth')) {
+    next.strokeWidth = update.strokeWidth;
+  }
+  if (update.strokeStyle !== undefined && carries('strokeStyle')) {
+    next.strokeStyle = update.strokeStyle;
+  }
+  if (update.opacity !== undefined && carries('opacity')) {
+    next.opacity = update.opacity;
+  }
+  if (update.fill !== undefined && carries('fill')) next.fill = update.fill;
+  if (update.fillStyle !== undefined && carries('fillStyle')) {
+    next.fillStyle = update.fillStyle;
   }
 
   if (next.type === 'text' && update.fontSize !== undefined) {

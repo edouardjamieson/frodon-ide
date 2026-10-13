@@ -14,6 +14,9 @@
  * legible in the light one — and it is also why switching themes needs no
  * migration of anything on disk.
  *
+ * The one color here that is not the theme's is the selection, which is the
+ * project color — see `BoardPaint.selection`.
+ *
  * The slots map onto the theme's ANSI layer rather than onto new roles. Every
  * theme ships all sixteen ANSI colors in full, they are already chosen to be
  * readable against that theme's own background, and `red` already means red
@@ -29,10 +32,18 @@ export interface BoardPaint {
   ink: Record<BoardInk, string>;
   background: string;
   grid: string;
+  /**
+   * Selection outlines and resize handles. Not a theme role: it is the open
+   * project's generated color, the same "you are here" the workbench wash and
+   * the focused pane's border are drawn in. A board is a document, and the
+   * chrome around a selected shape belongs to the app rather than to the
+   * drawing — so it says which project you are in, like everything else that
+   * is ours rather than yours.
+   */
   selection: string;
 }
 
-export function boardPaint(theme: Theme): BoardPaint {
+export function boardPaint(theme: Theme, selection: string): BoardPaint {
   return {
     ink: {
       // Not `ansi.white`: a theme's white is a terminal's white, which on a
@@ -48,7 +59,7 @@ export function boardPaint(theme: Theme): BoardPaint {
     },
     background: theme.colors.boardBg,
     grid: theme.colors.boardGrid,
-    selection: theme.colors.boardSelection,
+    selection,
   };
 }
 

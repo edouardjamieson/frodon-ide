@@ -134,8 +134,13 @@ export default function Board({ board: key }: { board: string }) {
         onWheel={(event) => event.stopPropagation()}
         className="pointer-events-none absolute inset-0 flex flex-col justify-between p-3"
       >
-        <div className="flex items-start justify-between gap-3">
-          {panelOpen ? <BoardStyle /> : <span />}
+        {/* The toggle rides beside the panel rather than across the pane
+            from it: a control that hides something belongs next to the thing
+            it hides, and at the far edge it reads as a second, unrelated
+            tool. With the panel closed it is the only thing left in the
+            corner, which is also where it is expected to be found again. */}
+        <div className="flex items-start gap-2">
+          {panelOpen ? <BoardStyle board={key} /> : null}
 
           <Tooltip>
             <TooltipTrigger asChild>
@@ -153,7 +158,7 @@ export default function Board({ board: key }: { board: string }) {
                 <SlidersHorizontal className="size-3.5" />
               </button>
             </TooltipTrigger>
-            <TooltipContent side="left">
+            <TooltipContent side="right">
               {panelOpen ? 'Hide styles' : 'Show styles'}
             </TooltipContent>
           </Tooltip>

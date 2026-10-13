@@ -61,6 +61,15 @@ export interface BoardStyle {
 }
 
 /**
+ * One control in the brush panel.
+ *
+ * Named as a type because which of them are *shown* is a question with an
+ * answer per element type — a pen stroke has no interior to flood — and that
+ * answer is a set of these. See `BRUSH_FIELDS`.
+ */
+export type BoardStyleField = keyof BoardStyle;
+
+/**
  * Where the board is being looked at from.
  *
  * `x`/`y` are the board coordinate at the canvas's top-left corner, and

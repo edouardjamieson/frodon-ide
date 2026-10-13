@@ -255,6 +255,14 @@ export interface WindowStore {
    */
   renameBoardTab: (from: string, to: string) => void;
   /**
+   * Drops a board from every window holding it.
+   *
+   * What a delete calls. A tab pointing at a file that is gone is worse than
+   * no tab: it opens, fails to read, and shows an error about a board the
+   * person has already decided they are finished with.
+   */
+  closeBoardTabs: (key: string) => void;
+  /**
    * Opens a web page, routing the way `openTerminal` does — the window asked
    * for, else the focused one, else any browser window, else a newly spawned
    * one. Always a *new* tab: a browser window is a stack of pages, and where

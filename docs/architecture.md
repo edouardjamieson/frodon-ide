@@ -147,6 +147,19 @@ noon in `frodon-light`, with nothing on disk to migrate. The canvas resolves
 slots to hex at paint time through `board.theme.ts` — the second and last place
 `useTheme()` is the right answer.
 
+The one color on a board that is not the theme's is the selection chrome, which
+is the open project's generated color. It is drawn for the app rather than for
+the drawing, so it says which project you are in, the same way the focused
+pane's border does.
+
+Rotation is stored as an angle and nothing else: `x`, `y`, `width`, `height`
+and `points` always describe an element upright, and the angle is applied as a
+canvas transform at paint time. Every geometric question about a turned
+element — what a click hit, where a handle is, what a resize meant — is
+answered by turning the _question_ backwards into the element's own frame
+rather than the element forwards into the board's. See `toLocal` and
+`BoardFrame`.
+
 The browser module is the only one that shows something neither half of this
 app produced. A tab is a `<webview>`: a real page, from a real server, running
 in its own process inside our window. Three things are worth knowing about it.

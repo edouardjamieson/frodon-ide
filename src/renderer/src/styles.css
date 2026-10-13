@@ -108,7 +108,6 @@
   /* Boards */
   --color-board: var(--fd-board-bg);
   --color-board-grid: var(--fd-board-grid);
-  --color-board-selection: var(--fd-board-selection);
 
   /* Browser */
   --color-browser: var(--fd-browser-bg);

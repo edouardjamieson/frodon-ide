@@ -10,17 +10,22 @@
 import {
   hasPoints,
   type BoardElement,
+  type BoardElementType,
   type BoardPointsElement,
+  type BoardTextElement,
 } from '@shared/board.def';
 import {
   ARROW_HEAD_ANGLE,
   ARROW_HEAD_LENGTH,
   BOARD_FONT,
+  BRUSH_FIELDS,
+  DEFAULT_STYLE,
   HANDLE_SIZE,
   HIT_THRESHOLD,
   LINE_HEIGHT,
   MAX_ZOOM,
   MIN_ZOOM,
+  ROTATE_HANDLE_OFFSET,
   SIMPLIFY_TOLERANCE,
 } from './board.constant';
 import type {
@@ -28,6 +33,7 @@ import type {
   BoardHandle,
   BoardPoint,
   BoardStyle,
+  BoardStyleField,
   BoardTool,
 } from './board.def';
 
@@ -106,10 +112,13 @@ export function unionBounds(elements: BoardElement[]): BoardBounds | null {
   let maxY = -Infinity;
 
   for (const element of elements) {
-    minX = Math.min(minX, element.x);
-    minY = Math.min(minY, element.y);
-    maxX = Math.max(maxX, element.x + element.width);
-    maxY = Math.max(maxY, element.y + element.height);
+    // The box it covers, not the box it is stored as: a turned rectangle
+    // sticks out past its own width and height. See `rotatedBounds`.
+    const bounds = rotatedBounds(element);
+    minX = Math.min(minX, bounds.x);
+    minY = Math.min(minY, bounds.y);
+    maxX = Math.max(maxX, bounds.x + bounds.width);
+    maxY = Math.max(maxY, bounds.y + bounds.height);
   }
 
   return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
@@ -132,8 +141,10 @@ export function selectionBounds(
   zoom: number
 ): BoardBounds | null {
   const bounds = unionBounds(elements);
-  if (!bounds) return null;
+  return bounds ? padded(bounds, zoom) : null;
+}
 
+function padded(bounds: BoardBounds, zoom: number): BoardBounds {
   const padding = SELECTION_PADDING / zoom;
   return {
     x: bounds.x - padding,
@@ -154,11 +165,12 @@ function boundsContain(bounds: BoardBounds, point: BoardPoint): boolean {
 
 /** Whether an element lies entirely inside a rubber-band selection. */
 export function boundsWithin(element: BoardElement, box: BoardBounds): boolean {
+  const bounds = rotatedBounds(element);
   return (
-    element.x >= box.x &&
-    element.y >= box.y &&
-    element.x + element.width <= box.x + box.width &&
-    element.y + element.height <= box.y + box.height
+    bounds.x >= box.x &&
+    bounds.y >= box.y &&
+    bounds.x + bounds.width <= box.x + box.width &&
+    bounds.y + bounds.height <= box.y + box.height
   );
 }
 
@@ -170,6 +182,101 @@ export function boundsFromDrag(a: BoardPoint, b: BoardPoint): BoardBounds {
     width: Math.abs(b.x - a.x),
     height: Math.abs(b.y - a.y),
   };
+}
+
+/* -------------------------------------------------------------------------
+ * Rotation
+ * ---------------------------------------------------------------------- */
+
+/**
+ * An element's rotation, in radians clockwise about its own center.
+ *
+ * Read through a function because the field is absent on anything that has
+ * never been turned — see `BoardElementBase.angle`. Nothing in the renderer
+ * touches `element.angle` directly.
+ */
+export function angleOf(element: BoardElement): number {
+  return element.angle ?? 0;
+}
+
+/** The point a box turns about: its middle. */
+export function centerOf(bounds: BoardBounds): BoardPoint {
+  return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+}
+
+/** `point` turned by `angle` about `center`. */
+export function rotatePoint(
+  point: BoardPoint,
+  center: BoardPoint,
+  angle: number
+): BoardPoint {
+  if (angle === 0) return point;
+
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const dx = point.x - center.x;
+  const dy = point.y - center.y;
+
+  return {
+    x: center.x + dx * cos - dy * sin,
+    y: center.y + dx * sin + dy * cos,
+  };
+}
+
+/**
+ * A board point in an element's own frame.
+ *
+ * Everything stored about an element is unrotated and the angle is applied at
+ * paint time, so the way to ask a geometric question about a turned element
+ * is to turn the *question* backwards rather than the element forwards. Hit
+ * testing and resizing both go through here, which is why neither of them
+ * needed to learn about rotation beyond one line.
+ */
+export function toLocal(point: BoardPoint, element: BoardElement): BoardPoint {
+  const angle = angleOf(element);
+  if (angle === 0) return point;
+  return rotatePoint(point, centerOf(boundsOf(element)), -angle);
+}
+
+/**
+ * The upright box a rotated element actually occupies.
+ *
+ * What everything that reasons about *coverage* wants — the marquee, the
+ * group selection box, zoom-to-fit. A turned rectangle sticks out past the
+ * box it is stored as, and a rubber band that used the stored box would
+ * refuse to catch a shape it visibly encloses.
+ */
+export function rotatedBounds(element: BoardElement): BoardBounds {
+  const bounds = boundsOf(element);
+  const angle = angleOf(element);
+  if (angle === 0) return bounds;
+
+  const center = centerOf(bounds);
+  const corners = [
+    { x: bounds.x, y: bounds.y },
+    { x: bounds.x + bounds.width, y: bounds.y },
+    { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
+    { x: bounds.x, y: bounds.y + bounds.height },
+  ].map((corner) => rotatePoint(corner, center, angle));
+
+  const xs = corners.map((corner) => corner.x);
+  const ys = corners.map((corner) => corner.y);
+  const minX = Math.min(...xs);
+  const minY = Math.min(...ys);
+
+  return {
+    x: minX,
+    y: minY,
+    width: Math.max(...xs) - minX,
+    height: Math.max(...ys) - minY,
+  };
+}
+
+/** Folded into (-π, π], so a shape turned ten times still reads as turned once. */
+export function normalizeAngle(angle: number): number {
+  const turn = Math.PI * 2;
+  const folded = ((angle % turn) + turn) % turn;
+  return folded > Math.PI ? folded - turn : folded;
 }
 
 /* -------------------------------------------------------------------------
@@ -299,25 +406,28 @@ export function hitTest(
   // gesture zoomed out as zoomed in.
   const threshold = HIT_THRESHOLD / zoom;
   const bounds = boundsOf(element);
+  // Turned into the element's own frame, where everything below is written as
+  // if nothing were ever rotated. See `toLocal`.
+  const at = toLocal(point, element);
 
   if (element.type === 'text') {
-    return boundsContain(bounds, point);
+    return boundsContain(bounds, at);
   }
 
   if (hasPoints(element)) {
-    return nearPath(element, point, threshold);
+    return nearPath(element, at, threshold);
   }
 
   const filled = element.fill !== 'none';
-  if (filled && boundsContain(bounds, point)) return true;
+  if (filled && boundsContain(bounds, at)) return true;
 
   switch (element.type) {
     case 'ellipse':
-      return nearEllipse(bounds, point, threshold);
+      return nearEllipse(bounds, at, threshold);
     case 'diamond':
-      return nearDiamond(bounds, point, threshold);
+      return nearDiamond(bounds, at, threshold);
     default:
-      return nearRectangle(bounds, point, threshold);
+      return nearRectangle(bounds, at, threshold);
   }
 }
 
@@ -365,9 +475,94 @@ export function handlePosition(
   return { x: bounds.x + bounds.width * fx, y: bounds.y + bounds.height * fy };
 }
 
+/**
+ * The frame the selection chrome is drawn in and grabbed in.
+ *
+ * `bounds` is in the frame's *own* coordinates — upright, with `angle`
+ * applied about `center` to put it on the board. Everything that touches a
+ * handle works in those coordinates and turns the pointer backwards into
+ * them, which is why resizing a turned shape is the same arithmetic as
+ * resizing an upright one.
+ */
+export interface BoardFrame {
+  bounds: BoardBounds;
+  /** Radians clockwise about `center`. Zero for a multi-selection. */
+  angle: number;
+  center: BoardPoint;
+  /** Whether a rotate handle is offered. */
+  rotatable: boolean;
+}
+
+/**
+ * The frame around a selection.
+ *
+ * One element: its own, rotation included. The outline sits square on a
+ * turned rectangle rather than boxing it inside a larger upright one, and the
+ * handles are where the corners look like they are.
+ *
+ * More than one: upright, around everything the elements cover, and with no
+ * rotate handle. Turning a group means turning each element about a point
+ * that is not its own center, which is a different operation from the one
+ * this handle performs — and one that cannot be undone by dragging back,
+ * because each element's stored box would have to absorb the offset. Until
+ * that is worth building, the group box does not pretend to offer it.
+ */
+export function selectionFrame(
+  elements: BoardElement[],
+  zoom: number
+): BoardFrame | null {
+  const single = elements.length === 1 ? (elements[0] as BoardElement) : null;
+
+  if (single) {
+    // Padding is symmetric, so the padded box turns about the same point the
+    // element does.
+    const bounds = padded(boundsOf(single), zoom);
+    return {
+      bounds,
+      angle: angleOf(single),
+      center: centerOf(bounds),
+      rotatable: true,
+    };
+  }
+
+  const bounds = selectionBounds(elements, zoom);
+  if (!bounds) return null;
+
+  return { bounds, angle: 0, center: centerOf(bounds), rotatable: false };
+}
+
+/** Where the rotate handle sits, in the frame's own coordinates. */
+export function rotateHandlePosition(
+  frame: BoardFrame,
+  zoom: number
+): BoardPoint {
+  return {
+    x: frame.bounds.x + frame.bounds.width / 2,
+    // Above the top edge by a fixed number of *screen* pixels, so it clears
+    // the corner handles at every zoom instead of swallowing them when the
+    // box is small.
+    y: frame.bounds.y - ROTATE_HANDLE_OFFSET / zoom,
+  };
+}
+
+/** Whether a point is on the rotate handle. */
+export function onRotateHandle(
+  frame: BoardFrame,
+  point: BoardPoint,
+  zoom: number
+): boolean {
+  if (!frame.rotatable) return false;
+
+  const reach = (HANDLE_SIZE * 1.1) / zoom;
+  const at = rotatePoint(point, frame.center, -frame.angle);
+  const handle = rotateHandlePosition(frame, zoom);
+
+  return Math.hypot(at.x - handle.x, at.y - handle.y) <= reach;
+}
+
 /** Which resize handle a point is on, or null for none. */
 export function handleAt(
-  bounds: BoardBounds,
+  frame: BoardFrame,
   point: BoardPoint,
   zoom: number
 ): BoardHandle | null {
@@ -375,12 +570,13 @@ export function handleAt(
   // measured in screen pixels too — at zoom 4 a board-unit threshold would
   // make them four times easier to hit than they look.
   const reach = (HANDLE_SIZE * 0.9) / zoom;
+  const local = rotatePoint(point, frame.center, -frame.angle);
 
   for (const handle of HANDLES) {
-    const at = handlePosition(bounds, handle);
+    const at = handlePosition(frame.bounds, handle);
     if (
-      Math.abs(point.x - at.x) <= reach &&
-      Math.abs(point.y - at.y) <= reach
+      Math.abs(local.x - at.x) <= reach &&
+      Math.abs(local.y - at.y) <= reach
     ) {
       return handle;
     }
@@ -389,20 +585,44 @@ export function handleAt(
   return null;
 }
 
-/** The CSS cursor for a handle. Mirrored pairs share one. */
-export function handleCursor(handle: BoardHandle): string {
-  switch (handle) {
-    case 'n':
-    case 's':
+/** Which way each handle faces, in radians, on an upright box. */
+const HANDLE_DIRECTIONS: Record<BoardHandle, number> = {
+  e: 0,
+  se: Math.PI / 4,
+  s: Math.PI / 2,
+  sw: (Math.PI * 3) / 4,
+  w: Math.PI,
+  nw: (-Math.PI * 3) / 4,
+  n: -Math.PI / 2,
+  ne: -Math.PI / 4,
+};
+
+/**
+ * The CSS cursor for a handle, in a frame turned by `angle`.
+ *
+ * There are only four arrows for eight handles, and on a turned box the
+ * handle's own name stops being the answer: the east handle of a rectangle at
+ * 90° pushes up and down. So the direction is turned with the frame and the
+ * nearest of the four is picked — mirrored pairs share one, which is why
+ * half a turn lands on the same arrow.
+ */
+export function handleCursor(handle: BoardHandle, angle = 0): string {
+  const turn = Math.PI;
+  const direction = HANDLE_DIRECTIONS[handle] + angle;
+  // Folded into half a turn, because a cursor pointing north-east and one
+  // pointing south-west are the same arrow.
+  const folded = ((direction % turn) + turn) % turn;
+  const eighth = Math.round(folded / (Math.PI / 4)) % 4;
+
+  switch (eighth) {
+    case 1:
+      return 'nwse-resize';
+    case 2:
       return 'ns-resize';
-    case 'e':
-    case 'w':
-      return 'ew-resize';
-    case 'ne':
-    case 'sw':
+    case 3:
       return 'nesw-resize';
     default:
-      return 'nwse-resize';
+      return 'ew-resize';
   }
 }
 
@@ -472,45 +692,220 @@ function scaleElement(
  * The opposite corner is the anchor, which is the behaviour every drawing
  * program has and the only one that makes a handle feel attached to the thing
  * under it. Edge handles move one axis and leave the other alone.
+ *
+ * `lockRatio` — shift, while dragging — keeps the selection's proportions.
+ *
+ * The whole thing happens in the frame's own coordinates, so a turned shape
+ * resizes along *its* edges rather than the board's: drag the right-hand
+ * handle of a rectangle at 30° and it gets longer in the direction it points,
+ * which is the only reading of that gesture that is not a surprise.
  */
 export function resizeElements(
   elements: BoardElement[],
-  original: BoardBounds,
+  frame: BoardFrame,
   handle: BoardHandle,
-  point: BoardPoint
+  point: BoardPoint,
+  lockRatio = false
 ): BoardElement[] {
+  const original = frame.bounds;
+  const at = rotatePoint(point, frame.center, -frame.angle);
+
   let { x, y, width, height } = original;
   const right = x + width;
   const bottom = y + height;
 
   if (handle.includes('w')) {
-    x = Math.min(point.x, right);
-    width = Math.abs(right - point.x);
+    x = Math.min(at.x, right);
+    width = Math.abs(right - at.x);
   }
   if (handle.includes('e')) {
-    x = Math.min(original.x, point.x);
-    width = Math.abs(point.x - original.x);
+    x = Math.min(original.x, at.x);
+    width = Math.abs(at.x - original.x);
   }
   if (handle.includes('n')) {
-    y = Math.min(point.y, bottom);
-    height = Math.abs(bottom - point.y);
+    y = Math.min(at.y, bottom);
+    height = Math.abs(bottom - at.y);
   }
   if (handle.includes('s')) {
-    y = Math.min(original.y, point.y);
-    height = Math.abs(point.y - original.y);
+    y = Math.min(original.y, at.y);
+    height = Math.abs(at.y - original.y);
   }
 
   // A box collapsed to zero in either axis cannot be scaled back out — every
   // subsequent scale factor would be a division by zero — so it is floored
   // rather than allowed to degenerate.
-  const next: BoardBounds = {
+  let next: BoardBounds = {
     x,
     y,
     width: Math.max(width, 1),
     height: Math.max(height, 1),
   };
 
-  return elements.map((element) => scaleElement(element, original, next));
+  if (lockRatio) next = atOriginalRatio(next, original, handle);
+
+  const scaled = elements.map((element) =>
+    scaleElement(element, original, next)
+  );
+
+  if (frame.angle === 0) return scaled;
+
+  // A resize moves the box's center, and the paint turns the element about
+  // whatever its center *now* is. Left alone, that swings the shape away from
+  // the corner the drag is holding still — the handle you are dragging runs
+  // off from under the pointer. The swing is exactly the difference between
+  // moving the center and turning it, so it is taken straight back out.
+  const before = centerOf(original);
+  const after = centerOf(next);
+  const drift = { x: after.x - before.x, y: after.y - before.y };
+  const turned = rotatePoint(drift, { x: 0, y: 0 }, frame.angle);
+
+  return scaled.map((element) =>
+    translateElement(element, turned.x - drift.x, turned.y - drift.y)
+  );
+}
+
+/**
+ * The box closest to `next` that keeps `original`'s proportions.
+ *
+ * A corner follows whichever axis was dragged further, so the shape tracks
+ * the pointer rather than only the axis that happens to be smaller. An edge
+ * has a single axis to go on and the other simply follows it.
+ */
+function atOriginalRatio(
+  next: BoardBounds,
+  original: BoardBounds,
+  handle: BoardHandle
+): BoardBounds {
+  if (original.width === 0 || original.height === 0) return next;
+
+  const sx = next.width / original.width;
+  const sy = next.height / original.height;
+  const corner = handle.length === 2;
+
+  const scale = corner
+    ? Math.max(sx, sy)
+    : handle === 'n' || handle === 's'
+      ? sy
+      : sx;
+
+  const width = Math.max(original.width * scale, 1);
+  const height = Math.max(original.height * scale, 1);
+
+  // The anchor is the far side of whatever is being dragged and does not
+  // move; the axis an edge handle never touches keeps its original start.
+  return {
+    x: handle.includes('w') ? original.x + original.width - width : original.x,
+    y: handle.includes('n')
+      ? original.y + original.height - height
+      : original.y,
+    width,
+    height,
+  };
+}
+
+/**
+ * Turns a selection to an absolute angle.
+ *
+ * Absolute rather than relative because that is what the gesture is: the
+ * handle is held, and the shape points at the pointer. A delta would drift
+ * over a long drag as the rounding of each frame accumulated.
+ */
+export function rotateElements(
+  elements: BoardElement[],
+  angle: number
+): BoardElement[] {
+  const next = normalizeAngle(angle);
+  return elements.map((element) => ({ ...element, angle: next }));
+}
+
+/* -------------------------------------------------------------------------
+ * The brush
+ * ---------------------------------------------------------------------- */
+
+/** Whether an element of this type does anything with a given control. */
+export function carriesStyle(
+  type: BoardElementType,
+  field: BoardStyleField
+): boolean {
+  return BRUSH_FIELDS[type].includes(field);
+}
+
+/**
+ * The controls worth showing for a set of element types.
+ *
+ * A union rather than an intersection: with a rectangle and an arrow selected
+ * together, Fill still means something — it means "fill the rectangle" — and
+ * `applyStyle` already declines to write it onto the arrow. Hiding it would
+ * be hiding a control that works.
+ *
+ * An empty set of types means nothing has narrowed the brush yet, and every
+ * control is shown: the next element could be anything.
+ */
+export function brushFields(
+  types: Iterable<BoardElementType>
+): Set<BoardStyleField> {
+  const fields = new Set<BoardStyleField>();
+
+  for (const type of types) {
+    for (const field of BRUSH_FIELDS[type]) fields.add(field);
+  }
+
+  return fields.size > 0
+    ? fields
+    : new Set(Object.keys(DEFAULT_STYLE) as BoardStyleField[]);
+}
+
+/**
+ * What the panel should read as, given what is selected.
+ *
+ * Selecting something and finding the controls still showing the *last* thing
+ * drawn is the bug this exists to prevent: a panel that is sometimes a
+ * description and sometimes a setting is a panel nobody can trust. With a
+ * selection, every control that the selection agrees on shows the selection's
+ * value; the rest fall back to the brush, which is the only honest answer for
+ * "these three are three different colors".
+ *
+ * Only the elements that *carry* a field get a vote — a text element has a
+ * `strokeWidth` in the document and no use for one, so it must not be what
+ * makes a weight read as mixed.
+ */
+export function brushOf(
+  style: BoardStyle,
+  selected: BoardElement[]
+): BoardStyle {
+  if (selected.length === 0) return style;
+
+  const carriers = (field: BoardStyleField) =>
+    selected.filter((element) => carriesStyle(element.type, field));
+
+  const texts = selected.filter(
+    (element): element is BoardTextElement => element.type === 'text'
+  );
+
+  return {
+    stroke: agreed(carriers('stroke'), (e) => e.stroke) ?? style.stroke,
+    strokeWidth:
+      agreed(carriers('strokeWidth'), (e) => e.strokeWidth) ??
+      style.strokeWidth,
+    strokeStyle:
+      agreed(carriers('strokeStyle'), (e) => e.strokeStyle) ??
+      style.strokeStyle,
+    fill: agreed(carriers('fill'), (e) => e.fill) ?? style.fill,
+    fillStyle:
+      agreed(carriers('fillStyle'), (e) => e.fillStyle) ?? style.fillStyle,
+    opacity: agreed(carriers('opacity'), (e) => e.opacity) ?? style.opacity,
+    fontSize: agreed(texts, (e) => e.fontSize) ?? style.fontSize,
+  };
+}
+
+/** The value these elements share, or undefined if they disagree. */
+function agreed<E, T>(elements: E[], read: (element: E) => T): T | undefined {
+  if (elements.length === 0) return undefined;
+
+  const first = read(elements[0] as E);
+  return elements.every((element) => read(element) === first)
+    ? first
+    : undefined;
 }
 
 /* -------------------------------------------------------------------------

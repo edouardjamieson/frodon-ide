@@ -96,7 +96,7 @@ in a renderer store and never crosses.
 
 Next to the sidebar is the window manager: a small grid of tiles, each holding
 one module — an editor with its own tabs, a terminal with its own shells, a
-view of the repository, or nothing yet.
+view of the repository, a board, or nothing yet.
 
 ```
 windows: [{ id, row, col, …contents }]      flat, each carrying its coordinates
@@ -123,6 +123,28 @@ The git module is the one window type that does not open twice. There is one
 repository, every one of its tabs — history, branches, staging — is a view of
 it, and `openGit` focuses the window that exists rather than spawning a
 second. Nothing breaks if a split makes another one; they read the same store.
+
+The board module is the one whose tabs are _shared_. An editor window owns its
+documents — the same file open in two windows has two cursors and two undo
+histories, which is the point of a window manager. A board is the opposite: a
+drawing open in two tiles should be one drawing, so sessions are keyed by board
+rather than by window and `openBoard` focuses the window that already holds it.
+
+Boards are also the only feature where the renderer names a file. Everywhere
+else main acts on a path it produced itself, from a scan or a native dialog; a
+board is named by a person typing into a text field, and that name becomes a
+filename under `.frodon/boards` or `~/.frodon/boards`. So the path is never
+taken from the renderer, only built from it — see `resolveBoardPath`, which
+validates the name against the shared grammar and then checks the resolved
+path has not left the directory it was supposed to land in. The second check is
+redundant if the first is right, which is exactly why it is there.
+
+An element stores its color as a _slot_ (`stroke: 'red'`), never a hex, and the
+slots are the theme's ANSI colors. That is what keeps a board inside the
+theming model: a drawing made at midnight in `frodon-dark` is still legible at
+noon in `frodon-light`, with nothing on disk to migrate. The canvas resolves
+slots to hex at paint time through `board.theme.ts` — the second and last place
+`useTheme()` is the right answer.
 
 The terminal module is where the process split pays for itself twice over.
 The shell, its PTY, its signals and its process tree live in main; the
@@ -154,8 +176,10 @@ themes is one write to `document.documentElement` — no React re-render at all,
 which is what makes previewing a theme as you arrow through a list free.
 
 The exception is anything that isn't styled by CSS: CodeMirror builds its own
-stylesheets, so `editor.theme.ts` takes a resolved `Theme` object directly.
-That is the only place `useTheme()` should be needed.
+stylesheets, so `editor.theme.ts` takes a resolved `Theme` object directly, and
+a board is a canvas with no stylesheet between `strokeStyle` and the pixel, so
+`board.theme.ts` does the same. Those two files are the only places
+`useTheme()` should be needed.
 
 Never hardcode a color. Add a role to `ThemeRoles` + `ROLE_DEFAULTS`, then a
 line to the `@theme inline` block in `styles.css`.

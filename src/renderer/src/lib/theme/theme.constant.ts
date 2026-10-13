@@ -88,6 +88,11 @@ export const ROLE_DEFAULTS: Record<RoleKey, PaletteKey> = {
   gitGraphEdge: 'border',
   gitGraphNode: 'fgMuted',
 
+  // Boards
+  boardBg: 'bg',
+  boardGrid: 'border',
+  boardSelection: 'accent',
+
   // Scrollbars
   scrollbarThumb: 'bgHighlight',
   scrollbarThumbHover: 'bgSelection',

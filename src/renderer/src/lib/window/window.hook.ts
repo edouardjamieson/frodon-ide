@@ -9,6 +9,7 @@ import { useMemo } from 'react';
 import { useWindowStore } from './window.store';
 import { canSplit, rowsOf } from './window.service';
 import type {
+  BoardWindow,
   EditorWindow,
   GitTab,
   GitWindow,
@@ -86,6 +87,47 @@ export const useTerminalWindow = (window: TerminalWindow) => {
     close: (sessionId: string) => closeSession(window.id, sessionId),
     open: () => openTerminal(window.id),
   };
+};
+
+/** Everything a board window's tabs need. */
+export const useBoardWindow = (window: BoardWindow) => {
+  const setActiveBoard = useWindowStore((state) => state.setActiveBoard);
+  const closeBoard = useWindowStore((state) => state.closeBoard);
+
+  return {
+    boards: window.boards,
+    activeBoard: window.activeBoard,
+    activate: (key: string) => setActiveBoard(window.id, key),
+    close: (key: string) => closeBoard(window.id, key),
+  };
+};
+
+/**
+ * Opens a board in whichever window can take it. What the boards sidebar
+ * calls; the routing is the store's business — see `openBoard`.
+ */
+export const useOpenBoard = () => useWindowStore((state) => state.openBoard);
+
+/** Re-keys a renamed board in every tab bar holding it. */
+export const useRenameBoardTab = () =>
+  useWindowStore((state) => state.renameBoardTab);
+
+/**
+ * Every board open as a tab anywhere, as a Set. Built once and handed down
+ * the list, the same way the explorer gets its open paths.
+ */
+export const useOpenBoardKeys = (): Set<string> => {
+  const windows = useWindowStore((state) => state.windows);
+
+  return useMemo(
+    () =>
+      new Set(
+        windows.flatMap((window) =>
+          window.type === 'board' ? window.boards : []
+        )
+      ),
+    [windows]
+  );
 };
 
 /** Which view a git window is on, and how to change it. */

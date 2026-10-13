@@ -19,6 +19,7 @@
  * holding a reference to the emitter.
  */
 import { contextBridge, ipcRenderer } from 'electron';
+import type { BoardDocument, BoardRef, BoardScope } from '@shared/board.def';
 import type { File } from '@shared/fs.def';
 import type { GitStatus } from '@shared/git.def';
 import type { FrodonApi } from '@shared/ipc.def';
@@ -87,6 +88,19 @@ const api: FrodonApi = {
       ipcRenderer.on('terminal:exit', handler);
       return () => ipcRenderer.removeListener('terminal:exit', handler);
     },
+  },
+  board: {
+    list: () => ipcRenderer.invoke('board:list'),
+    read: (ref: BoardRef) => ipcRenderer.invoke('board:read', ref),
+    write: (ref: BoardRef, document: BoardDocument) =>
+      ipcRenderer.invoke('board:write', { ref, document }),
+    create: (scope: BoardScope, name?: string) =>
+      ipcRenderer.invoke('board:create', { scope, name }),
+    rename: (ref: BoardRef, name: string) =>
+      ipcRenderer.invoke('board:rename', { ref, name }),
+    // `remove`, not `delete`: the latter is a reserved word, and a method
+    // named around it reads worse than one named plainly.
+    remove: (ref: BoardRef) => ipcRenderer.invoke('board:delete', ref),
   },
   app: {
     info: () => ipcRenderer.invoke('app:info'),

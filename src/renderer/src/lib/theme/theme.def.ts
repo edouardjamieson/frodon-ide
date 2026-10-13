@@ -159,6 +159,27 @@ export interface ThemeRoles {
   gitGraphEdge: string;
   gitGraphNode: string;
 
+  // Boards
+  /**
+   * The drawing surface. A board is a document, not a tool panel, so it sits
+   * on the same deepest surface the editor does rather than on the sidebar's.
+   */
+  boardBg: string;
+  /** The dot grid. Must be visible enough to align to and quiet enough to ignore. */
+  boardGrid: string;
+  /**
+   * Selection outlines and resize handles.
+   *
+   * The accent, like every other "you are here" marker in the app — the
+   * focused pane's border and the editor's cursor are the same signal in a
+   * different place.
+   *
+   * There is no role for the *ink* a person draws in: those are the theme's
+   * ANSI colors, which every theme already ships in full and already chooses
+   * to be legible against its own background. See `BoardInk`.
+   */
+  boardSelection: string;
+
   // Scrollbars
   scrollbarThumb: string;
   scrollbarThumbHover: string;

@@ -105,6 +105,11 @@
   --color-git-edge: var(--fd-git-graph-edge);
   --color-git-node: var(--fd-git-graph-node);
 
+  /* Boards */
+  --color-board: var(--fd-board-bg);
+  --color-board-grid: var(--fd-board-grid);
+  --color-board-selection: var(--fd-board-selection);
+
   /* Scrollbars */
   --color-scrollbar-thumb: var(--fd-scrollbar-thumb);
   --color-scrollbar-thumb-hover: var(--fd-scrollbar-thumb-hover);

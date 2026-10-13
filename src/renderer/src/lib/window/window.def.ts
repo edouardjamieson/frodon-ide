@@ -28,7 +28,7 @@
  * interface below, and a case to the two switches in `window.component.tsx` —
  * TypeScript will point at both of them.
  */
-export type WindowType = 'editor' | 'terminal' | 'git';
+export type WindowType = 'editor' | 'terminal' | 'git' | 'board';
 
 /**
  * Named `WindowState` and not `Window` on purpose: the renderer is a browser
@@ -36,7 +36,7 @@ export type WindowType = 'editor' | 'terminal' | 'git';
  * `interface Window` would shadow it everywhere this type is imported.
  */
 export type WindowState =
-  EditorWindow | TerminalWindow | GitWindow | EmptyWindow;
+  EditorWindow | TerminalWindow | GitWindow | BoardWindow | EmptyWindow;
 
 interface WindowBase {
   id: string;
@@ -78,6 +78,27 @@ export type GitTab = 'history' | 'branches' | 'commit';
 export interface GitWindow extends WindowBase {
   type: 'git';
   tab: GitTab;
+}
+
+/**
+ * A window holding boards, tabbed the way an editor holds files.
+ *
+ * Tabs are board *keys* (`scope:name`), not `BoardRef` objects, for the same
+ * reason the editor's are paths: a tab bar compares, de-duplicates and
+ * indexes by identity on every render, and a string does all three without a
+ * comparison function. The ref is recovered with `parseBoardKey` where one is
+ * actually needed.
+ *
+ * Unlike a git window there may be several, and unlike an editor the contents
+ * are shared: two windows on the same board show the same drawing, because
+ * the session is keyed by board. See `BoardSession`.
+ */
+export interface BoardWindow extends WindowBase {
+  type: 'board';
+  /** Board keys, in tab order. */
+  boards: string[];
+  /** The board on screen, or null when every tab has been closed. */
+  activeBoard: string | null;
 }
 
 /** A window that has been spawned but not yet told what it is. */
@@ -178,6 +199,27 @@ export interface WindowStore {
    */
   openGit: () => void;
   setGitTab: (windowId: string, tab: GitTab) => void;
+
+  /**
+   * Opens a board, routing the way `openFile` does — the window asked for,
+   * else the focused one, else any board window, else a newly spawned one.
+   *
+   * A board already open as a tab is activated rather than opened twice, and
+   * a board open in *another* window focuses that window instead of taking a
+   * second copy: two tiles showing the same drawing is a way to run out of
+   * room, and they would share a session anyway.
+   */
+  openBoard: (key: string, windowId?: string) => void;
+  closeBoard: (windowId: string, key: string) => void;
+  setActiveBoard: (windowId: string, key: string) => void;
+  /**
+   * Re-keys a board in every window holding it.
+   *
+   * A rename changes a board's identity, and the tabs are made of that
+   * identity. Without this a renamed board leaves its old name in the tab bar
+   * pointing at a file that no longer exists.
+   */
+  renameBoardTab: (from: string, to: string) => void;
   closeSession: (windowId: string, sessionId: string) => void;
   setActiveSession: (windowId: string, sessionId: string) => void;
 }

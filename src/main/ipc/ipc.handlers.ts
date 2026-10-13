@@ -26,6 +26,14 @@ import {
   stage,
   unstage,
 } from '@main/git';
+import {
+  createBoard,
+  deleteBoard,
+  listBoards,
+  readBoard,
+  renameBoard,
+  writeBoard,
+} from '@main/board';
 import { readFileText, writeFileText } from '@main/fs';
 import { replaceInProject, searchProject } from '@main/search';
 import {
@@ -117,6 +125,22 @@ export function registerIpcHandlers(): void {
   );
 
   handle('terminal:kill', ({ id }) => killSession(id));
+
+  // Boards. The only channels in the app that take a *name* from the
+  // renderer rather than a path main produced itself, which is why the
+  // service validates every one of them before it builds a path — see
+  // `resolveBoardPath`.
+  handle('board:list', () => listBoards());
+
+  handle('board:read', (ref) => readBoard(ref));
+
+  handle('board:write', ({ ref, document }) => writeBoard(ref, document));
+
+  handle('board:create', ({ scope, name }) => createBoard(scope, name));
+
+  handle('board:rename', ({ ref, name }) => renameBoard(ref, name));
+
+  handle('board:delete', (ref) => deleteBoard(ref));
 
   handle('app:info', () => ({
     platform: process.platform as Platform,

@@ -5,6 +5,7 @@ import {
   FolderClosed,
   FolderGit2,
   LayoutTemplate,
+  PencilRuler,
   Search,
 } from 'lucide-react';
 import { useMemo, type ReactNode } from 'react';
@@ -16,6 +17,7 @@ import {
 } from '~/lib/sidebar';
 import { useOpenGit } from '~/lib/window';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../../ui';
+import Boards from './boards';
 import Explorer from './explorer';
 import GlobalSearch from './search';
 import AnimatedLogo from '~/components/utils/animated-logo';
@@ -37,6 +39,8 @@ export default function Sidebar() {
         return <Explorer files={files} />;
       case 'SEARCH':
         return <GlobalSearch />;
+      case 'BOARDS':
+        return <Boards />;
       default:
         return null;
     }
@@ -125,6 +129,12 @@ function SidebarMenu({ collapsed }: { collapsed: boolean }) {
       onClick: () => toggleModule('SEARCH'),
       label: 'Search',
       focused: module === 'SEARCH' && !collapsed,
+    },
+    {
+      icon: <PencilRuler className="size-5" />,
+      onClick: () => toggleModule('BOARDS'),
+      label: 'Boards',
+      focused: module === 'BOARDS' && !collapsed,
     },
     {
       icon: <FolderGit2 className="size-5" />,

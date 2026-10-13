@@ -1,4 +1,9 @@
-import { FileCode, FolderGit2, SquareTerminal } from 'lucide-react';
+import {
+  FileCode,
+  FolderGit2,
+  PencilRuler,
+  SquareTerminal,
+} from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Button, Silk } from '~/components/ui';
 import { useProjectColor } from '~/lib/project';
@@ -29,7 +34,8 @@ export function EmptyWindowBody({ window: win }: { window: EmptyWindow }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 px-4 relative">
       <p className="text-[12px] text-fg-subtle">
-        Open a code editor, a terminal or the repository to get started.
+        Open a code editor, a terminal, the repository or a board to get
+        started.
       </p>
 
       {/*
@@ -73,6 +79,9 @@ export function EmptyWindowBody({ window: win }: { window: EmptyWindow }) {
         </Choice>
         <Choice type="git" label="Source control" onPick={setType}>
           <FolderGit2 className="size-4" />
+        </Choice>
+        <Choice type="board" label="Board" onPick={setType}>
+          <PencilRuler className="size-4" />
         </Choice>
       </div>
     </div>

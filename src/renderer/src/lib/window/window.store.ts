@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type {
+  BoardWindow,
   EditorWindow,
   TerminalWindow,
   WindowState,
@@ -211,6 +212,109 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
     }));
   },
 
+  openBoard: (key, windowId) => {
+    const { windows, focusedId } = get();
+
+    // Already open somewhere. Sessions are keyed by board, so a second tab
+    // would be a second view of the identical drawing — focusing the window
+    // that has it is what the click actually meant.
+    const holder = windows.find(
+      (window) => window.type === 'board' && window.boards.includes(key)
+    );
+    if (holder) {
+      set({
+        windows: windows.map((window) =>
+          window.id === holder.id && window.type === 'board'
+            ? { ...window, activeBoard: key }
+            : window
+        ),
+        focusedId: holder.id,
+      });
+      return;
+    }
+
+    const target = boardTargetFor(windows, windowId ?? focusedId);
+    // Every window is an editor or a terminal and the grid is full. Nowhere
+    // for the board to go, and nothing worth rearranging unasked.
+    if (!target) return;
+
+    const host = 'spawn' in target ? target.spawn : target;
+    const windowsWithHost = 'spawn' in target ? [...windows, host] : windows;
+
+    set({
+      windows: windowsWithHost.map((window) => {
+        if (window.id !== host.id) return window;
+        const board = asBoard(window);
+        return {
+          ...board,
+          boards: board.boards.includes(key)
+            ? board.boards
+            : [...board.boards, key],
+          activeBoard: key,
+        };
+      }),
+      focusedId: host.id,
+    });
+  },
+
+  setActiveBoard: (windowId, key) => {
+    set((state) => ({
+      windows: state.windows.map((window) =>
+        window.id === windowId &&
+        window.type === 'board' &&
+        window.boards.includes(key)
+          ? { ...window, activeBoard: key }
+          : window
+      ),
+    }));
+  },
+
+  closeBoard: (windowId, key) => {
+    set((state) => ({
+      windows: state.windows.map((window) => {
+        if (window.id !== windowId || window.type !== 'board') return window;
+
+        const boards = window.boards.filter((open) => open !== key);
+        if (boards.length === window.boards.length) return window;
+
+        return {
+          ...window,
+          boards,
+          activeBoard:
+            window.activeBoard === key
+              ? neighbourOf(window.boards, key)
+              : window.activeBoard,
+        };
+      }),
+    }));
+  },
+
+  renameBoardTab: (from, to) => {
+    const { windows } = get();
+    // Nothing anywhere is showing it. A rename from the sidebar of a board
+    // that is not open is the common case, and must not notify.
+    if (
+      !windows.some(
+        (window) => window.type === 'board' && window.boards.includes(from)
+      )
+    ) {
+      return;
+    }
+
+    set({
+      windows: windows.map((window) => {
+        if (window.type !== 'board' || !window.boards.includes(from)) {
+          return window;
+        }
+        return {
+          ...window,
+          boards: window.boards.map((key) => (key === from ? to : key)),
+          activeBoard: window.activeBoard === from ? to : window.activeBoard,
+        };
+      }),
+    });
+  },
+
   setActiveSession: (windowId, sessionId) => {
     set((state) => ({
       windows: state.windows.map((window) =>
@@ -289,6 +393,10 @@ function typed(window: WindowState, type: WindowType): WindowState {
       return { id, row, col, type, files: [], activeFile: null };
     case 'git':
       return { id, row, col, type, tab: 'history' };
+    case 'board':
+      // No board is opened with it: which one is a question only the person
+      // can answer, and the empty window says so with a picker.
+      return { id, row, col, type, boards: [], activeBoard: null };
     default: {
       // A terminal is useless without a shell, so choosing it starts one.
       const session = nextSessionId();
@@ -322,6 +430,16 @@ function asTerminal(window: WindowState): TerminalWindow {
 }
 
 /**
+ * The same window as a board holder. The empty case starts with no tabs
+ * because the caller is about to add the one it came for.
+ */
+function asBoard(window: WindowState): BoardWindow {
+  if (window.type === 'board') return window;
+  const { id, row, col } = window;
+  return { id, row, col, type: 'board', boards: [], activeBoard: null };
+}
+
+/**
  * Where a file should open: the preferred window if it can host one, else an
  * existing editor, else an empty window, else a new one in the first free
  * slot.
@@ -351,6 +469,28 @@ function editorTargetFor(
   if (!slot) return null;
 
   return { spawn: createWindow(slot.row, slot.col, 'editor') };
+}
+
+/** The same question for a board. */
+function boardTargetFor(
+  windows: WindowState[],
+  preferredId: string
+): WindowState | { spawn: WindowState } | null {
+  const preferred = windows.find((window) => window.id === preferredId);
+  if (preferred && (preferred.type === 'board' || preferred.type === null)) {
+    return preferred;
+  }
+
+  const board = windows.find((window) => window.type === 'board');
+  if (board) return board;
+
+  const empty = windows.find((window) => window.type === null);
+  if (empty) return empty;
+
+  const slot = firstFreeSlot(windows);
+  if (!slot) return null;
+
+  return { spawn: createWindow(slot.row, slot.col, 'board') };
 }
 
 /** The same question for a shell. An editor window cannot host one. */

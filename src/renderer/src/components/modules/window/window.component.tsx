@@ -12,6 +12,7 @@ import {
   TerminalWindowHeader,
 } from './window-terminal.component';
 import { GitWindowBody, GitWindowHeader } from './window-git.component';
+import { BoardWindowBody, BoardWindowHeader } from './window-board.component';
 import { EmptyWindowBody, EmptyWindowHeader } from './window-welcome.component';
 
 /**
@@ -102,6 +103,8 @@ function WindowHeader({ window: win }: { window: WindowState }) {
       return <TerminalWindowHeader window={win} />;
     case 'git':
       return <GitWindowHeader window={win} />;
+    case 'board':
+      return <BoardWindowHeader window={win} />;
     default:
       return <EmptyWindowHeader />;
   }
@@ -123,6 +126,8 @@ function WindowBody({
       return <TerminalWindowBody window={win} focused={focused} />;
     case 'git':
       return <GitWindowBody window={win} />;
+    case 'board':
+      return <BoardWindowBody window={win} />;
     default:
       return <EmptyWindowBody window={win} />;
   }
@@ -138,6 +143,10 @@ function surfaceOf(win: WindowState): string {
     // A tool panel, not a document: the same surface the sidebar sits on.
     case 'git':
       return 'bg-sidebar';
+    // A document, like the editor — and the canvas paints its own background
+    // anyway, so this only shows in the moment before it has.
+    case 'board':
+      return 'bg-board';
     default:
       return 'bg-app';
   }

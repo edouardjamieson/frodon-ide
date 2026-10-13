@@ -20,6 +20,13 @@
  * from either side — no `electron`, no `node:*`, no React. Types and plain
  * data only.
  */
+import type {
+  BoardDocument,
+  BoardRef,
+  BoardResult,
+  BoardScope,
+  BoardSummary,
+} from './board.def';
 import type { File, FsResult } from './fs.def';
 import type {
   GitBranches,
@@ -154,6 +161,37 @@ export interface IpcContract {
   /** Ends a session and everything the shell started. */
   'terminal:kill': { req: { id: string }; res: void };
 
+  /**
+   * Every board in both scopes, newest first.
+   *
+   * One channel for the pair rather than one per scope: the sidebar draws
+   * both sections at once, and two round trips to fill one panel is two
+   * chances to render it half-populated.
+   */
+  'board:list': { req: void; res: BoardSummary[] };
+  /** One board's elements. A board that isn't there reads as an empty one. */
+  'board:read': { req: BoardRef; res: BoardDocument };
+  /**
+   * The whole document, every time.
+   *
+   * No patch channel, and no per-stroke writes: a board is small, the window
+   * debounces, and the alternative — shipping operations across the boundary
+   * and replaying them in main — would put a second copy of the element model
+   * in the process that has no business knowing what an ellipse is.
+   */
+  'board:write': {
+    req: { ref: BoardRef; document: BoardDocument };
+    res: FsResult;
+  };
+  /** Creates an empty board, uniquifying the name. Answers with the name used. */
+  'board:create': {
+    req: { scope: BoardScope; name?: string };
+    res: BoardResult;
+  };
+  /** Renames within a scope. Refuses rather than clobbering an existing board. */
+  'board:rename': { req: { ref: BoardRef; name: string }; res: BoardResult };
+  'board:delete': { req: BoardRef; res: FsResult };
+
   /** Host facts the renderer can't ask the DOM for. */
   'app:info': { req: void; res: AppInfo };
 }
@@ -272,6 +310,17 @@ export interface FrodonApi {
      */
     onData: (id: string, listener: (data: string) => void) => () => void;
     onExit: (id: string, listener: (exit: TerminalExit) => void) => () => void;
+  };
+  board: {
+    list: () => Promise<Res<'board:list'>>;
+    read: (ref: BoardRef) => Promise<Res<'board:read'>>;
+    write: (
+      ref: BoardRef,
+      document: BoardDocument
+    ) => Promise<Res<'board:write'>>;
+    create: (scope: BoardScope, name?: string) => Promise<Res<'board:create'>>;
+    rename: (ref: BoardRef, name: string) => Promise<Res<'board:rename'>>;
+    remove: (ref: BoardRef) => Promise<Res<'board:delete'>>;
   };
   app: {
     info: () => Promise<Res<'app:info'>>;

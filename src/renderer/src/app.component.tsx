@@ -7,8 +7,10 @@ import {
 } from '~/lib/project';
 import { useGitSync } from '~/lib/git';
 import { useBoardAutosaveEffect } from '~/lib/board';
+import { useRecentFilesEffect } from '~/lib/file-picker';
 import { Header, Sidebar, Welcome } from '~/components/modules/workbench';
 import WindowManager from '~/components/modules/window';
+import FilePicker from '~/components/modules/file-picker';
 import Backdrop from './components/ui/backdrop';
 
 /**
@@ -17,7 +19,8 @@ import Backdrop from './components/ui/backdrop';
  * (fetches the host facts main holds, once), `useProjectSync` and
  * `useGitSync` (subscribe to the tree and the repository main pushes),
  * `useProjectColorEffect` (publishes the project's color as a CSS variable)
- * and `useBoardAutosaveEffect` (writes dirty boards after a quiet moment).
+ * `useBoardAutosaveEffect` (writes dirty boards after a quiet moment) and
+ * `useRecentFilesEffect` (records what was last looked at, for the picker).
  * Mounting any of them twice would double the work on every change — and for
  * the autosave in particular, race two writes to the same file.
  */
@@ -28,6 +31,7 @@ export default function App() {
   useGitSync();
   useProjectColorEffect();
   useBoardAutosaveEffect();
+  useRecentFilesEffect();
 
   const { isOpen, open } = useProject();
 
@@ -41,6 +45,8 @@ export default function App() {
         <Sidebar />
         <WindowManager />
       </div>
+      {/* Above everything, drawn only when it is open. */}
+      <FilePicker />
     </div>
   );
 }

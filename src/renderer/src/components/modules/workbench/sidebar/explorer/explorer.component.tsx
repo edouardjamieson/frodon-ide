@@ -23,6 +23,7 @@ import {
   TooltipTrigger,
 } from '~/components/ui';
 import { useExplorerActions, useExplorerToolbar } from './explorer.hook';
+import { useFilePickerStore } from '~/lib/file-picker';
 import type { ExplorerActions } from './explorer.def';
 import {
   ContextMenu,
@@ -465,6 +466,9 @@ function DraftRow({
 function Toolbar() {
   const { directoryLabel, newFile, newDirectory, expandAll, collapseAll } =
     useExplorerToolbar();
+  // The one toolbar action that is not the explorer's: it opens the picker,
+  // which lives above the whole workbench and routes to a window of its own.
+  const openPicker = useFilePickerStore((state) => state.openPicker);
 
   return (
     <div className="sticky top-0 z-10 mb-1 flex w-full items-center justify-end gap-0.5 border-b border-border bg-sidebar p-1 shrink-0">
@@ -483,7 +487,7 @@ function Toolbar() {
       <ToolbarButton label="Expand all" onClick={expandAll}>
         <ChevronsUpDown />
       </ToolbarButton>
-      <ToolbarButton label="Open file" onClick={expandAll}>
+      <ToolbarButton label="Open file" onClick={openPicker}>
         <FileStack />
       </ToolbarButton>
     </div>

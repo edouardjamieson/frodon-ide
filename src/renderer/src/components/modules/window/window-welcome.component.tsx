@@ -1,12 +1,7 @@
-import {
-  FileCode,
-  FolderGit2,
-  Globe,
-  PencilRuler,
-  SquareTerminal,
-} from 'lucide-react';
+import { FileCode, FolderGit2, Globe, SquareTerminal } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Button, Silk } from '~/components/ui';
+import AnimatedLogo from '~/components/utils/animated-logo';
 import { useProjectColor } from '~/lib/project';
 import { useTheme } from '~/lib/theme';
 import { useWindow, type EmptyWindow, type WindowType } from '~/lib/window';
@@ -34,10 +29,25 @@ export function EmptyWindowBody({ window: win }: { window: EmptyWindow }) {
 
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 px-4 relative">
-      <p className="text-[12px] text-fg-subtle">
-        Open a code editor, a terminal, the repository, a board or a browser to
-        get started.
+      <AnimatedLogo className="w-20 z-10" />
+      <p className="text-[12px] text-white text-center">
+        Select one of the options below to get started
       </p>
+
+      <div className="grid grid-cols-2 items-center gap-2 z-10">
+        <Choice type="editor" label="Code editor" onPick={setType}>
+          <FileCode className="size-4" />
+        </Choice>
+        <Choice type="terminal" label="Terminal" onPick={setType}>
+          <SquareTerminal className="size-4" />
+        </Choice>
+        <Choice type="git" label="Source control" onPick={setType}>
+          <FolderGit2 className="size-4" />
+        </Choice>
+        <Choice type="browser" label="Browser" onPick={setType}>
+          <Globe className="size-4" />
+        </Choice>
+      </div>
 
       {/*
        * Silk rather than a flat wash, for the same reason the welcome screen
@@ -69,24 +79,6 @@ export function EmptyWindowBody({ window: win }: { window: EmptyWindow }) {
           clickRipple={false}
           intro
         />
-      </div>
-
-      <div className="flex items-center gap-2">
-        <Choice type="editor" label="Code editor" onPick={setType}>
-          <FileCode className="size-4" />
-        </Choice>
-        <Choice type="terminal" label="Terminal" onPick={setType}>
-          <SquareTerminal className="size-4" />
-        </Choice>
-        <Choice type="git" label="Source control" onPick={setType}>
-          <FolderGit2 className="size-4" />
-        </Choice>
-        <Choice type="board" label="Board" onPick={setType}>
-          <PencilRuler className="size-4" />
-        </Choice>
-        <Choice type="browser" label="Browser" onPick={setType}>
-          <Globe className="size-4" />
-        </Choice>
       </div>
     </div>
   );

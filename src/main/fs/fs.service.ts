@@ -21,10 +21,12 @@ import {
   toRelativePath,
   type IgnoreMatcher,
 } from '@main/ignore';
+import { shell } from 'electron';
 import {
   isValidEntryName,
   type File,
-  type FsCreateResult,
+  type FsDeleteResult,
+  type FsPathResult,
   type FsResult,
 } from '@shared/fs.def';
 
@@ -213,7 +215,7 @@ export async function createFile(
   root: string | null,
   parent: string,
   name: string
-): Promise<FsCreateResult> {
+): Promise<FsPathResult> {
   const resolved = resolveNewEntry(root, parent, name);
   if (!resolved.ok) return resolved;
 
@@ -231,7 +233,7 @@ export async function createDirectory(
   root: string | null,
   parent: string,
   name: string
-): Promise<FsCreateResult> {
+): Promise<FsPathResult> {
   const resolved = resolveNewEntry(root, parent, name);
   if (!resolved.ok) return resolved;
 
@@ -241,6 +243,109 @@ export async function createDirectory(
   } catch (error) {
     log.warn(`mkdir failed for ${resolved.path}`, error);
     return { ok: false, error: createError(error, name.trim()) };
+  }
+}
+
+/**
+ * Renames an entry inside its own directory.
+ *
+ * Moving between directories is a different gesture — a drag, eventually —
+ * and a different risk, so this one only ever changes the last segment: the
+ * new name is resolved against the old path's own parent, which `resolveNewEntry`
+ * then checks the same way it checks a create.
+ */
+export async function renameEntry(
+  root: string | null,
+  from: string,
+  name: string
+): Promise<FsPathResult> {
+  const resolved = resolveNewEntry(root, path.dirname(from), name);
+  if (!resolved.ok) return resolved;
+
+  const to = resolved.path;
+  if (to === from) return { ok: true, path: from };
+
+  try {
+    // `rename(2)` replaces an existing target silently, so the check has to
+    // happen here — but it cannot be "does the path exist", because on a
+    // case-insensitive filesystem the old name and a differently-cased new
+    // one are the same entry, and turning `Foo.ts` into `foo.ts` is a rename
+    // people actually want. Same inode on the same device means it *is* this
+    // entry, and renaming something onto itself is safe.
+    const target = await lstatOrNull(to);
+    if (target) {
+      const current = await lstatOrNull(from);
+      const sameEntry =
+        current !== null &&
+        target.ino === current.ino &&
+        target.dev === current.dev;
+
+      if (!sameEntry)
+        return { ok: false, error: `"${name.trim()}" already exists here.` };
+    }
+
+    await fsp.rename(from, to);
+    return { ok: true, path: to };
+  } catch (error) {
+    log.warn(`rename failed for ${from}`, error);
+    return { ok: false, error: createError(error, name.trim()) };
+  }
+}
+
+/** `lstat`, with "it is not there" as a value rather than an exception. */
+async function lstatOrNull(target: string): Promise<fs.Stats | null> {
+  try {
+    return await fsp.lstat(target);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Moves an entry to the Trash.
+ *
+ * Not `rm`: a folder deleted by a slipped click should be recoverable, and
+ * `shell.trashItem` hands that problem to the thing that already solves it.
+ * The confirmation is not here — it is in the handler, beside the other
+ * dialog main shows — so this does the asked-for thing and reports.
+ *
+ * The root itself is refused. Everything else in `fs/` treats the project as
+ * the boundary a path must stay inside; deleting the boundary is the one case
+ * where being inside it is not enough.
+ */
+export async function deleteEntry(
+  root: string | null,
+  target: string
+): Promise<FsDeleteResult> {
+  if (!root) return { ok: false, deleted: false, error: 'No project is open.' };
+
+  const projectRoot = path.resolve(root);
+  const entry = path.resolve(target);
+
+  if (entry === projectRoot) {
+    return {
+      ok: false,
+      deleted: false,
+      error: 'The project folder cannot be deleted from inside it.',
+    };
+  }
+
+  if (!entry.startsWith(projectRoot + path.sep)) {
+    log.warn(`refused a delete outside the project: ${target}`);
+    return {
+      ok: false,
+      deleted: false,
+      error: 'That is outside the project.',
+    };
+  }
+
+  try {
+    await shell.trashItem(entry);
+    log.info(`trashed ${entry}`);
+    return { ok: true, deleted: true };
+  } catch (error) {
+    log.error(`delete failed for ${entry}`, error);
+    return { ok: false, deleted: false, error: String(error) };
   }
 }
 

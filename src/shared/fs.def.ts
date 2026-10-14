@@ -12,9 +12,54 @@ export interface FsResult {
   error?: string;
 }
 
-/** Outcome of creating an entry; `path` is the absolute path main built. */
-export interface FsCreateResult extends FsResult {
+/**
+ * Outcome of an operation that leaves an entry somewhere; `path` is where.
+ *
+ * Shared by creating and renaming, because the renderer wants the same thing
+ * from both: the absolute path main settled on, to select, to open, or to
+ * re-key the tabs with. It is main that joins a parent to a name, so it is
+ * main that has to say what came out.
+ */
+export interface FsPathResult extends FsResult {
   path?: string;
+}
+
+/**
+ * Outcome of a delete.
+ *
+ * `deleted` is the field that matters and the reason this is not an
+ * `FsResult`: the confirmation is a native dialog in main, so "nothing
+ * happened" is an ordinary answer rather than a failure, and the renderer must
+ * not close tabs for a file the person decided to keep.
+ */
+export interface FsDeleteResult extends FsResult {
+  deleted: boolean;
+}
+
+/** Whether `path` is `ancestor` itself or something inside it. */
+export function isAtOrUnder(path: string, ancestor: string): boolean {
+  if (path === ancestor) return true;
+  if (!path.startsWith(ancestor)) return false;
+
+  // The character after the prefix has to be a separator, or `/a/foobar`
+  // counts as living inside `/a/foo`. Both separators are accepted rather
+  // than the platform's, because this compiles into the renderer too and a
+  // browser page has no `path.sep` to ask.
+  const next = path.charAt(ancestor.length);
+  return next === '/' || next === String.fromCharCode(92);
+}
+
+/**
+ * `path` with `from` swapped for `to`, or `path` untouched when it is not
+ * under `from`.
+ *
+ * What makes a rename reach the things keyed by path — expanded directories,
+ * editor tabs — including everything *inside* a renamed folder, which is the
+ * case that is easy to forget and loudest when it is missing.
+ */
+export function reparentPath(path: string, from: string, to: string): string {
+  if (!isAtOrUnder(path, from)) return path;
+  return to + path.slice(from.length);
 }
 
 /** Longest name the explorer will try to create. */

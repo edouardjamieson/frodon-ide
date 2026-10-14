@@ -43,6 +43,8 @@ const api: FrodonApi = {
       ipcRenderer.invoke('file:create', { parent, name }),
     createDir: (parent, name) =>
       ipcRenderer.invoke('file:create-dir', { parent, name }),
+    rename: (path, name) => ipcRenderer.invoke('file:rename', { path, name }),
+    remove: (path) => ipcRenderer.invoke('file:delete', { path }),
   },
   git: {
     status: () => ipcRenderer.invoke('git:status'),

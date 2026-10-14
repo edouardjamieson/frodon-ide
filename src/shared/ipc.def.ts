@@ -27,7 +27,7 @@ import type {
   BoardScope,
   BoardSummary,
 } from './board.def';
-import type { File, FsCreateResult, FsResult } from './fs.def';
+import type { File, FsDeleteResult, FsPathResult, FsResult } from './fs.def';
 import type {
   GitBranches,
   GitCommitRequest,
@@ -75,11 +75,34 @@ export interface IpcContract {
    * is taken comes back as an error to show under the field, not as a
    * clobbered file.
    */
-  'file:create': { req: { parent: string; name: string }; res: FsCreateResult };
+  'file:create': { req: { parent: string; name: string }; res: FsPathResult };
   'file:create-dir': {
     req: { parent: string; name: string };
-    res: FsCreateResult;
+    res: FsPathResult;
   };
+  /**
+   * Renames an entry within its own directory. Same deal: a name, not a path.
+   *
+   * It will not rename onto something else. `rename(2)` replaces its target
+   * without a word, which would make a mistyped name a way to lose a file, so
+   * main checks first — and compares inodes rather than paths, because on a
+   * case-insensitive filesystem `Foo.ts` and `foo.ts` are the same entry and
+   * changing one into the other is a rename people legitimately want.
+   */
+  'file:rename': { req: { path: string; name: string }; res: FsPathResult };
+  /**
+   * Moves an entry to the Trash, after asking.
+   *
+   * The asking is main's, in a native dialog: this is the one destructive
+   * thing the explorer can do, and a modal the window cannot be clicked past
+   * is the right register for it. A refusal comes back as `deleted: false`
+   * with no error, which is not a failure and must leave the tabs alone.
+   *
+   * The Trash rather than `unlink` for the same reason — a folder deleted by
+   * a slipped click is recoverable, and nothing here is worth making
+   * unrecoverable.
+   */
+  'file:delete': { req: { path: string }; res: FsDeleteResult };
 
   /**
    * The repository as main last saw it.
@@ -294,6 +317,9 @@ export interface FrodonApi {
       parent: string,
       name: string
     ) => Promise<Res<'file:create-dir'>>;
+    rename: (path: string, name: string) => Promise<Res<'file:rename'>>;
+    /** `remove`, not `delete`: the latter is a reserved word. See `board`. */
+    remove: (path: string) => Promise<Res<'file:delete'>>;
   };
   git: {
     status: () => Promise<Res<'git:status'>>;

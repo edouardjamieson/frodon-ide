@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { File } from '@shared/fs.def';
+import { reparentPath, type File } from '@shared/fs.def';
 import type { ProjectStore } from './project.def';
 
 /** `/Users/eddy/dev/frodon` -> `frodon`. */
@@ -28,6 +28,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   expanded: new Set<string>(),
   selected: null,
   draft: null,
+  renaming: null,
 
   setProject: (root, files) =>
     set({
@@ -39,6 +40,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       expanded: new Set<string>(),
       selected: null,
       draft: null,
+      renaming: null,
     }),
 
   // The watcher in main already drops rescans that found an identical tree, so
@@ -75,8 +77,39 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     // open an input nobody can see. The root has no row of its own and is
     // always showing.
     const next = parent === root ? expanded : new Set(expanded).add(parent);
-    set({ draft: { parent, isDir }, expanded: next, selected: parent });
+    // Naming cancels renaming, and the reverse: there is one input in the
+    // tree at a time, because there is one keyboard.
+    set({
+      draft: { parent, isDir },
+      expanded: next,
+      selected: parent,
+      renaming: null,
+    });
   },
 
   cancelDraft: () => set({ draft: null }),
+
+  startRename: (path) => set({ renaming: path, selected: path, draft: null }),
+
+  cancelRename: () => set({ renaming: null }),
+
+  rekey: (from, to) => {
+    const { expanded, selected } = get();
+
+    const next = new Set<string>();
+    let moved = false;
+    for (const path of expanded) {
+      const rekeyed = reparentPath(path, from, to);
+      if (rekeyed !== path) moved = true;
+      next.add(rekeyed);
+    }
+
+    const nextSelected = selected ? reparentPath(selected, from, to) : selected;
+
+    // A rename of something closed and unselected changes nothing here, and
+    // rebuilding the Set to say so would re-render every row in the tree.
+    if (!moved && nextSelected === selected) return;
+
+    set({ expanded: next, selected: nextSelected });
+  },
 }));

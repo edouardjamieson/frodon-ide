@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { isAtOrUnder, reparentPath } from '@shared/fs.def';
 import type {
   BoardWindow,
   BrowserWindow,
@@ -447,6 +448,58 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
     }));
   },
 
+  renameFileTab: (from, to) => {
+    const { windows } = get();
+    // Renaming a file nobody has open is the common case — most of the tree
+    // is not in a tab — and must not rebuild the workbench to say so.
+    const holds = (window: WindowState) =>
+      window.type === 'editor' &&
+      window.files.some((file) => isAtOrUnder(file, from));
+
+    if (!windows.some(holds)) return;
+
+    set({
+      windows: windows.map((window) => {
+        if (window.type !== 'editor' || !holds(window)) return window;
+
+        return {
+          ...window,
+          files: window.files.map((file) => reparentPath(file, from, to)),
+          activeFile: window.activeFile
+            ? reparentPath(window.activeFile, from, to)
+            : window.activeFile,
+        };
+      }),
+    });
+  },
+
+  closeFileTabs: (path) => {
+    const { windows } = get();
+    const holds = (window: WindowState) =>
+      window.type === 'editor' &&
+      window.files.some((file) => isAtOrUnder(file, path));
+
+    if (!windows.some(holds)) return;
+
+    set({
+      windows: windows.map((window) => {
+        if (window.type !== 'editor' || !holds(window)) return window;
+
+        const survives = (file: string) => !isAtOrUnder(file, path);
+        const files = window.files.filter(survives);
+
+        return {
+          ...window,
+          files,
+          activeFile:
+            window.activeFile && !survives(window.activeFile)
+              ? nearestSurvivor(window.files, window.activeFile, survives)
+              : window.activeFile,
+        };
+      }),
+    });
+  },
+
   closeFile: (windowId, path) => {
     set((state) => ({
       windows: state.windows.map((window) => {
@@ -480,6 +533,34 @@ function neighbourOf(files: string[], closing: string): string | null {
   const index = files.indexOf(closing);
   if (index === -1) return null;
   return files[index - 1] ?? files[index + 1] ?? null;
+}
+
+/**
+ * The tab to land on when the active one is taken away, searched outward from
+ * where it was.
+ *
+ * `neighbourOf` is not enough for a delete: removing a folder closes several
+ * tabs at once, and the tab beside the one you were reading may be going too.
+ * So this walks forward and then back through the *old* order until it finds
+ * one that is staying.
+ */
+function nearestSurvivor(
+  files: string[],
+  closing: string,
+  survives: (file: string) => boolean
+): string | null {
+  const index = files.indexOf(closing);
+  if (index === -1) return files.find(survives) ?? null;
+
+  const after = files.slice(index + 1).find(survives);
+  if (after) return after;
+
+  for (let i = index - 1; i >= 0; i--) {
+    const file = files[i] as string;
+    if (survives(file)) return file;
+  }
+
+  return null;
 }
 
 /** An untyped window, given its module. */

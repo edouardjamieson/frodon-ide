@@ -215,6 +215,23 @@ export interface WindowStore {
   openFile: (path: string, windowId?: string, reveal?: RevealTarget) => void;
   closeFile: (windowId: string, path: string) => void;
   setActiveFile: (windowId: string, path: string) => void;
+  /**
+   * Re-keys a file in every window holding it, and everything under it.
+   *
+   * The file counterpart of `renameBoardTab`, with one extra job: the
+   * explorer can rename a *folder*, and every tab for a file inside it is now
+   * pointing at a path that no longer exists. A tab is its path here, so the
+   * paths have to move with it.
+   */
+  renameFileTab: (from: string, to: string) => void;
+  /**
+   * Drops a file, and anything beneath it, from every window holding it.
+   *
+   * What a delete calls, and the same argument `closeBoardTabs` makes: a tab
+   * pointing at a file that is gone is worse than no tab, because it opens,
+   * fails to read, and shows an error about something already decided.
+   */
+  closeFileTabs: (path: string) => void;
 
   /**
    * Opens a shell, routing the same way `openFile` does — the window asked

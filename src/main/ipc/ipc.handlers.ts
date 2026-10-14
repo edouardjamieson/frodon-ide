@@ -6,8 +6,9 @@
  * top to bottom without hunting through feature folders for a stray `handle`
  * call.
  */
+import { basename } from 'node:path';
 import { homedir } from 'node:os';
-import { dialog, BrowserWindow } from 'electron';
+import { dialog, BrowserWindow, type IpcMainInvokeEvent } from 'electron';
 import { handle } from './ipc.service';
 import { getRoot, openProject } from '@main/project';
 import {
@@ -37,7 +38,9 @@ import {
 import {
   createDirectory,
   createFile,
+  deleteEntry,
   readFileText,
+  renameEntry,
   writeFileText,
 } from '@main/fs';
 import { replaceInProject, searchProject } from '@main/search';
@@ -48,6 +51,35 @@ import {
   writeSession,
 } from '@main/terminal';
 import type { Platform } from '@shared/ipc.def';
+
+/**
+ * Asks before something is thrown away.
+ *
+ * Modal to the window that asked, so it cannot be clicked past or lost behind
+ * the app, and worded to say where the thing is going — "deleted" and "moved
+ * to the Trash" are different promises, and this one keeps the second.
+ */
+async function confirmDelete(
+  target: string,
+  event: IpcMainInvokeEvent
+): Promise<boolean> {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  const options = {
+    type: 'warning' as const,
+    buttons: ['Move to Trash', 'Cancel'],
+    defaultId: 0,
+    // Escape and the window's close affordance both land on Cancel.
+    cancelId: 1,
+    message: `Delete "${basename(target)}"?`,
+    detail: 'It will be moved to the Trash, and can be restored from there.',
+  };
+
+  const { response } = window
+    ? await dialog.showMessageBox(window, options)
+    : await dialog.showMessageBox(options);
+
+  return response === 0;
+}
 
 export function registerIpcHandlers(): void {
   handle('project:pick', async () => {
@@ -88,6 +120,29 @@ export function registerIpcHandlers(): void {
   handle('file:create-dir', ({ parent, name }) =>
     createDirectory(getRoot(), parent, name)
   );
+
+  handle('file:rename', ({ path, name }) => renameEntry(getRoot(), path, name));
+
+  // The one handler that asks before it acts, and the only reason the dialog
+  // is here rather than in `fs/`: `project:pick` already established that a
+  // native modal belongs beside the handler that needs one, and the service
+  // stays a function that deletes a thing.
+  handle('file:delete', async ({ path }, event) => {
+    if (!(await confirmDelete(path, event))) {
+      return { ok: true, deleted: false };
+    }
+
+    const result = await deleteEntry(getRoot(), path);
+
+    // Reported here too, because the renderer has nowhere to put it: the row
+    // is gone from the menu by now, and a delete that quietly did nothing is
+    // worse than one that says why.
+    if (!result.ok && result.error) {
+      dialog.showErrorBox('Could not delete', result.error);
+    }
+
+    return result;
+  });
 
   // Reads the snapshot main already holds; the poller is what keeps it
   // current. Returning a stale-by-at-most-one-tick answer instantly is worth

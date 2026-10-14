@@ -44,4 +44,25 @@ export interface ProjectStore {
   /** Opens a naming row in `parent`, revealing it if the directory is shut. */
   startDraft: (parent: string, isDir: boolean) => void;
   cancelDraft: () => void;
+
+  /**
+   * The path whose row has become an input, or null.
+   *
+   * A path and not a flag, because the row that turns into a field is one
+   * particular row somewhere in the recursion, and the thing that asked for it
+   * — a context menu item — knows only which file it was opened on.
+   */
+  renaming: string | null;
+  startRename: (path: string) => void;
+  cancelRename: () => void;
+
+  /**
+   * Follows a rename through everything keyed by path.
+   *
+   * Expansion and selection are both absolute paths, so without this a
+   * renamed folder folds shut and takes its open children with it, and the
+   * selection points at something that is no longer there. Everything *under*
+   * the renamed path moves too — that is the half worth remembering.
+   */
+  rekey: (from: string, to: string) => void;
 }

@@ -21,7 +21,12 @@ import {
   toRelativePath,
   type IgnoreMatcher,
 } from '@main/ignore';
-import type { File, FsResult } from '@shared/fs.def';
+import {
+  isValidEntryName,
+  type File,
+  type FsCreateResult,
+  type FsResult,
+} from '@shared/fs.def';
 
 const log = createLogger('fs');
 
@@ -132,6 +137,110 @@ export async function writeFileText(
   } catch (error) {
     log.error(`write failed for ${filePath}`, error);
     return { ok: false, error: String(error) };
+  }
+}
+
+/**
+ * Where a new entry would land, or why it cannot land anywhere.
+ *
+ * The one place in `fs/` that builds a path out of something a person typed,
+ * and it is written the way `resolveBoardPath` is: the name is checked against
+ * the shared grammar, and *then* the resolved path is checked against the
+ * directory it was supposed to end up in. The second check is redundant if the
+ * first is right, which is the point — a traversal should take two independent
+ * mistakes rather than one.
+ *
+ * `root` is passed in rather than read from `@main/project`, which would make
+ * this module import the one that imports it. The handler holds both and is
+ * the right place for them to meet.
+ */
+function resolveNewEntry(
+  root: string | null,
+  parent: string,
+  name: string
+): { ok: true; path: string } | { ok: false; error: string } {
+  if (!root) return { ok: false, error: 'No project is open.' };
+  if (!isValidEntryName(name)) {
+    return {
+      ok: false,
+      error: 'A name may not be empty, or contain a slash.',
+    };
+  }
+
+  // The renderer only ever sends a parent main itself scanned, so a parent
+  // outside the project means something other than the explorer is asking.
+  const projectRoot = path.resolve(root);
+  const dir = path.resolve(parent);
+  if (dir !== projectRoot && !dir.startsWith(projectRoot + path.sep)) {
+    log.warn(`refused a create outside the project: ${parent}`);
+    return { ok: false, error: 'That folder is outside the project.' };
+  }
+
+  const entry = path.resolve(dir, name.trim());
+  if (!entry.startsWith(dir + path.sep)) {
+    log.warn(`refused a create escaping its folder: ${name}`);
+    return { ok: false, error: 'That name is not allowed.' };
+  }
+
+  return { ok: true, path: entry };
+}
+
+/**
+ * Turns a failed create into something worth showing in the naming field.
+ *
+ * `EEXIST` is the only one a person causes on purpose and the only one worth
+ * phrasing; everything else is genuinely exceptional and keeps its own text,
+ * because a message nobody can act on is better honest than friendly.
+ */
+function createError(error: unknown, name: string): string {
+  const code = (error as NodeJS.ErrnoException)?.code;
+  if (code === 'EEXIST') return `"${name}" already exists here.`;
+  if (code === 'EACCES' || code === 'EPERM') {
+    return `No permission to create "${name}" here.`;
+  }
+  return String(error);
+}
+
+/**
+ * Creates an empty file. Refuses, rather than truncating, if it exists.
+ *
+ * `wx` is what makes that refusal atomic — a `stat` first and a write after
+ * would leave a window where the file appears between the two, and the whole
+ * reason this is not `writeFileText(path, '')` is that it must never clobber
+ * something a person spent an afternoon on.
+ */
+export async function createFile(
+  root: string | null,
+  parent: string,
+  name: string
+): Promise<FsCreateResult> {
+  const resolved = resolveNewEntry(root, parent, name);
+  if (!resolved.ok) return resolved;
+
+  try {
+    await fsp.writeFile(resolved.path, '', { encoding: 'utf8', flag: 'wx' });
+    return { ok: true, path: resolved.path };
+  } catch (error) {
+    log.warn(`create failed for ${resolved.path}`, error);
+    return { ok: false, error: createError(error, name.trim()) };
+  }
+}
+
+/** The same for a directory. Not recursive, so a missing parent is an error. */
+export async function createDirectory(
+  root: string | null,
+  parent: string,
+  name: string
+): Promise<FsCreateResult> {
+  const resolved = resolveNewEntry(root, parent, name);
+  if (!resolved.ok) return resolved;
+
+  try {
+    await fsp.mkdir(resolved.path);
+    return { ok: true, path: resolved.path };
+  } catch (error) {
+    log.warn(`mkdir failed for ${resolved.path}`, error);
+    return { ok: false, error: createError(error, name.trim()) };
   }
 }
 

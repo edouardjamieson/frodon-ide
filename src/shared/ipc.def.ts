@@ -27,7 +27,7 @@ import type {
   BoardScope,
   BoardSummary,
 } from './board.def';
-import type { File, FsResult } from './fs.def';
+import type { File, FsCreateResult, FsResult } from './fs.def';
 import type {
   GitBranches,
   GitCommitRequest,
@@ -65,6 +65,21 @@ export interface IpcContract {
   'file:read': { req: { path: string }; res: string };
   /** Writes a file, creating parent directories as needed. */
   'file:write': { req: { path: string; content: string }; res: FsResult };
+  /**
+   * Creates an empty file, or a directory, inside `parent`.
+   *
+   * A *parent and a name*, not a path, and the only channels besides the
+   * board ones that take something a person typed. Main joins the two itself
+   * and checks the result is still inside the open project — see
+   * `createFile`. Neither will overwrite what is already there: a name that
+   * is taken comes back as an error to show under the field, not as a
+   * clobbered file.
+   */
+  'file:create': { req: { parent: string; name: string }; res: FsCreateResult };
+  'file:create-dir': {
+    req: { parent: string; name: string };
+    res: FsCreateResult;
+  };
 
   /**
    * The repository as main last saw it.
@@ -274,6 +289,11 @@ export interface FrodonApi {
   file: {
     read: (path: string) => Promise<Res<'file:read'>>;
     write: (path: string, content: string) => Promise<Res<'file:write'>>;
+    create: (parent: string, name: string) => Promise<Res<'file:create'>>;
+    createDir: (
+      parent: string,
+      name: string
+    ) => Promise<Res<'file:create-dir'>>;
   };
   git: {
     status: () => Promise<Res<'git:status'>>;

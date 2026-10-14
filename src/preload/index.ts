@@ -39,6 +39,10 @@ const api: FrodonApi = {
     read: (path) => ipcRenderer.invoke('file:read', { path }),
     write: (path, content) =>
       ipcRenderer.invoke('file:write', { path, content }),
+    create: (parent, name) =>
+      ipcRenderer.invoke('file:create', { parent, name }),
+    createDir: (parent, name) =>
+      ipcRenderer.invoke('file:create-dir', { parent, name }),
   },
   git: {
     status: () => ipcRenderer.invoke('git:status'),

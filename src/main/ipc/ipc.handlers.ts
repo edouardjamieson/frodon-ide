@@ -9,7 +9,7 @@
 import { homedir } from 'node:os';
 import { dialog, BrowserWindow } from 'electron';
 import { handle } from './ipc.service';
-import { openProject } from '@main/project';
+import { getRoot, openProject } from '@main/project';
 import {
   checkout,
   commit,
@@ -34,7 +34,12 @@ import {
   renameBoard,
   writeBoard,
 } from '@main/board';
-import { readFileText, writeFileText } from '@main/fs';
+import {
+  createDirectory,
+  createFile,
+  readFileText,
+  writeFileText,
+} from '@main/fs';
 import { replaceInProject, searchProject } from '@main/search';
 import {
   createSession,
@@ -72,6 +77,17 @@ export function registerIpcHandlers(): void {
   handle('file:read', ({ path }) => readFileText(path));
 
   handle('file:write', ({ path, content }) => writeFileText(path, content));
+
+  // The project root is handed over here rather than read inside `fs/`, which
+  // would have to import the module that imports it. Main owns the root; the
+  // renderer names a parent and a name, and never a path these two then make.
+  handle('file:create', ({ parent, name }) =>
+    createFile(getRoot(), parent, name)
+  );
+
+  handle('file:create-dir', ({ parent, name }) =>
+    createDirectory(getRoot(), parent, name)
+  );
 
   // Reads the snapshot main already holds; the poller is what keeps it
   // current. Returning a stale-by-at-most-one-tick answer instantly is worth

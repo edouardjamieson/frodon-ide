@@ -89,7 +89,18 @@ function createState(doc: string, theme: Theme, path: string | null) {
       lineNumbers(),
       highlightActiveLine(),
       highlightActiveLineGutter(),
-      foldGutter(),
+      foldGutter({
+        markerDOM: (open) => {
+          const arrow = document.createElement('div');
+          arrow.innerHTML = open ? '▾' : '▸';
+          arrow.style.fontSize = '16px';
+          arrow.style.marginLeft = '8px';
+          arrow.style.marginRight = '8px';
+          arrow.style.lineHeight = '1.2';
+          arrow.style.cursor = 'pointer';
+          return arrow;
+        },
+      }),
       drawSelection(),
       dropCursor(),
       rectangularSelection(),

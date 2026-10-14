@@ -38,7 +38,7 @@ src/
 │   ├── ipc.def.ts     the channel contract. Start here.
 │   └── fs.def.ts
 ├── main/            the Node process
-│   ├── app/           BrowserWindow creation + security flags
+│   ├── app/           BrowserWindow creation, security flags, the menu
 │   ├── browser/       the lockdown every embedded web page attaches under
 │   ├── fs/            tree scanning, watching  (ported from the TUI)
 │   ├── ignore/        exclusion matching       (ported from the TUI)
@@ -47,7 +47,7 @@ src/
 │   └── project/       the open project: root, tree, watcher
 ├── preload/         the bridge. One file. Read it before changing it.
 └── renderer/src/
-    ├── lib/           non-visual: theme, project and window state
+    ├── lib/           non-visual: theme, project, window, keybinding state
     ├── components/    feature UI: explorer, editor, window manager
     ├── app.component.tsx
     └── styles.css     Tailwind @theme inline <- theme custom properties
@@ -120,6 +120,21 @@ Two rules keep it small:
 A _window_ here is a tile, not an OS window. The thing `main/app/` creates is a
 `BrowserWindow`, and the two never meet.
 
+**Nothing that opens a file decides where it goes.** `openFile` routes it —
+the window asked for, else the focused one if it can hold a file, else the
+first editor, else an empty pane, else a window spawned for it. The explorer
+calls it, the search panel calls it with a position to jump to, and the file
+picker calls it; none of the three has an opinion, and adding a fourth way to
+open a file means calling it too rather than teaching it about a new caller.
+
+The file picker is the one module drawn over the workbench rather than in it:
+a field and a ranked list, open for a second at a time. It asks main for
+nothing. The tree is already in the renderer — pushed by the watcher, filtered
+as it was built — so a keystroke scans an array in memory rather than crossing
+the boundary, and the ranking that matters for paths is where the characters
+landed, not whether they all appear: at a word start, beside each other, and
+in the filename rather than in the directories above it.
+
 The git module is the one window type that does not open twice. There is one
 repository, every one of its tabs — history, branches, staging — is a view of
 it, and `openGit` focuses the window that exists rather than spawning a
@@ -131,14 +146,34 @@ histories, which is the point of a window manager. A board is the opposite: a
 drawing open in two tiles should be one drawing, so sessions are keyed by board
 rather than by window and `openBoard` focuses the window that already holds it.
 
-Boards are also the only feature where the renderer names a file. Everywhere
-else main acts on a path it produced itself, from a scan or a native dialog; a
-board is named by a person typing into a text field, and that name becomes a
-filename under `.frodon/boards` or `~/.frodon/boards`. So the path is never
-taken from the renderer, only built from it — see `resolveBoardPath`, which
-validates the name against the shared grammar and then checks the resolved
-path has not left the directory it was supposed to land in. The second check is
-redundant if the first is right, which is exactly why it is there.
+Boards were the first feature where the renderer names a file, and the pattern
+they set is now the rule for all of them. Most of what main does acts on a path
+it produced itself, from a scan or a native dialog. A board name, and a new or
+renamed file in the explorer, come from a person typing into a field — and that
+name becomes a path segment.
+
+So those channels take a **parent and a name, never a path**, and main joins
+the two itself. `resolveBoardPath` and `resolveNewEntry` are the same shape:
+validate the name against a grammar in `shared/`, then check the resolved path
+has not left the directory it was supposed to land in. The second check is
+redundant if the first is right, which is exactly why it is there — a traversal
+should take two independent mistakes rather than one.
+
+The two grammars differ, and the reason is worth keeping. A board name is an
+allowlist, because the app chooses the shape of its own files. A filename
+cannot be: `.gitignore`, `vite.config.ts`, `[slug].tsx` and `icon@2x.png` are
+all ordinary, so `isValidEntryName` instead denies the few things that would
+make a name more than a name — a separator, a dot segment, a control
+character.
+
+Two more rules on the write side, both about not destroying anything by
+accident. A new file is created with the `wx` flag, so refusing an existing one
+is atomic rather than a `stat` and a hope. A rename compares **inodes, not
+paths**, before it moves anything: `rename(2)` replaces its target silently, so
+a mistyped name would be a way to lose a file — but on a case-insensitive
+filesystem `Foo.ts` and `foo.ts` are one entry, and a path check would refuse
+the one rename that most needs to work. A delete goes to the Trash, after main
+asks in a native modal.
 
 An element stores its color as a _slot_ (`stroke: 'red'`), never a hex, and the
 slots are the theme's ANSI colors. That is what keeps a board inside the
@@ -193,6 +228,62 @@ Everything hard about a terminal — the controlling tty, the line discipline
 that turns `0x03` into SIGINT, SIGWINCH, killing a tree of orphans — belongs
 to the kernel and to `main/terminal/`.
 
+## Keyboard
+
+One listener, on `window`, in the capture phase. `lib/keybinding/` holds a
+table of chords written as strings and a table of named commands, and nothing
+else in the renderer binds a key.
+
+```
+DEFAULT_KEYBINDINGS      'mod+shift+g' -> 'git.open'    parsed once, at load
+   ↓ commandFor(chord)
+CommandId                                               a name, not a closure
+   ↓ useCommands()
+a call into a store                                     never into a component
+```
+
+- **`mod` is the platform's command key** — Cmd on macOS, Ctrl elsewhere,
+  resolved from `app:info` rather than sniffed. The other platform's modifier
+  disqualifies a match outright, so Cmd+Ctrl+W is not `mod+w`.
+- **Capture phase, or it does not work.** xterm forwards keys to a shell and
+  CodeMirror has its own keymap; both would swallow a chord before a bubbling
+  listener saw it. The registry decides first, and the page sees the key only
+  when nothing claimed it.
+- **Commands are named.** A palette is this same list with a search field over
+  it, and a config layer rebinding a key needs something to name on the other
+  side of the arrow. Adding one is a member on `CommandId` and a handler in
+  `useCommands` — TypeScript points at the one you forgot.
+- **Composite actions belong to the store that owns the model.** `mod+w` calls
+  `closeActiveTab`, which lives on the window store, because "the thing in
+  front" is a statement about windows: nothing else should have to know that
+  an editor calls it a file, a terminal a session and a board a key.
+
+Nothing is listened for in main. A global shortcut registered there fires
+while the app is in the background, which is right for a media key and wrong
+for "close tab".
+
+**The application menu gets first refusal on every chord.** A menu accelerator
+is handled before the key reaches the page, and Electron's default menu binds
+`File > Close Window` to `CommandOrControl+W` — so with that menu in place the
+renderer never hears `mod+w` at all. `main/app/menu.service.ts` builds the menu
+from Electron's own roles with one omission, the `close` item, which is the
+entire reason the file exists. Dropping the menu altogether would have been
+shorter and would have taken Cmd+Q, Cmd+C and Cmd+V with it: on macOS those
+are accelerators rather than anything Chromium does by itself, and text fields
+stop working without them.
+
+### Focus, and menus that hold onto it
+
+A Radix context menu is modal, so it keeps focus **trapped** until its content
+unmounts. An item that opens an inline field therefore cannot just open one —
+the field mounts, takes the caret, and the trap pulls it straight back out.
+
+The fix is to park the action and run it from `onCloseAutoFocus`, the one
+moment Radix hands focus back and the scope is already gone. The explorer's
+New file, New folder and Rename items all do this. Deferring by a timer
+instead would be guessing at the length of a close animation; the event says
+when.
+
 ## Theming
 
 Three layers, carried over intact from the TUI:
@@ -237,6 +328,14 @@ language-server responses — none of which are trustworthy input. So:
   something unrelated.
 - A meta CSP in `index.html` blocks remote script and network connections
   outright.
+- **`script-src 'self'` still allows code splitting**, which is worth knowing
+  before designing around it. The packaged renderer is loaded with `loadFile`,
+  so it runs on a `file://` opaque origin, and a dynamic `import()` under one
+  is exactly the sort of thing a CSP declines — in production only, which is
+  the worst place to find out. It does not: lazily loaded chunks resolve in
+  Electron 44 under this policy, which is what lets a grammar per language be
+  fetched on demand rather than linked into the bundle. Anything else that
+  wants to load on demand can rely on the same.
 - `setWindowOpenHandler` denies every new window and sends http(s) URLs to the
   user's real browser. Nothing navigates the window holding the preload bridge,
   and nothing spawns a second `BrowserWindow` carrying our preferences.

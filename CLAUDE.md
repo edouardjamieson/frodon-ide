@@ -90,6 +90,26 @@ Never add a generic `invoke(channel, payload)` passthrough to the preload — th
 exposed method list _is_ the security boundary, so widening it must be a
 visible act.
 
+## Adding a shortcut
+
+Go through `src/renderer/src/lib/keybinding/`. A chord is written once in
+`DEFAULT_KEYBINDINGS` as a string — `mod+shift+g`, the shape a config file
+will hand over — and the command it names gets a handler in `useCommands`.
+Never attach a `keydown` listener in a component: the registry listens once,
+on `window`, in the **capture** phase, because two things here swallow keys
+for a living — xterm forwarding them to a shell, and CodeMirror with a keymap
+of its own — and a global binding has to be seen before either.
+
+`mod` is Cmd on macOS and Ctrl elsewhere, resolved from `app:info`. That
+distinction is the one thing the TUI could never make: a terminal sees
+`ctrl+w` as a control byte and has no idea a Command key exists.
+
+**The application menu can take a chord away before the page ever sees it.**
+Electron's default menu binds `File > Close Window` to `CommandOrControl+W`,
+and a menu accelerator is handled ahead of the renderer — which is why
+`main/app/menu.service.ts` builds the menu by hand with no `close` item.
+Binding any other chord the menu already owns means doing the same there.
+
 ## Module convention
 
 Every feature — visual or not — is a folder of single-responsibility files
@@ -162,6 +182,14 @@ ahead/behind counts, and a staging area with diffs, boards — a drawing surface
 for diagrams and notes, saved either into the project at `.frodon/boards/` or
 privately at `~/.frodon/boards/` — a browser window with tabs, each of which
 can be pinned to a device size to preview a layout at a width the pane is not,
-switching themes. Everything else — config
-layering, saving, the command palette, LSP — is listed in `docs/migration.md`
-roughly in the order it is worth building.
+switching themes.
+
+Since then: the explorer creates, renames and deletes — naming happens in a
+row of the tree rather than a dialog, and a delete goes to the Trash after
+main asks — a file picker that ranks the whole project as you type and opens
+into whichever window can take a file, syntax highlighting for every language
+CodeMirror ships (fetched per grammar, when first asked for), and a keyboard
+registry with the handful of chords that earn one.
+
+Everything else — config layering, saving, the command palette, LSP — is
+listed in `docs/migration.md` roughly in the order it is worth building.

@@ -203,9 +203,11 @@ Sections merge key-by-key, except `actions` and `themes`, which **accumulate**
 masking the other. Theme resolution deliberately happens outside the layer
 merge, because the merge is shallow and a theme is three levels deep.
 
-Lives in main; the resolved config is pushed to the renderer over IPC.
-`DEFAULT_EXCLUDE` in `main/project/project.service.ts` is the placeholder
-waiting for this.
+Lives in main; the resolved config is pushed to the renderer over IPC. Two
+placeholders are waiting for it: `DEFAULT_EXCLUDE` in
+`main/project/project.service.ts`, and `DEFAULT_KEYBINDINGS` in
+`renderer/src/lib/keybinding/`, which is already written in the shape a config
+file would hand over.
 
 ### 2. Actions — `lib/actions/`
 
@@ -224,7 +226,7 @@ waiting for this.
 | `lib/logger/`                                              | `console.log` works again. Kept only as a scope-tagging wrapper in main.                                                                                                                                                                                                       |
 | `lib/clipboard/`                                           | Shelled out to `pbcopy`/`pbpaste`, macOS-only. Electron's `clipboard` module is cross-platform and synchronous.                                                                                                                                                                |
 | `ui/ascii-animation`, `ui/icon`, `ui/tooltip`, `ui/loader` | Cell-grid primitives with no meaning here.                                                                                                                                                                                                                                     |
-| `utils/shortcut.hook.ts`                                   | `ctrl+${string}` against OpenTUI's key events. Rebuild as a real keybinding registry with a config layer — the TUI wanted one and never got it.                                                                                                                                |
+| `utils/shortcut.hook.ts`                                   | `ctrl+${string}` against OpenTUI's key events. Rebuilt, not ported: `renderer/src/lib/keybinding/` is the registry the TUI wanted and never got, and it can tell Cmd from Ctrl — which a terminal reading control bytes never could. Still waiting on the config layer to rebind from. |
 | Bun entirely                                               | Electron embeds Node and cannot be made to run on Bun, so Bun was only ever the package manager here. The project now uses pnpm for that.                                                                                                                                      |
 
 ## The thing this unlocks

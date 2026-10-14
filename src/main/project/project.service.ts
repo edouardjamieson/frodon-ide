@@ -7,10 +7,17 @@
  * the shape every stateful service should take across this boundary: main owns
  * the fact, the renderer owns a view of it, and events reconcile them.
  */
+import path from 'node:path';
 import { BrowserWindow } from 'electron';
 import { createLogger } from '@main/logger';
 import { createIgnoreMatcher } from '@main/ignore';
-import { readFilesFromDir, sameTree, watchDirectory } from '@main/fs';
+import {
+  readFilesFromDir,
+  sameTree,
+  watchDirectory,
+  type WatchBatch,
+} from '@main/fs';
+import { refreshFiles } from '@main/watch';
 import type { File } from '@shared/fs.def';
 
 const log = createLogger('project');
@@ -50,14 +57,42 @@ function rescan(): void {
   broadcast();
 }
 
-/** Opens `path` as the project root, arming the watcher. Returns the tree. */
-export function openProject(path: string): File[] {
-  unwatch?.();
-  root = path;
-  files = readFilesFromDir(path, matcher());
+/**
+ * What one settled burst of filesystem events means to the two things that
+ * care about it.
+ *
+ * They are different facts about the same event, which is why both run on
+ * every burst and neither is derived from the other. The explorer wants the
+ * shape of the tree, and a file whose contents were rewritten has not changed
+ * shape — `rescan` will find an identical tree and tell nobody. The editors
+ * want exactly that case: same tree, different bytes, which is what an agent
+ * editing a file, a `git pull`, or another editor saving over us all look
+ * like. See `main/watch/`.
+ */
+function onFilesystemChange(batch: WatchBatch): void {
+  rescan();
 
-  unwatch = watchDirectory(path, rescan, { isIgnored: matcher() });
-  log.info(`opened ${path} (${files.length} top-level entries)`);
+  if (!root) return;
+  // The watcher names paths relative to the root; everything downstream of
+  // here is absolute, because that is what a window holds for an open tab.
+  // A burst the platform couldn't name falls back to re-checking every
+  // watched file, which is a `stat` per open tab.
+  const absolute = batch.paths.map((relative) =>
+    path.join(root as string, relative)
+  );
+  refreshFiles(batch.partial ? undefined : absolute);
+}
+
+/** Opens `root` as the project root, arming the watcher. Returns the tree. */
+export function openProject(projectRoot: string): File[] {
+  unwatch?.();
+  root = projectRoot;
+  files = readFilesFromDir(projectRoot, matcher());
+
+  unwatch = watchDirectory(projectRoot, onFilesystemChange, {
+    isIgnored: matcher(),
+  });
+  log.info(`opened ${projectRoot} (${files.length} top-level entries)`);
 
   return files;
 }

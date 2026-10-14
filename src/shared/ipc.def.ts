@@ -27,7 +27,13 @@ import type {
   BoardScope,
   BoardSummary,
 } from './board.def';
-import type { File, FsDeleteResult, FsPathResult, FsResult } from './fs.def';
+import type {
+  File,
+  FileChange,
+  FsDeleteResult,
+  FsPathResult,
+  FsResult,
+} from './fs.def';
 import type {
   GitBranches,
   GitCommitRequest,
@@ -103,6 +109,22 @@ export interface IpcContract {
    * unrecoverable.
    */
   'file:delete': { req: { path: string }; res: FsDeleteResult };
+
+  /**
+   * The files this window is showing, so main can say when one of them moves
+   * under it.
+   *
+   * The whole set on every call, replacing whatever was registered before.
+   * The renderer derives it from the tabs it has open — which it already
+   * holds as a list — and a subscription recomputed from state cannot drift
+   * out of step with that state the way a pair of add/remove calls can. An
+   * empty list unsubscribes.
+   *
+   * Only files inside the open project are heard about: the watch this feeds
+   * off is the project's own recursive one, and a path it excludes — anything
+   * under `node_modules`, say — fires no event however many tabs hold it.
+   */
+  'file:watch': { req: { paths: string[] }; res: void };
 
   /**
    * The repository as main last saw it.
@@ -245,6 +267,16 @@ export interface IpcEvents {
   'project:changed': File[];
 
   /**
+   * A file some window is showing was rewritten — or deleted — by something
+   * that is not this app: an agent, a `git pull`, another editor.
+   *
+   * Sent only to the windows that registered that path through `file:watch`,
+   * and only when the file's mtime and size actually moved. Carries no
+   * contents: see `FileChange`.
+   */
+  'file:changed': FileChange;
+
+  /**
    * The repository moved: a commit, a checkout, a file edited or staged.
    *
    * Polled rather than watched, so this fires on a timer — but only when the
@@ -320,6 +352,13 @@ export interface FrodonApi {
     rename: (path: string, name: string) => Promise<Res<'file:rename'>>;
     /** `remove`, not `delete`: the latter is a reserved word. See `board`. */
     remove: (path: string) => Promise<Res<'file:delete'>>;
+    /** Registers the paths this window is showing. See `file:watch`. */
+    watch: (paths: string[]) => Promise<Res<'file:watch'>>;
+    /**
+     * Subscribes to changes made to those files outside Frodon. Returns an
+     * unsubscribe function.
+     */
+    onChanged: (listener: (change: FileChange) => void) => () => void;
   };
   git: {
     status: () => Promise<Res<'git:status'>>;

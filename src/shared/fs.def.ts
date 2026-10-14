@@ -6,6 +6,21 @@ export interface File {
   children?: File[];
 }
 
+/**
+ * A watched file's bytes changed on disk, under whoever is showing it.
+ *
+ * Deliberately not carrying the new contents. Whether to adopt them is the
+ * renderer's call — only it knows whether that tab has been typed into — so
+ * the window that wants them reads them, and the ones that don't cost a
+ * boolean instead of a copy of the file. See `main/watch/`.
+ */
+export interface FileChange {
+  /** Absolute path, as the window holds it. */
+  path: string;
+  /** The file is gone. There is nothing to re-read, only something to say. */
+  deleted: boolean;
+}
+
 /** Outcome of a filesystem mutation; `error` is a user-facing message. */
 export interface FsResult {
   ok: boolean;

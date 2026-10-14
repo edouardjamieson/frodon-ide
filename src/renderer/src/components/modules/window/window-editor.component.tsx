@@ -1,6 +1,7 @@
 import { cn } from 'cn';
 import { X } from 'lucide-react';
 import { useEditorWindow, fileName, type EditorWindow } from '~/lib/window';
+import { useMissingFiles } from '~/lib/file-watch';
 import FileIcon from '~/components/utils/file-icon';
 import Editor from '~/components/modules/editor';
 
@@ -14,6 +15,9 @@ import Editor from '~/components/modules/editor';
  */
 export function EditorWindowHeader({ window: win }: { window: EditorWindow }) {
   const { files, activeFile, activate, close } = useEditorWindow(win);
+  // The whole set, read once for the bar, rather than a hook per tab — the
+  // same reason git status reaches the explorer as a Map.
+  const missing = useMissingFiles();
 
   if (files.length === 0) {
     return (
@@ -29,10 +33,18 @@ export function EditorWindowHeader({ window: win }: { window: EditorWindow }) {
     <div className="flex items-center gap-0.5 overflow-x-auto px-1.5 [scrollbar-width:none]">
       {files.map((path) => {
         const isActive = path === activeFile;
+        // Deleted under us — by a branch switch, or by an agent. The tab
+        // stays: a checkout usually brings the file back a second later, and
+        // closing it would throw away the only copy of whatever was typed
+        // into it along with the place you were working in.
+        const isMissing = missing.has(path);
 
         return (
           <div
             key={path}
+            title={
+              isMissing ? `${fileName(path)} — deleted on disk` : undefined
+            }
             onMouseDown={() => activate(path)}
             className={cn(
               'group/tab flex h-7 max-w-[180px] shrink-0 cursor-pointer items-center gap-1.5 rounded-md pr-1 pl-2 text-[12px] transition-colors',
@@ -43,9 +55,11 @@ export function EditorWindowHeader({ window: win }: { window: EditorWindow }) {
           >
             <FileIcon
               file={{ name: fileName(path), path, isDir: false }}
-              className="size-3.5"
+              className={cn('size-3.5', isMissing && 'opacity-40')}
             />
-            <span className="truncate">{fileName(path)}</span>
+            <span className={cn('truncate', isMissing && 'line-through')}>
+              {fileName(path)}
+            </span>
             <button
               aria-label={`Close ${fileName(path)}`}
               // The tab under it is only a div, so the click has to be stopped

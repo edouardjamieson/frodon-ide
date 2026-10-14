@@ -44,6 +44,7 @@ import {
   writeFileText,
 } from '@main/fs';
 import { replaceInProject, searchProject } from '@main/search';
+import { watchFiles } from '@main/watch';
 import {
   createSession,
   killSession,
@@ -143,6 +144,11 @@ export function registerIpcHandlers(): void {
 
     return result;
   });
+
+  // The sender is what the subscription belongs to, the way it is for a
+  // terminal: a change to a file is sent back to the windows that said they
+  // were showing it and to no others.
+  handle('file:watch', ({ paths }, event) => watchFiles(event.sender, paths));
 
   // Reads the snapshot main already holds; the poller is what keeps it
   // current. Returning a stale-by-at-most-one-tick answer instantly is worth

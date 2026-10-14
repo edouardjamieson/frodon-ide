@@ -368,6 +368,28 @@ export interface WatchDirectoryOptions {
 }
 
 /**
+ * What one settled burst of watcher events saw.
+ *
+ * The TUI's watcher called back with nothing, because the only subscriber
+ * rescanned the whole tree anyway. Here the names are worth carrying: a
+ * rescan still has to happen for the explorer, but the open editors want the
+ * opposite question answered — *which* files moved — and the platform already
+ * said so. Throwing the names away would mean re-`stat`ing every open tab on
+ * every keystroke an agent makes somewhere else in the project.
+ */
+export interface WatchBatch {
+  /** Project-relative, `/`-separated paths named in this burst. */
+  paths: string[];
+  /**
+   * The platform fired without naming a file, so `paths` is incomplete and
+   * the burst means no more than "something under here changed". Rare, and
+   * the reason every subscriber needs a fallback that re-checks everything it
+   * cares about.
+   */
+  partial: boolean;
+}
+
+/**
  * Watches a whole directory tree, invoking `onChange` once a burst of events
  * settles. Returns a disposer.
  *
@@ -379,7 +401,7 @@ export interface WatchDirectoryOptions {
  */
 export function watchDirectory(
   rootPath: string,
-  onChange: () => void,
+  onChange: (batch: WatchBatch) => void,
   { isIgnored, debounceMs = WATCH_DEBOUNCE_MS }: WatchDirectoryOptions = {}
 ): () => void {
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -387,11 +409,19 @@ export function watchDirectory(
   let watcher: fs.FSWatcher | null = null;
   let firstEventAt = 0;
   let disposed = false;
+  /** Names seen since the last fire. A Set: a save fires two or three times. */
+  let touched = new Set<string>();
+  let partial = false;
 
   const fire = () => {
     timer = null;
     firstEventAt = 0;
-    if (!disposed) onChange();
+
+    const batch: WatchBatch = { paths: [...touched], partial };
+    touched = new Set();
+    partial = false;
+
+    if (!disposed) onChange(batch);
   };
 
   const schedule = () => {
@@ -409,13 +439,20 @@ export function watchDirectory(
       if (filename) {
         const relativePath = filename.toString().split(path.sep).join('/');
         if (isIgnored && isIgnoredPath(relativePath, isIgnored)) return;
-      }
+        touched.add(relativePath);
+      } else partial = true;
+
       schedule();
     });
     watcher.on('error', (error) => log.error(`watch failed`, error));
   } catch (error) {
     log.warn(`recursive watch unavailable for ${rootPath}; polling`, error);
-    interval = setInterval(onChange, WATCH_POLL_MS);
+    // A poll knows only that time passed, so it says so and every subscriber
+    // falls back to checking what it holds.
+    interval = setInterval(
+      () => onChange({ paths: [], partial: true }),
+      WATCH_POLL_MS
+    );
   }
 
   return () => {

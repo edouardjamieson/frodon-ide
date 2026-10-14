@@ -54,6 +54,15 @@ useEffect(() => window.frodon.project.onChanged(setFiles), [setFiles]);
 Events are one-way and unacknowledged. A watcher firing into a window that has
 since closed is normal, not an error.
 
+Most events go to every window — the tree and the repository are one fact the
+whole app shares. Two do not, and both are _subscriptions_: terminal output
+goes back to the window that spawned the shell, and `file:changed` goes to the
+windows that registered that path through `file:watch`. When an event is
+addressed rather than broadcast, keep the address on `event.sender` at the
+handler — a `WebContents`, which can be asked whether it is still alive and
+can say when it goes — rather than inventing a window id for the renderer to
+carry around.
+
 ## Rules worth not relearning
 
 **Everything crossing the boundary is structured-cloned.** Plain data only —

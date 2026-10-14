@@ -189,7 +189,10 @@ row of the tree rather than a dialog, and a delete goes to the Trash after
 main asks — a file picker that ranks the whole project as you type and opens
 into whichever window can take a file, syntax highlighting for every language
 CodeMirror ships (fetched per grammar, when first asked for), and a keyboard
-registry with the handful of chords that earn one.
+registry with the handful of chords that earn one, and the editor following
+its files when something outside Frodon rewrites them — an agent, a `git
+pull`, another editor — reloading a tab nobody has typed into without moving
+the cursor, and offering the choice on one that has.
 
 Everything else — config layering, saving, the command palette, LSP — is
 listed in `docs/migration.md` roughly in the order it is worth building.

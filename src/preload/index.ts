@@ -20,7 +20,7 @@
  */
 import { contextBridge, ipcRenderer } from 'electron';
 import type { BoardDocument, BoardRef, BoardScope } from '@shared/board.def';
-import type { File } from '@shared/fs.def';
+import type { File, FileChange } from '@shared/fs.def';
 import type { GitStatus } from '@shared/git.def';
 import type { FrodonApi } from '@shared/ipc.def';
 import type { TerminalData, TerminalExit } from '@shared/terminal.def';
@@ -45,6 +45,15 @@ const api: FrodonApi = {
       ipcRenderer.invoke('file:create-dir', { parent, name }),
     rename: (path, name) => ipcRenderer.invoke('file:rename', { path, name }),
     remove: (path) => ipcRenderer.invoke('file:delete', { path }),
+    watch: (paths) => ipcRenderer.invoke('file:watch', { paths }),
+    // Unfiltered, unlike a terminal's output: main already sends this only to
+    // the windows showing that file, and the one page they live in holds a
+    // handful of editors rather than a stream of chunks.
+    onChanged: (listener) => {
+      const handler = (_event: unknown, change: FileChange) => listener(change);
+      ipcRenderer.on('file:changed', handler);
+      return () => ipcRenderer.removeListener('file:changed', handler);
+    },
   },
   git: {
     status: () => ipcRenderer.invoke('git:status'),

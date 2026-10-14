@@ -6,6 +6,7 @@ import {
   useProjectSync,
 } from '~/lib/project';
 import { useGitSync } from '~/lib/git';
+import { useFileWatchSync } from '~/lib/file-watch';
 import { useBoardAutosaveEffect } from '~/lib/board';
 import { useRecentFilesEffect } from '~/lib/file-picker';
 import { useKeybindingEffect } from '~/lib/keybinding';
@@ -19,6 +20,8 @@ import Backdrop from './components/ui/backdrop';
  * `useThemeEffect` (writes theme variables to `:root`), `useAppInfoEffect`
  * (fetches the host facts main holds, once), `useProjectSync` and
  * `useGitSync` (subscribe to the tree and the repository main pushes),
+ * `useFileWatchSync` (tells main which files are open, and hears back when
+ * one of them changes outside Frodon),
  * `useProjectColorEffect` (publishes the project's color as a CSS variable)
  * `useBoardAutosaveEffect` (writes dirty boards after a quiet moment) and
  * `useRecentFilesEffect` (records what was last looked at, for the picker)
@@ -31,6 +34,7 @@ export default function App() {
   useAppInfoEffect();
   useProjectSync();
   useGitSync();
+  useFileWatchSync();
   useProjectColorEffect();
   useBoardAutosaveEffect();
   useRecentFilesEffect();

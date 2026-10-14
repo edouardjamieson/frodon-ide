@@ -44,7 +44,8 @@ src/
 │   ├── ignore/        exclusion matching       (ported from the TUI)
 │   ├── ipc/           typed handle() + every channel's implementation
 │   ├── logger/
-│   └── project/       the open project: root, tree, watcher
+│   ├── project/       the open project: root, tree, watcher
+│   └── watch/         per-file revisions, for the files windows have open
 ├── preload/         the bridge. One file. Read it before changing it.
 └── renderer/src/
     ├── lib/           non-visual: theme, project, window, keybinding state
@@ -92,6 +93,35 @@ Anything that touches disk, spawns a process, or outlives a window belongs on
 main's side of that line. Anything that is purely about presentation —
 which directories are expanded, which pane has focus, the active theme — lives
 in a renderer store and never crosses.
+
+### The second half of that: facts that change back
+
+A replica is only honest if the thing it replicates reports every change, and
+the project watcher reports exactly one kind: the _shape_ of the tree. A file
+rewritten in place has the same name, the same path and the same parent, so
+`sameTree` drops the rescan and the explorer is told nothing — correctly,
+since the explorer is drawing names.
+
+An open editor is the opposite case. It is showing the file's _contents_,
+which the tree says nothing about, and those change under it constantly: an
+agent rewriting a module, a `git pull`, the same project open in another
+editor. So `main/watch/` answers that second question off the same recursive
+watch — no second subscription — keeping the mtime and size of just the files
+some window said it had open, and sending `file:changed` when that pair moves.
+
+Three rules shaped it, and they are the same three as everywhere else:
+
+- **Compare before you push.** A save rewrites mtime; a window already showing
+  those bytes hears nothing.
+- **Send the fact, not the payload.** The event carries a path and a boolean.
+  Whether to adopt the new contents is the renderer's decision, because only
+  the renderer knows whether that tab has been typed into — so the window that
+  wants them reads them, and the others cost nothing.
+- **The renderer owns the view, including the awkward ones.** A document that
+  has been edited since it was read is not a stale view of the file, it is the
+  only copy of itself. The editor keeps it, marks the tab, and offers the
+  choice. See `editor.hook.ts`, which compares three texts: what is on disk
+  now, what was on disk when the tab opened, and what is in the document.
 
 ## The workbench
 

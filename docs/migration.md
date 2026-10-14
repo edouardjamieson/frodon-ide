@@ -9,18 +9,19 @@ deliberately left behind.
 
 ## Already ported
 
-| From the TUI                   | Lands at                                    | Notes                                                                                                                                                            |
-| ------------------------------ | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lib/fs/fs.service.ts`         | `main/fs/`                                  | `Bun.file` → `fs.promises`. Logic unchanged: filter-before-descend, `sameTree`, the max-delay-capped watch debounce.                                             |
-| `lib/ignore/`                  | `main/ignore/`                              | `Bun.Glob` → `picomatch`. Same pattern semantics.                                                                                                                |
-| `lib/theme/`                   | `renderer/src/lib/theme/`                   | Palettes, `ROLE_DEFAULTS`, the `extends` chain, hex validation. Roles now emit CSS custom properties.                                                            |
-| `lib/project/`                 | split                                       | The scan and watcher went to `main/project/`; the store and hooks stayed in the renderer.                                                                        |
-| `lib/window/`                  | split                                       | The model came over whole — windows on a row/col grid, contents per window. `useCalculateLayout` did not: see below.                                             |
-| `components/modules/terminal/` | `main/terminal/` + `renderer/.../terminal/` | The PTY moved to main and the emulator became `@xterm/xterm`. Most of the TUI's hard-won handling turned out to be worked around rather than solved — see below. |
-| `lib/git/`                     | `main/git/` + `renderer/src/lib/git/`       | `Bun.spawn` → `execFile`, porcelain v1 → v2, and the poll moved to main. See below.                                                                              |
-| `lib/search/`                  | `main/search/` + `renderer/src/lib/search/` | The walk moved to main and the abort signal became a generation counter. Still JS, not `ripgrep` — see below.                                                    |
-| `lib/language/`                | `@codemirror/language-data`                 | Not ported — replaced. The 556-entry map became a registry lookup; see below.                                                                                    |
-| Module convention              | everywhere                                  | Unchanged.                                                                                                                                                       |
+| From the TUI                   | Lands at                                       | Notes                                                                                                                                                            |
+| ------------------------------ | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/fs/fs.service.ts`         | `main/fs/`                                     | `Bun.file` → `fs.promises`. Logic unchanged: filter-before-descend, `sameTree`, the max-delay-capped watch debounce.                                             |
+| `lib/ignore/`                  | `main/ignore/`                                 | `Bun.Glob` → `picomatch`. Same pattern semantics.                                                                                                                |
+| `lib/theme/`                   | `renderer/src/lib/theme/`                      | Palettes, `ROLE_DEFAULTS`, the `extends` chain, hex validation. Roles now emit CSS custom properties.                                                            |
+| `lib/project/`                 | split                                          | The scan and watcher went to `main/project/`; the store and hooks stayed in the renderer.                                                                        |
+| `lib/window/`                  | split                                          | The model came over whole — windows on a row/col grid, contents per window. `useCalculateLayout` did not: see below.                                             |
+| `components/modules/terminal/` | `main/terminal/` + `renderer/.../terminal/`    | The PTY moved to main and the emulator became `@xterm/xterm`. Most of the TUI's hard-won handling turned out to be worked around rather than solved — see below. |
+| `lib/git/`                     | `main/git/` + `renderer/src/lib/git/`          | `Bun.spawn` → `execFile`, porcelain v1 → v2, and the poll moved to main. See below.                                                                              |
+| `lib/search/`                  | `main/search/` + `renderer/src/lib/search/`    | The walk moved to main and the abort signal became a generation counter. Still JS, not `ripgrep` — see below.                                                    |
+| open buffers vs. the watcher   | `main/watch/` + `renderer/src/lib/file-watch/` | Not a file so much as an assumption: one process held both, so a buffer and its file were a few lines apart. It is a subscription now — see below.               |
+| `lib/language/`                | `@codemirror/language-data`                    | Not ported — replaced. The 556-entry map became a registry lookup; see below.                                                                                    |
+| Module convention              | everywhere                                     | Unchanged.                                                                                                                                                       |
 
 ### What changed in the window port
 
@@ -154,6 +155,41 @@ tree has: main owns the fact, the renderer owns a view of it.
   contract is shaped so the engine can be swapped without the renderer
   noticing: a request in, a bounded result set out.
 
+### What changed in watching files for the editor
+
+In the TUI this was barely a feature: one process held the watcher and the
+open buffers, so a file changing on disk and the buffer showing it were two
+objects a few lines apart. Across the Electron boundary the same idea has to
+be split in half, and splitting it turned out to clarify it.
+
+- **Two questions off one watch.** The project watcher already runs a single
+  recursive subscription over the root. `main/watch/` is fed by it rather than
+  arming a second one, and asks the question `sameTree` deliberately discards:
+  did these particular files' bytes move? That meant teaching `watchDirectory`
+  to report _which_ paths a burst named, which it used to throw away.
+- **The event carries a path, not a file.** Sending the new contents would be
+  one fewer round trip and a structured clone of every open file on every
+  save. The renderer decides whether it wants them, and reads them if it does.
+- **The decision is per window, not per file.** A window answers for its own
+  documents, because two panes showing the same file have their own cursors,
+  their own undo histories and their own unsaved text. Only "this file is gone
+  from disk" is shared, because the tab bar draws it.
+- **Three texts, not two.** Disk now, disk when the tab opened, and the
+  document. Without the middle one there is no difference between a tab nobody
+  touched and a tab full of unsaved work, and every external change is either
+  a silent clobber or a question nobody can answer. A clean tab adopts the
+  change in place — `minimalChange` keeps the cursor and the scroll where they
+  were — and an edited one keeps what it has and offers a Reload.
+- **A save of our own needs no special case.** It comes back as an event like
+  any other, the renderer re-reads, finds the document already identical, and
+  updates its baseline without touching the document. An explicit "ignore the
+  write we just made" flag in main would have been wrong anyway: it would also
+  have hidden a save made by _another_ window, and by project-wide replace.
+- **`dirtyFiles` is still not ported.** What is here is its first half,
+  arrived at from the other end: the editor now knows when a document has
+  diverged from its file, which is the same fact a close-without-saving
+  warning needs. The rest comes with save.
+
 ### What changed in the language port
 
 The plan here was to port `lib/language/language.constant.ts` — 556 entries of
@@ -171,7 +207,7 @@ asked for.
 - **A chunk per grammar.** CodeMirror ships a package per language rather than
   one bundle, so each `load()` is a dynamic import and Vite splits it out.
   Opening a `.ts` file costs the TypeScript grammar and none of the other
-  hundred and forty. The renderer entry got *smaller* doing this — JS/TS used
+  hundred and forty. The renderer entry got _smaller_ doing this — JS/TS used
   to be linked into it.
 - **Verified to work from `file://`.** Worth stating, because it is the thing
   that would have failed only in a packaged build: the production renderer is
@@ -216,18 +252,18 @@ file would hand over.
 
 ## Deliberately left behind
 
-| Dropped                                                    | Why                                                                                                                                                                                                                                                                            |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **`editor.hook.ts`** — all 829 lines                       | CodeMirror does cursors, selections, column-preserving movement, undo, search projection, and clipboard. It also gives multi-cursor, folding and bracket matching, which the TUI never had. Only `SYNTAX_GROUP_BY_TOKEN` was worth keeping, as the shape of `editor.theme.ts`. |
-| All `*.component.tsx`                                      | OpenTUI views. ~2,000 lines, none portable.                                                                                                                                                                                                                                    |
-| `lib/theme`'s `icons` layer                                | It existed because a terminal can't ship a font and every glyph had to measure 1–2 cells. Icons are SVG now; the entire problem is gone.                                                                                                                                       |
-| `lib/preflight/`                                           | A Bun version gate. Electron bundles its own Node.                                                                                                                                                                                                                             |
-| `lib/crash/`                                               | OpenTUI renderer-specific. Electron has `crashReporter` and real DevTools.                                                                                                                                                                                                     |
-| `lib/logger/`                                              | `console.log` works again. Kept only as a scope-tagging wrapper in main.                                                                                                                                                                                                       |
-| `lib/clipboard/`                                           | Shelled out to `pbcopy`/`pbpaste`, macOS-only. Electron's `clipboard` module is cross-platform and synchronous.                                                                                                                                                                |
-| `ui/ascii-animation`, `ui/icon`, `ui/tooltip`, `ui/loader` | Cell-grid primitives with no meaning here.                                                                                                                                                                                                                                     |
+| Dropped                                                    | Why                                                                                                                                                                                                                                                                                    |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`editor.hook.ts`** — all 829 lines                       | CodeMirror does cursors, selections, column-preserving movement, undo, search projection, and clipboard. It also gives multi-cursor, folding and bracket matching, which the TUI never had. Only `SYNTAX_GROUP_BY_TOKEN` was worth keeping, as the shape of `editor.theme.ts`.         |
+| All `*.component.tsx`                                      | OpenTUI views. ~2,000 lines, none portable.                                                                                                                                                                                                                                            |
+| `lib/theme`'s `icons` layer                                | It existed because a terminal can't ship a font and every glyph had to measure 1–2 cells. Icons are SVG now; the entire problem is gone.                                                                                                                                               |
+| `lib/preflight/`                                           | A Bun version gate. Electron bundles its own Node.                                                                                                                                                                                                                                     |
+| `lib/crash/`                                               | OpenTUI renderer-specific. Electron has `crashReporter` and real DevTools.                                                                                                                                                                                                             |
+| `lib/logger/`                                              | `console.log` works again. Kept only as a scope-tagging wrapper in main.                                                                                                                                                                                                               |
+| `lib/clipboard/`                                           | Shelled out to `pbcopy`/`pbpaste`, macOS-only. Electron's `clipboard` module is cross-platform and synchronous.                                                                                                                                                                        |
+| `ui/ascii-animation`, `ui/icon`, `ui/tooltip`, `ui/loader` | Cell-grid primitives with no meaning here.                                                                                                                                                                                                                                             |
 | `utils/shortcut.hook.ts`                                   | `ctrl+${string}` against OpenTUI's key events. Rebuilt, not ported: `renderer/src/lib/keybinding/` is the registry the TUI wanted and never got, and it can tell Cmd from Ctrl — which a terminal reading control bytes never could. Still waiting on the config layer to rebind from. |
-| Bun entirely                                               | Electron embeds Node and cannot be made to run on Bun, so Bun was only ever the package manager here. The project now uses pnpm for that.                                                                                                                                      |
+| Bun entirely                                               | Electron embeds Node and cannot be made to run on Bun, so Bun was only ever the package manager here. The project now uses pnpm for that.                                                                                                                                              |
 
 ## The thing this unlocks
 

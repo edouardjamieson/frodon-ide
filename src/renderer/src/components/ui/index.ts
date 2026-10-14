@@ -103,3 +103,4 @@ export {
   TooltipProvider,
   TooltipTrigger,
 } from './tooltip';
+export { KeyboardKey, KeyboardKeys } from './keyboard-key';

@@ -8,6 +8,7 @@ import {
 import { useGitSync } from '~/lib/git';
 import { useBoardAutosaveEffect } from '~/lib/board';
 import { useRecentFilesEffect } from '~/lib/file-picker';
+import { useKeybindingEffect } from '~/lib/keybinding';
 import { Header, Sidebar, Welcome } from '~/components/modules/workbench';
 import WindowManager from '~/components/modules/window';
 import FilePicker from '~/components/modules/file-picker';
@@ -20,7 +21,8 @@ import Backdrop from './components/ui/backdrop';
  * `useGitSync` (subscribe to the tree and the repository main pushes),
  * `useProjectColorEffect` (publishes the project's color as a CSS variable)
  * `useBoardAutosaveEffect` (writes dirty boards after a quiet moment) and
- * `useRecentFilesEffect` (records what was last looked at, for the picker).
+ * `useRecentFilesEffect` (records what was last looked at, for the picker)
+ * and `useKeybindingEffect` (the one keydown listener the whole app shares).
  * Mounting any of them twice would double the work on every change — and for
  * the autosave in particular, race two writes to the same file.
  */
@@ -32,6 +34,7 @@ export default function App() {
   useProjectColorEffect();
   useBoardAutosaveEffect();
   useRecentFilesEffect();
+  useKeybindingEffect();
 
   const { isOpen, open } = useProject();
 

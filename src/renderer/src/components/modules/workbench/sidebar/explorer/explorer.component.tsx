@@ -487,7 +487,11 @@ function Toolbar() {
       <ToolbarButton label="Expand all" onClick={expandAll}>
         <ChevronsUpDown />
       </ToolbarButton>
-      <ToolbarButton label="Open file" onClick={openPicker}>
+      <ToolbarButton
+        label="Open file"
+        onClick={openPicker}
+        shortcut={['mod', 'p']}
+      >
         <FileStack />
       </ToolbarButton>
     </div>
@@ -498,10 +502,12 @@ function ToolbarButton({
   label,
   onClick,
   children,
+  shortcut,
 }: {
   label: string;
   onClick: () => void;
   children: ReactNode;
+  shortcut?: string[];
 }) {
   return (
     <Tooltip>
@@ -522,7 +528,9 @@ function ToolbarButton({
           {children}
         </Button>
       </TooltipTrigger>
-      <TooltipContent side="bottom">{label}</TooltipContent>
+      <TooltipContent side="bottom" shortcut={shortcut}>
+        {label}
+      </TooltipContent>
     </Tooltip>
   );
 }

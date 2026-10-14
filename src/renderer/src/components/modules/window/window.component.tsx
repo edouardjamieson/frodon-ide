@@ -72,16 +72,28 @@ export default function Window({ window: win }: { window: WindowState }) {
           )}
         >
           {canSplitRight ? (
-            <WindowAction label="Split right" onClick={splitRight}>
+            <WindowAction
+              label="Split right"
+              onClick={splitRight}
+              shortcut={['mod', 'shift', 'right']}
+            >
               <Columns2 className="size-3.5" />
             </WindowAction>
           ) : null}
           {canSplitDown ? (
-            <WindowAction label="Split down" onClick={splitDown}>
+            <WindowAction
+              label="Split down"
+              onClick={splitDown}
+              shortcut={['mod', 'shift', 'down']}
+            >
               <Rows2 className="size-3.5" />
             </WindowAction>
           ) : null}
-          <WindowAction label="Close window" onClick={close}>
+          <WindowAction
+            label="Close window"
+            onClick={close}
+            shortcut={['mod', 'w']}
+          >
             <X className="size-3.5" />
           </WindowAction>
         </div>
@@ -168,10 +180,12 @@ function WindowAction({
   label,
   onClick,
   children,
+  shortcut,
 }: {
   label: string;
   onClick: () => void;
   children: ReactNode;
+  shortcut?: string[];
 }) {
   return (
     <Tooltip>
@@ -184,7 +198,9 @@ function WindowAction({
           {children}
         </button>
       </TooltipTrigger>
-      <TooltipContent side="bottom">{label}</TooltipContent>
+      <TooltipContent side="bottom" shortcut={shortcut}>
+        {label}
+      </TooltipContent>
     </Tooltip>
   );
 }

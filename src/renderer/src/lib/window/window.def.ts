@@ -291,4 +291,16 @@ export interface WindowStore {
 
   closeSession: (windowId: string, sessionId: string) => void;
   setActiveSession: (windowId: string, sessionId: string) => void;
+
+  /**
+   * Closes whatever the window is showing, or the window itself when it is
+   * showing nothing. What Cmd+W means.
+   *
+   * Here rather than in the keybinding that calls it, because "the thing in
+   * front" is a statement about this model and nothing else should have to
+   * know that an editor calls it a file, a terminal a session, and a board a
+   * key. A git window has tabs but they are views of one repository, not
+   * things to close, so it closes as a whole.
+   */
+  closeActiveTab: (windowId: string) => void;
 }

@@ -27,6 +27,7 @@ interface SidebarMenuItem {
   onClick: () => void;
   label: string;
   focused?: boolean;
+  shortcut?: string[];
 }
 
 export default function Sidebar() {
@@ -123,12 +124,14 @@ function SidebarMenu({ collapsed }: { collapsed: boolean }) {
       onClick: () => toggleModule('EXPLORER'),
       label: 'Explorer',
       focused: module === 'EXPLORER' && !collapsed,
+      shortcut: ['mod', 'b'],
     },
     {
       icon: <Search className="size-5" />,
       onClick: () => toggleModule('SEARCH'),
       label: 'Search',
       focused: module === 'SEARCH' && !collapsed,
+      shortcut: ['mod', 'shift', 'f'],
     },
     {
       icon: <PencilRuler className="size-5" />,
@@ -141,6 +144,7 @@ function SidebarMenu({ collapsed }: { collapsed: boolean }) {
       onClick: openGit,
       label: 'Source control',
       focused: false,
+      shortcut: ['mod', 'shift', 'g'],
     },
     {
       icon: <LayoutTemplate className="size-5" />,
@@ -198,7 +202,9 @@ function SidebarMenuItem({
           {item.icon}
         </button>
       </TooltipTrigger>
-      <TooltipContent side="right">{item.label}</TooltipContent>
+      <TooltipContent side="right" shortcut={item.shortcut}>
+        {item.label}
+      </TooltipContent>
     </Tooltip>
   );
 }

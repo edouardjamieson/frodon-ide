@@ -500,6 +500,39 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
     });
   },
 
+  closeActiveTab: (windowId) => {
+    const target = get().windows.find((window) => window.id === windowId);
+    if (!target) return;
+
+    switch (target.type) {
+      case 'editor':
+        if (target.activeFile)
+          return get().closeFile(windowId, target.activeFile);
+        break;
+      case 'terminal':
+        if (target.activeSession) {
+          return get().closeSession(windowId, target.activeSession);
+        }
+        break;
+      case 'board':
+        if (target.activeBoard) {
+          return get().closeBoard(windowId, target.activeBoard);
+        }
+        break;
+      case 'browser':
+        if (target.activeTab) {
+          return get().closeBrowserTab(windowId, target.activeTab);
+        }
+        break;
+      default:
+        // A git window's tabs are views, and an empty window has nothing at
+        // all. Both fall through to closing the window.
+        break;
+    }
+
+    get().close(windowId);
+  },
+
   closeFile: (windowId, path) => {
     set((state) => ({
       windows: state.windows.map((window) => {

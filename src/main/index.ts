@@ -7,7 +7,7 @@
  */
 import { app, BrowserWindow } from 'electron';
 import { electronApp, optimizer } from '@electron-toolkit/utils';
-import { createWindow } from '@main/app';
+import { createMenu, createWindow } from '@main/app';
 import { registerIpcHandlers } from '@main/ipc';
 import { disposeProject } from '@main/project';
 import { disposeGit } from '@main/git';
@@ -31,6 +31,9 @@ void app.whenReady().then(() => {
   // `app:info` during its initial render, and an unregistered channel rejects
   // rather than queuing.
   registerIpcHandlers();
+  // Before the window, so the first one opens under the menu it will keep —
+  // and so Cmd+W is already the renderer's to handle. See `menu.service.ts`.
+  createMenu();
   createWindow();
 
   // macOS keeps the app alive with no windows; clicking the dock icon is

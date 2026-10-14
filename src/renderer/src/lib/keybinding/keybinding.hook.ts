@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useAppInfo } from '~/lib/app';
+import { useEditorStore } from '~/lib/editor';
 import { useFilePickerStore } from '~/lib/file-picker';
 import { useSidebarStore } from '~/lib/sidebar';
 import { useWindowStore } from '~/lib/window';
@@ -20,6 +21,7 @@ export function useCommands(): Record<CommandId, () => void> {
   const split = useWindowStore((state) => state.split);
   const openGit = useWindowStore((state) => state.openGit);
   const openPicker = useFilePickerStore((state) => state.openPicker);
+  const requestSave = useEditorStore((state) => state.requestSave);
   const setModule = useSidebarStore((state) => state.setModule);
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed);
 
@@ -36,8 +38,29 @@ export function useCommands(): Record<CommandId, () => void> {
     [setModule, toggleCollapsed]
   );
 
+  /**
+   * Asks the focused window to write its tab out.
+   *
+   * Only an editor has anything to write, and the type is read through
+   * `getState` rather than subscribed to — a command that re-ran every time a
+   * pane changed shape would rebuild this table for nothing. An unaddressed
+   * request would also sit on the store forever, since no editor would ever
+   * come along to consume it.
+   */
+  const save = useCallback(() => {
+    const { windows } = useWindowStore.getState();
+    const focused = windows.find((window) => window.id === focusedId);
+    // A window with no tab open has nothing to write, and the request would
+    // sit on the store until a file *was* opened there — and then save it the
+    // instant it appeared.
+    if (focused?.type === 'editor' && focused.activeFile) {
+      requestSave(focusedId);
+    }
+  }, [focusedId, requestSave]);
+
   return useMemo(
     () => ({
+      'file.save': save,
       'tab.close': () => closeActiveTab(focusedId),
       'picker.open': () => openPicker(),
       'sidebar.toggle': () => toggleCollapsed(),
@@ -49,6 +72,7 @@ export function useCommands(): Record<CommandId, () => void> {
       'window.splitDown': () => split(focusedId, 'down'),
     }),
     [
+      save,
       closeActiveTab,
       focusedId,
       openPicker,

@@ -2,6 +2,7 @@ import { cn } from 'cn';
 import { X } from 'lucide-react';
 import { useEditorWindow, fileName, type EditorWindow } from '~/lib/window';
 import { useMissingFiles } from '~/lib/file-watch';
+import { dirtyKey, useDirtyFiles } from '~/lib/editor';
 import FileIcon from '~/components/utils/file-icon';
 import Editor from '~/components/modules/editor';
 
@@ -18,6 +19,7 @@ export function EditorWindowHeader({ window: win }: { window: EditorWindow }) {
   // The whole set, read once for the bar, rather than a hook per tab — the
   // same reason git status reaches the explorer as a Map.
   const missing = useMissingFiles();
+  const dirty = useDirtyFiles();
 
   if (files.length === 0) {
     return (
@@ -38,6 +40,7 @@ export function EditorWindowHeader({ window: win }: { window: EditorWindow }) {
         // closing it would throw away the only copy of whatever was typed
         // into it along with the place you were working in.
         const isMissing = missing.has(path);
+        const isDirty = dirty.has(dirtyKey(win.id, path));
 
         return (
           <div
@@ -60,6 +63,17 @@ export function EditorWindowHeader({ window: win }: { window: EditorWindow }) {
             <span className={cn('truncate', isMissing && 'line-through')}>
               {fileName(path)}
             </span>
+            {/* Unsaved work. A star rather than a color, so it reads the same
+                on an inactive tab, in every theme, and to anyone who would
+                not have seen the color. */}
+            {isDirty ? (
+              <span
+                aria-label="Unsaved changes"
+                className="shrink-0 text-fg-warning"
+              >
+                *
+              </span>
+            ) : null}
             <button
               aria-label={`Close ${fileName(path)}`}
               // The tab under it is only a div, so the click has to be stopped
@@ -91,5 +105,7 @@ export function EditorWindowBody({ window: win }: { window: EditorWindow }) {
     );
   }
 
-  return <Editor path={win.activeFile} openPaths={win.files} />;
+  return (
+    <Editor windowId={win.id} path={win.activeFile} openPaths={win.files} />
+  );
 }

@@ -2,6 +2,8 @@ import { FileX, RotateCw, TriangleAlert, X } from 'lucide-react';
 import { useEditor } from './editor.hook';
 
 interface EditorProps {
+  /** The pane this editor belongs to — see `useEditor`. */
+  windowId: string;
   /** The file on screen, or null when the window has no tab open. */
   path: string | null;
   /** Every tab the window has open — see `useEditor`. */
@@ -65,8 +67,9 @@ function Notice({
  * window's chrome belongs to the window frame, so the same editor can be
  * mounted anywhere without bringing a header along.
  */
-export default function Editor({ path, openPaths }: EditorProps) {
+export default function Editor({ windowId, path, openPaths }: EditorProps) {
   const { hostRef, error, diverged, missing, reload, dismiss } = useEditor(
+    windowId,
     path,
     openPaths
   );

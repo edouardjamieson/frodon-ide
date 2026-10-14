@@ -9,6 +9,7 @@
  * `useCommands` — TypeScript will point at the one you forgot.
  */
 export type CommandId =
+  | 'file.save'
   | 'tab.close'
   | 'picker.open'
   | 'sidebar.toggle'

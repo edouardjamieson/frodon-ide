@@ -12,6 +12,11 @@ import type { Keybinding } from './keybinding.def';
  * can exist now and could not in the TUI.
  */
 export const DEFAULT_KEYBINDINGS: Keybinding[] = [
+  // Writes the focused editor's tab to disk. Not in the application menu on
+  // purpose — a menu accelerator is handled before the page ever sees the
+  // key, so a File > Save item would take this chord away from the registry
+  // the way Electron's default menu takes Cmd+W. See `main/app/menu.service`.
+  { chord: 'mod+s', command: 'file.save' },
   // Closes what the focused window is showing — a file, a shell, a board, a
   // page — and the window itself once there is nothing left in it.
   { chord: 'mod+w', command: 'tab.close' },

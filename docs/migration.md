@@ -37,9 +37,13 @@ Worth writing down, because the diff is bigger than the table suggests:
   scanned per render. Here `WindowState` is a discriminated union and a
   window's tabs are a property of it — one lookup, and closing a window drops
   its contents with it.
-- **`dirtyFiles` was not ported.** It tracked unsaved changes so closing a tab
-  could warn — and there is nothing to warn about until saving exists. It
-  comes back with save, together with the dialog that asks.
+- **`dirtyFiles` came back with save, and lives in `lib/editor/`.** It tracked
+  unsaved changes so closing a tab could warn. It is keyed by _window and
+  path_ rather than by window alone, because the same file open in two panes
+  is two documents with two sets of unsaved work — and it is derived rather
+  than declared: dirty means the document differs from the file, measured
+  against the same baseline that decides whether a change on disk is a
+  collision. The dialog that asks before closing one is still missing.
 - **Tabs keep their document, not their path.** Each tab's CodeMirror
   `EditorState` is held beside the view and swapped in on click, so switching
   tabs restores the cursor, scroll and undo history instead of re-reading the
@@ -185,10 +189,15 @@ be split in half, and splitting it turned out to clarify it.
   updates its baseline without touching the document. An explicit "ignore the
   write we just made" flag in main would have been wrong anyway: it would also
   have hidden a save made by _another_ window, and by project-wide replace.
-- **`dirtyFiles` is still not ported.** What is here is its first half,
-  arrived at from the other end: the editor now knows when a document has
-  diverged from its file, which is the same fact a close-without-saving
-  warning needs. The rest comes with save.
+- **It gave `dirtyFiles` its definition.** The baseline that decides whether a
+  change on disk collides with local edits is the same fact as "this tab has
+  unsaved work", so save and the star in the tab fell out of it rather than
+  being built beside it. It is held as CodeMirror's `Text` rather than a
+  string for that reason: the comparison runs per keystroke, and `Text.eq`
+  skips the rope nodes a document shares with the copy it was read from —
+  measured at 35µs on a 50,000-line file, against a `toString()` per
+  character the other way. One thing still missing is the dialog that asks
+  before a tab with a star on it is closed.
 
 ### What changed in the language port
 

@@ -39,8 +39,10 @@ import {
   indentOnInput,
   foldGutter,
   foldKeymap,
+  LanguageDescription,
+  type LanguageSupport,
 } from '@codemirror/language';
-import { javascript } from '@codemirror/lang-javascript';
+import { languages } from '@codemirror/language-data';
 import { useTheme } from '~/lib/theme';
 import type { Theme } from '~/lib/theme';
 import { useWindowStore } from '~/lib/window';
@@ -60,21 +62,65 @@ import { codeMirrorTheme } from './editor.theme';
 const appearance = new Compartment();
 
 /**
- * Language support for a path.
+ * Grammars that have been fetched, by language name.
  *
- * Only JS/TS for now. The TUI's 556-entry extension map in
- * `lib/language/language.constant.ts` is the thing to port here, retargeted
- * from refractor ids to CodeMirror language packages — see docs/migration.md.
+ * Module-level, so it is shared by every editor window: the second window to
+ * open a `.rs` file pays nothing, and neither does the second tab.
  */
+const grammars = new Map<string, LanguageSupport>();
+
+/**
+ * Which of CodeMirror's languages a file is written in, or null.
+ *
+ * `matchFilename` rather than an extension table, because an extension is not
+ * always what names a language: `Dockerfile`, `CMakeLists.txt` and `.babelrc`
+ * have none, and the registry carries a filename pattern for each of them.
+ *
+ * This is what the migration note in `docs/migration.md` wanted, arrived at
+ * from the other end. Porting the TUI's 556-entry map would have meant
+ * hand-mapping every value from a refractor id to a CodeMirror package and
+ * then maintaining the result; `@codemirror/language-data` is that table,
+ * written by the people who ship the grammars, with the lazy import already
+ * in it.
+ */
+function descriptionFor(path: string | null): LanguageDescription | null {
+  if (!path) return null;
+  const filename = path.split(/[/\\]/).pop() ?? '';
+  return LanguageDescription.matchFilename(languages, filename);
+}
+
+/** The grammar for a path, if it is already in hand. Never fetches. */
 function languageFor(path: string | null): Extension[] {
-  if (!path) return [];
-  const ext = path.split('.').pop()?.toLowerCase() ?? '';
-  if (['ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs'].includes(ext)) {
-    return [
-      javascript({ typescript: ext.startsWith('ts'), jsx: ext.endsWith('x') }),
-    ];
+  const description = descriptionFor(path);
+  if (!description) return [];
+
+  const grammar = grammars.get(description.name);
+  return grammar ? [grammar] : [];
+}
+
+/**
+ * Fetches the grammar for a path, if there is one and it is not already here.
+ *
+ * Every language is a separate chunk — CodeMirror ships a package per grammar
+ * rather than one bundle — so this is a dynamic import, and opening a `.ts`
+ * file costs the TypeScript grammar and not the other hundred and forty.
+ *
+ * Awaited beside the file read rather than after it, so a document is built
+ * once, already highlighted. Reconfiguring a compartment a moment later would
+ * work too, and would show every file unhighlighted for a frame first.
+ *
+ * Never rejects: a grammar that will not load is a file without colors, which
+ * is worth a line in the console and nothing else.
+ */
+async function loadLanguage(path: string | null): Promise<void> {
+  const description = descriptionFor(path);
+  if (!description || grammars.has(description.name)) return;
+
+  try {
+    grammars.set(description.name, await description.load());
+  } catch (cause) {
+    console.error(`could not load the ${description.name} grammar`, cause);
   }
-  return [];
 }
 
 /** What the compartment holds for a given file: its colors and its grammar. */
@@ -225,7 +271,12 @@ export function useEditor(path: string | null, openPaths: string[] = []) {
 
     void (async () => {
       try {
-        const content = await window.frodon.file.read(path);
+        // In parallel: the grammar is a network-free dynamic import and the
+        // read is a round trip to main, and neither needs the other.
+        const [content] = await Promise.all([
+          window.frodon.file.read(path),
+          loadLanguage(path),
+        ]);
         // Another tab may have been clicked while this read was in flight;
         // dropping a stale result keeps the editor on the newer one.
         if (cancelled) return;

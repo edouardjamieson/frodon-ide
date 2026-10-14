@@ -19,6 +19,7 @@ deliberately left behind.
 | `components/modules/terminal/` | `main/terminal/` + `renderer/.../terminal/` | The PTY moved to main and the emulator became `@xterm/xterm`. Most of the TUI's hard-won handling turned out to be worked around rather than solved — see below. |
 | `lib/git/`                     | `main/git/` + `renderer/src/lib/git/`       | `Bun.spawn` → `execFile`, porcelain v1 → v2, and the poll moved to main. See below.                                                                              |
 | `lib/search/`                  | `main/search/` + `renderer/src/lib/search/` | The walk moved to main and the abort signal became a generation counter. Still JS, not `ripgrep` — see below.                                                    |
+| `lib/language/`                | `@codemirror/language-data`                 | Not ported — replaced. The 556-entry map became a registry lookup; see below.                                                                                    |
 | Module convention              | everywhere                                  | Unchanged.                                                                                                                                                       |
 
 ### What changed in the window port
@@ -153,6 +154,38 @@ tree has: main owns the fact, the renderer owns a view of it.
   contract is shaped so the engine can be swapped without the renderer
   noticing: a request in, a bounded result set out.
 
+### What changed in the language port
+
+The plan here was to port `lib/language/language.constant.ts` — 556 entries of
+extension → language — and retarget every value from a refractor id to a
+CodeMirror package. That work was not done, because it was already done
+upstream: `@codemirror/language-data` is the same table, maintained by the
+people who ship the grammars, and it carries the lazy `import()` the note
+asked for.
+
+- **A registry lookup, not a map.** `LanguageDescription.matchFilename` is
+  what `editor.hook.ts` asks now. It beats an extension table on the files
+  that have no extension to look up — `Dockerfile`, `CMakeLists.txt`,
+  `.babelrc` — because the registry carries a filename pattern per language.
+  143 languages, 224 extensions.
+- **A chunk per grammar.** CodeMirror ships a package per language rather than
+  one bundle, so each `load()` is a dynamic import and Vite splits it out.
+  Opening a `.ts` file costs the TypeScript grammar and none of the other
+  hundred and forty. The renderer entry got *smaller* doing this — JS/TS used
+  to be linked into it.
+- **Verified to work from `file://`.** Worth stating, because it is the thing
+  that would have failed only in a packaged build: the production renderer is
+  loaded with `loadFile` and locked to `script-src 'self'`, and a dynamic
+  import under an opaque origin is exactly the kind of thing a CSP refuses.
+  It does not — Rust, Python, Dockerfile and SQL all load in Electron 44.
+- **Loaded beside the read, not after it.** `loadLanguage` is awaited in the
+  same `Promise.all` as `file:read`, so a document is built once with its
+  grammar already in hand. Reconfiguring a compartment afterwards would work
+  and would show every file unhighlighted for a frame first.
+- **Still missing a few.** Svelte, Elixir, Zig and Nix have no entry in the
+  registry; they want community packages registered alongside it, which is a
+  small addition to the same lookup rather than a different design.
+
 ## Still to port
 
 Roughly in the order they are worth doing.
@@ -174,16 +207,7 @@ Lives in main; the resolved config is pushed to the renderer over IPC.
 `DEFAULT_EXCLUDE` in `main/project/project.service.ts` is the placeholder
 waiting for this.
 
-### 2. Language map — `lib/language/language.constant.ts`
-
-556 entries of extension → language. Pure data. Retarget the values from
-refractor ids to CodeMirror language packages and drop it into
-`editor.hook.ts`'s `languageFor`, which currently handles JS/TS only.
-
-Note CodeMirror needs a package per language rather than one bundle, so this
-also wants lazy `import()` so opening a `.rs` file doesn't cost every grammar.
-
-### 3. Actions — `lib/actions/`
+### 2. Actions — `lib/actions/`
 
 `{{variable}}` resolution is pure and ports untouched. The spawn becomes
 `execFile`. Runs on main, results pushed to the renderer.

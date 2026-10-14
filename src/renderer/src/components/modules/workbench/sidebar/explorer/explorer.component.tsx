@@ -118,7 +118,9 @@ function Node({
   const isOpen = openPaths.has(file.path);
   const isSelected = selected === file.path;
 
-  const onClick = () => {
+  const onClick = (e?: React.MouseEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
     // Selection is the one thing every row does, file or folder: it is what
     // the toolbar reads to decide where a new entry goes.
     select(file.path);
@@ -369,6 +371,7 @@ function NameRow({
     <div
       style={{ paddingLeft: indent(depth) }}
       className="flex w-full shrink-0 flex-col py-[3px] pr-2"
+      onClick={(e) => e.stopPropagation()}
     >
       <div className="flex items-center gap-1.5">
         {/* Where the disclosure arrow would be, so the icon and the field line
@@ -471,7 +474,7 @@ function Toolbar() {
   const openPicker = useFilePickerStore((state) => state.openPicker);
 
   return (
-    <div className="sticky top-0 z-10 mb-1 flex w-full items-center justify-end gap-0.5 border-b border-border bg-sidebar p-1 shrink-0">
+    <div className="mb-1 flex w-full items-center justify-end gap-0.5 border-b border-border bg-sidebar p-1 shrink-0">
       <ToolbarButton label={`New file in ${directoryLabel}`} onClick={newFile}>
         <FilePlusCorner />
       </ToolbarButton>
@@ -545,6 +548,7 @@ export default function Explorer({ files }: { files: File[] }) {
   const gitByPath = useGitFileStatus();
   const root = useProjectStore((state) => state.root);
   const selected = useProjectStore((state) => state.selected);
+  const select = useProjectStore((state) => state.select);
   const draft = useProjectStore((state) => state.draft);
   const renaming = useProjectStore((state) => state.renaming);
   const actions = useExplorerActions();
@@ -565,9 +569,14 @@ export default function Explorer({ files }: { files: File[] }) {
     // both edges. The scroller is a flex container so that Chromium keeps its
     // trailing padding at the far end of a horizontal scroll, which a block
     // one drops.
-    <div className="flex h-full w-full flex-col overflow-auto pb-1.5">
+    <div className="flex h-full w-full flex-col pb-1.5">
       <Toolbar />
-      <div className="flex w-max min-w-full flex-col px-1.5">
+      <div
+        className="flex w-max min-w-full flex-col px-1.5 overflow-auto h-full"
+        onClick={() => {
+          select(root);
+        }}
+      >
         {/* The root has no row of its own, so a draft destined for it is drawn
             here, above the top-level entries. */}
         {draft?.parent === root ? (

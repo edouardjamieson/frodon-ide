@@ -2,6 +2,7 @@ import { FolderOpen } from 'lucide-react';
 import { Button, Silk } from '~/components/ui';
 import AnimatedLogo from '~/components/utils/animated-logo';
 import { useTheme } from '~/lib/theme';
+import WelcomeRecents from './welcome-recents.component';
 
 export default function Welcome({ onOpen }: { onOpen: () => void }) {
   const theme = useTheme();
@@ -26,6 +27,10 @@ export default function Welcome({ onOpen }: { onOpen: () => void }) {
         <FolderOpen />
         <span>Open project</span>
       </Button>
+
+      {/* Below the button, not instead of it: the picker is the way in that
+          always works, and the list is the shortcut past it. */}
+      <WelcomeRecents />
 
       <div
         style={{

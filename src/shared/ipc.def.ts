@@ -44,6 +44,7 @@ import type {
   GitResult,
   GitStatus,
 } from './git.def';
+import type { RecentProject } from './project.def';
 import type {
   ReplaceRequest,
   ReplaceResult,
@@ -66,6 +67,23 @@ export interface IpcContract {
   'project:pick': { req: void; res: string | null };
   /** Recursive scan of a project root into a nested tree, respecting excludes. */
   'project:tree': { req: { root: string }; res: File[] };
+  /**
+   * The projects opened before, newest first and at most five.
+   *
+   * Read by the launcher, which is the one screen in the app with no project
+   * behind it — so unlike every other list here, it cannot be derived from
+   * one. Main prunes the folders that have since gone away before answering;
+   * see `listRecentProjects`.
+   */
+  'project:recents': { req: void; res: RecentProject[] };
+  /**
+   * Drops a project from that list. Answers with the list that is left, so
+   * the row disappears on one round trip rather than two.
+   *
+   * It forgets, and nothing more: the folder is not touched. The destructive
+   * channel in this app is `file:delete`, and it asks first.
+   */
+  'project:forget-recent': { req: { path: string }; res: RecentProject[] };
 
   /** Reads a file as UTF-8 text. Rejects if unreadable. */
   'file:read': { req: { path: string }; res: string };
@@ -338,6 +356,8 @@ export interface FrodonApi {
   project: {
     pick: () => Promise<Res<'project:pick'>>;
     tree: (root: string) => Promise<Res<'project:tree'>>;
+    recents: () => Promise<Res<'project:recents'>>;
+    forgetRecent: (path: string) => Promise<Res<'project:forget-recent'>>;
     /** Subscribes to tree changes. Returns an unsubscribe function. */
     onChanged: (listener: (files: File[]) => void) => () => void;
   };

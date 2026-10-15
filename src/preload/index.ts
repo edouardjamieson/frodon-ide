@@ -29,6 +29,9 @@ const api: FrodonApi = {
   project: {
     pick: () => ipcRenderer.invoke('project:pick'),
     tree: (root) => ipcRenderer.invoke('project:tree', { root }),
+    recents: () => ipcRenderer.invoke('project:recents'),
+    forgetRecent: (path) =>
+      ipcRenderer.invoke('project:forget-recent', { path }),
     onChanged: (listener) => {
       const handler = (_event: unknown, files: File[]) => listener(files);
       ipcRenderer.on('project:changed', handler);

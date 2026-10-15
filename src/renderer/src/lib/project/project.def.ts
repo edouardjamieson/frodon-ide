@@ -1,4 +1,5 @@
 import type { File } from '@shared/fs.def';
+import type { RecentProject } from '@shared/project.def';
 
 /**
  * A new entry being named, before it exists.
@@ -22,6 +23,17 @@ export interface ProjectStore {
 
   setProject: (root: string, files: File[]) => void;
   setFiles: (files: File[]) => void;
+
+  /**
+   * The projects the launcher offers, newest first — main's list, replicated.
+   *
+   * The same arrangement as the tree one slot up: main owns it, because it is
+   * a file in a home directory, and this is a view of it. The renderer never
+   * reorders or trims it — every call that changes the list answers with the
+   * new one, so there is nothing here to keep in step by hand.
+   */
+  recents: RecentProject[];
+  setRecents: (recents: RecentProject[]) => void;
   /** Directory paths the explorer is currently showing children for. */
   expanded: Set<string>;
   toggleExpanded: (path: string) => void;

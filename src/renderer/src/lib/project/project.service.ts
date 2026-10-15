@@ -27,6 +27,18 @@ export function shortenPath(path: string, home: string): string {
 }
 
 /**
+ * `/Users/eddy/dev/frodon` -> `frodon`.
+ *
+ * The name a project is known by everywhere in the UI, and — through
+ * `projectColor` — the thing its color is derived from. A folder's last
+ * segment, with no filesystem call behind it, because the renderer has no
+ * filesystem and does not need one to read the end of a string.
+ */
+export function projectName(path: string): string {
+  return path.split('/').filter(Boolean).pop() ?? path;
+}
+
+/**
  * FNV-1a, 32 bits.
  *
  * Wanted here for the one property a cryptographic hash would also give but

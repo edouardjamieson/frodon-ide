@@ -1,11 +1,7 @@
 import { create } from 'zustand';
 import { reparentPath, type File } from '@shared/fs.def';
+import { projectName } from './project.service';
 import type { ProjectStore } from './project.def';
-
-/** `/Users/eddy/dev/frodon` -> `frodon`. */
-function basename(path: string): string {
-  return path.split('/').filter(Boolean).pop() ?? path;
-}
 
 /** Every directory path in a tree, depth-first. */
 function directoryPaths(files: File[]): string[] {
@@ -25,6 +21,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   root: '',
   name: '',
   files: [],
+  recents: [],
   expanded: new Set<string>(),
   selected: null,
   draft: null,
@@ -33,7 +30,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   setProject: (root, files) =>
     set({
       root,
-      name: basename(root),
+      name: projectName(root),
       files,
       // A different project: nothing selected in it yet, and a half-typed name
       // from the last one has no directory to land in any more.
@@ -46,6 +43,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   // The watcher in main already drops rescans that found an identical tree, so
   // anything arriving here is a real change and is stored without comparison.
   setFiles: (files) => set({ files }),
+
+  setRecents: (recents) => set({ recents }),
 
   toggleExpanded: (path) => {
     // A new Set each time, because zustand compares by reference and mutating

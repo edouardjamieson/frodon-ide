@@ -15,17 +15,32 @@ export const useProject = () => {
   const { root, name, files, setProject } = useProjectStore();
   const [opening, setOpening] = useState(false);
 
+  /**
+   * Opens a root that is already known — a row in the launcher's recents.
+   *
+   * The whole of opening a project lives here, and `open` is the picker in
+   * front of it. Main is the one that notices the difference: `project:tree`
+   * is what records a recent and what grows the window, precisely so that
+   * both happen whichever of these two was used.
+   */
+  const openPath = useCallback(
+    async (path: string) => {
+      setOpening(true);
+      try {
+        const tree = await window.frodon.project.tree(path);
+        setProject(path, tree);
+      } finally {
+        setOpening(false);
+      }
+    },
+    [setProject]
+  );
+
   const open = useCallback(async () => {
-    setOpening(true);
-    try {
-      const picked = await window.frodon.project.pick();
-      if (!picked) return;
-      const tree = await window.frodon.project.tree(picked);
-      setProject(picked, tree);
-    } finally {
-      setOpening(false);
-    }
-  }, [setProject]);
+    const picked = await window.frodon.project.pick();
+    if (!picked) return;
+    await openPath(picked);
+  }, [openPath]);
 
   const shortPath = useProjectShortPath();
   const color = useProjectColor();
@@ -37,9 +52,55 @@ export const useProject = () => {
     color,
     files,
     open,
+    openPath,
     opening,
     isOpen: root !== '',
   };
+};
+
+/**
+ * The launcher's list of projects to go back to.
+ *
+ * Fetched on mount rather than kept current, because the only screen that
+ * shows it is the one with no project open: by the time the list could go
+ * stale, this hook has been unmounted by the project it opened. There is no
+ * event channel for it for the same reason.
+ */
+export const useRecentProjects = () => {
+  const recents = useProjectStore((state) => state.recents);
+  const setRecents = useProjectStore((state) => state.setRecents);
+
+  useEffect(() => {
+    let cancelled = false;
+    void window.frodon.project
+      .recents()
+      .then((list) => {
+        if (!cancelled) setRecents(list);
+      })
+      .catch((error: unknown) =>
+        console.error('project: recents failed', error)
+      );
+
+    return () => {
+      cancelled = true;
+    };
+  }, [setRecents]);
+
+  /**
+   * Forgets one, and stores the list main answers with.
+   *
+   * Not an optimistic splice: main is the one holding the file, and taking
+   * its answer is what keeps a failed write from leaving a row missing on
+   * screen and present on disk.
+   */
+  const forget = useCallback(
+    async (path: string) => {
+      setRecents(await window.frodon.project.forgetRecent(path));
+    },
+    [setRecents]
+  );
+
+  return { recents, forget };
 };
 
 /**

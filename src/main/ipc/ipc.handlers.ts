@@ -12,6 +12,11 @@ import { dialog, BrowserWindow, type IpcMainInvokeEvent } from 'electron';
 import { handle } from './ipc.service';
 import { getRoot, openProject } from '@main/project';
 import {
+  forgetRecentProject,
+  listRecentProjects,
+  recordRecentProject,
+} from '@main/recents';
+import {
   checkout,
   commit,
   createBranch,
@@ -82,6 +87,23 @@ async function confirmDelete(
   return response === 0;
 }
 
+/**
+ * Takes the window from launcher-sized to workbench-sized, once.
+ *
+ * The window opens small and fixed because the launcher is a logo and a
+ * button; a workbench needs room and needs to be resizable. Guarded on
+ * `isResizable` so that it happens on the first project opened and never
+ * again — a second open in the same window must not throw away a size the
+ * user has since chosen.
+ */
+function growToWorkbench(event: IpcMainInvokeEvent): void {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (!window || window.isResizable()) return;
+
+  window.setSize(1400, 900, true);
+  window.setResizable(true);
+}
+
 export function registerIpcHandlers(): void {
   handle('project:pick', async () => {
     const win = BrowserWindow.getFocusedWindow();
@@ -90,22 +112,29 @@ export function registerIpcHandlers(): void {
       : await dialog.showOpenDialog({ properties: ['openDirectory'] });
 
     if (result.canceled || result.filePaths.length === 0) return null;
-    if (result.filePaths[0]) {
-      win?.setSize(1400, 900, true);
-      win?.setResizable(true);
-      return result.filePaths[0];
-    }
-    return null;
+    return result.filePaths[0] ?? null;
   });
 
-  // Opening a project arms two things, because they are the same event: the
-  // tree watcher and the git poller. Git is never told a root by the
-  // renderer — it follows the project, which main already knows about.
-  handle('project:tree', ({ root }) => {
+  // Opening a project arms three things, because they are the same event: the
+  // tree watcher, the git poller, and the recents list. Git is never told a
+  // root by the renderer — it follows the project, which main already knows
+  // about.
+  //
+  // The window grows here too, rather than in `project:pick` where it used to
+  // live. Picking a folder and opening a project stopped being the same event
+  // the moment the launcher could open one from its own list, and the window
+  // belongs to the second of them.
+  handle('project:tree', async ({ root }, event) => {
     const files = openProject(root);
     openRepo(root);
+    await recordRecentProject(root);
+    growToWorkbench(event);
     return files;
   });
+
+  handle('project:recents', () => listRecentProjects());
+
+  handle('project:forget-recent', ({ path }) => forgetRecentProject(path));
 
   handle('file:read', ({ path }) => readFileText(path));
 

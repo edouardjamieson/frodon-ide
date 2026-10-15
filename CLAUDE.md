@@ -193,7 +193,9 @@ registry with the handful of chords that earn one, saving — `mod+s`, with a st
 the tab for a document that differs from its file — and the editor following
 its files when something outside Frodon rewrites them — an agent, a `git
 pull`, another editor — reloading a tab nobody has typed into without moving
-the cursor, and offering the choice on one that has.
+the cursor, and offering the choice on one that has — and a launcher that
+remembers, offering the last five projects opened, each one click away and
+each removable from the list.
 
 Everything else — config layering, the command palette, LSP, and the dialog
 that should ask before a tab with unsaved work is closed — is listed in

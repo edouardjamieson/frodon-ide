@@ -4,6 +4,7 @@ import { dirtyKey, type EditorStore } from './editor.def';
 export const useEditorStore = create<EditorStore>((set, get) => ({
   dirty: new Set<string>(),
   pendingSave: null,
+  pendingFind: null,
 
   setDirty: (windowId, path, dirty) => {
     const current = get().dirty;
@@ -48,5 +49,12 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     // do.
     if (get().pendingSave === null) return;
     set({ pendingSave: null });
+  },
+
+  requestFind: (windowId) => set({ pendingFind: windowId }),
+
+  clearFind: () => {
+    if (get().pendingFind === null) return;
+    set({ pendingFind: null });
   },
 }));

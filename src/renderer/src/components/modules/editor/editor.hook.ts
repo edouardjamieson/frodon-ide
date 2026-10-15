@@ -66,6 +66,8 @@ import { useWindowStore } from '~/lib/window';
 import { useIsMissing } from '~/lib/file-watch';
 import { useEditorStore } from '~/lib/editor';
 import { minimalChange } from './editor.service';
+import { findExtension } from './editor-find.service';
+import { useEditorFind } from './editor-find.hook';
 import { codeMirrorTheme } from './editor.theme';
 
 /**
@@ -179,6 +181,10 @@ function createState(doc: string, theme: Theme, path: string | null) {
         ...foldKeymap,
         indentWithTab,
       ]),
+      // No `searchKeymap` with it. Mod+F is the registry's — see
+      // `lib/keybinding/`, which listens in the capture phase precisely so
+      // that CodeMirror's own keymap cannot claim a chord first.
+      findExtension(),
       appearance.of(appearanceFor(theme, path)),
     ],
   });
@@ -320,6 +326,13 @@ export function useEditor(
   const clearSave = useEditorStore((state) => state.clearSave);
 
   /**
+   * The find bar. Driven from here rather than from the component because
+   * what it searches is the view, and `applyTo` has to be called wherever a
+   * document is swapped into one.
+   */
+  const { find, applyTo, recount } = useEditorFind(viewRef, windowId, path);
+
+  /**
    * Re-decides whether one of this window's documents differs from its file.
    *
    * Takes a path rather than assuming the visible one, because the two things
@@ -360,6 +373,12 @@ export function useEditor(
     refreshDirtyRef.current = refreshDirty;
   }, [refreshDirty]);
 
+  /** The same arrangement for the find bar's tally. */
+  const recountRef = useRef(recount);
+  useEffect(() => {
+    recountRef.current = recount;
+  }, [recount]);
+
   // Built once for the component's lifetime, with an empty document: the path
   // effect below fills it on the same commit, so nothing is painted twice.
   useEffect(() => {
@@ -377,6 +396,16 @@ export function useEditor(
         view.update(transactions);
         if (transactions.some((transaction) => transaction.docChanged)) {
           refreshDirtyRef.current();
+        }
+        // The tally moves for both: typing adds and removes matches, and
+        // moving the cursor changes which of them you are standing on. It
+        // costs nothing with the bar closed, which is almost always.
+        if (
+          transactions.some(
+            (transaction) => transaction.docChanged || transaction.selection
+          )
+        ) {
+          recountRef.current();
         }
       },
     });
@@ -411,6 +440,10 @@ export function useEditor(
       view.setState(known);
       shownRef.current = path;
       setError(null);
+      // The query is a field on the state that was just replaced, so it has
+      // to be put back — otherwise clicking to the next tab leaves a bar full
+      // of text over a document with nothing highlighted.
+      applyTo(view);
       applyReveal(view, path);
       return;
     }
@@ -430,6 +463,7 @@ export function useEditor(
         if (cancelled) return;
         const state = createState(content, themeRef.current, path);
         view.setState(state);
+        applyTo(view);
         shownRef.current = path;
         // The state's own `Text`, so the first comparison after this is an
         // identity check rather than a walk.
@@ -451,7 +485,7 @@ export function useEditor(
     return () => {
       cancelled = true;
     };
-  }, [path, windowId, setDirty]);
+  }, [path, windowId, setDirty, applyTo]);
 
   // Jump into a document that is already on screen — clicking a second match
   // in the file being looked at. A jump into a file that still has to be read
@@ -694,6 +728,7 @@ export function useEditor(
     hostRef,
     error,
     save,
+    find,
     /** This tab's file was rewritten under edits made here. */
     diverged: path !== null && diverged.has(path),
     /** This tab's file is no longer on disk. */

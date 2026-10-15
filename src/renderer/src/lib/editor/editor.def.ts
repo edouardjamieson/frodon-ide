@@ -46,4 +46,17 @@ export interface EditorStore {
   requestSave: (windowId: string) => void;
   /** Dropped by the editor that has taken the request. */
   clearSave: () => void;
+
+  /**
+   * The window that has been asked to open its find bar, or null.
+   *
+   * The same arrangement as `pendingSave`, for the same reason: Mod+F names a
+   * window, and the bar it opens belongs to a component holding a CodeMirror
+   * view that no store can reach. What a window does with the request is its
+   * own business — opening the bar, seeding it from the selection, and
+   * putting the cursor in it.
+   */
+  pendingFind: string | null;
+  requestFind: (windowId: string) => void;
+  clearFind: () => void;
 }

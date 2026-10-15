@@ -10,6 +10,7 @@
  */
 export type CommandId =
   | 'file.save'
+  | 'editor.find'
   | 'tab.close'
   | 'picker.open'
   | 'sidebar.toggle'

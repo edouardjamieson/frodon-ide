@@ -17,6 +17,11 @@ export const DEFAULT_KEYBINDINGS: Keybinding[] = [
   // key, so a File > Save item would take this chord away from the registry
   // the way Electron's default menu takes Cmd+W. See `main/app/menu.service`.
   { chord: 'mod+s', command: 'file.save' },
+  // Find in the file on screen. Its sibling `mod+shift+f` searches every file
+  // in the project, which is the pairing every editor uses — and the one the
+  // TUI could not have, because a terminal cannot tell the two chords apart
+  // from the control byte it receives.
+  { chord: 'mod+f', command: 'editor.find' },
   // Closes what the focused window is showing — a file, a shell, a board, a
   // page — and the window itself once there is nothing left in it.
   { chord: 'mod+w', command: 'tab.close' },

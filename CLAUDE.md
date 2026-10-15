@@ -197,7 +197,9 @@ the cursor, and offering the choice on one that has — a launcher that
 remembers, offering the last five projects opened, each one click away and
 each removable from the list, and a workbench that is remembered with them —
 a project reopens onto the tiles it was left on, holding the files, boards and
-web pages that were in them, saved per project in `~/.frodon/layouts.json`.
+web pages that were in them, saved per project in `~/.frodon/layouts.json`, and
+find-in-file on `mod+f` — a bar above the document with the same three toggles
+the project-wide search has, every match highlighted and counted.
 
 Everything else — config layering, the command palette, LSP, and the dialog
 that should ask before a tab with unsaved work is closed — is listed in

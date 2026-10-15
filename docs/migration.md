@@ -290,6 +290,43 @@ asked for.
   registry; they want community packages registered alongside it, which is a
   small addition to the same lookup rather than a different design.
 
+### What changed when find-in-file came back
+
+The TUI's editor projected search matches onto a cell grid by hand. Cmd+F now
+does it, and the interesting part is how little of the obvious answer was
+usable:
+
+- **`SearchQuery` yes, `search()` no.** The query object is the hard part —
+  literal versus regular expression, case folding, whole-word boundaries, `\n`
+  in a typed string, and a cursor that walks the rope instead of a copy of the
+  file — and none of it is worth rewriting. The panel is a different matter:
+  `search()` draws its own, and its highlighter returns no decorations at all
+  unless that panel is open. So `editor-find.service.ts` brings a state field
+  and a view plugin of its own, about forty lines, and the bar is a React
+  strip above the document — where `Notice` already puts one, and for the same
+  reason: an overlay in the top-right corner covers the first lines of the
+  file, which in a narrow tile is where the match usually is.
+- **The theme was already waiting.** `.cm-searchMatch` and
+  `.cm-searchMatch-selected` have been styled in `editor.theme.ts` since its
+  first version, off `editorSearchMatchBg` and `editorSearchMatchActiveBg` in
+  `ThemeRoles`. The decorations deliberately use those class names, so a theme
+  written for this app colors them without being touched.
+- **`mod+f` is the registry's, not CodeMirror's.** `searchKeymap` is not
+  installed. The registry listens on `window` in the capture phase precisely
+  so a chord cannot be claimed by a keymap underneath it, and a second binding
+  for the same key in the editor's own keymap would be a second answer to the
+  question of who owns it. Verified that the application menu does not own the
+  chord either: its only `F` accelerator is `Control+Command+F` for full
+  screen, which `chordOfEvent` refuses as a `mod` chord anyway.
+- **The tally is capped.** Counting matches is a scan of the document and it
+  runs on every keystroke while the bar is open, so it stops at
+  `MAX_MATCHES` — which bounds the work by a constant instead of by the size
+  of the file, and costs nothing but an exact number nobody reads.
+- **Replace is not there yet.** It is the same `SearchQuery` with a second
+  field and two more commands, and it wants a second row in the bar. The
+  project-wide search has had find *and* replace since it landed, so this is
+  the half that is behind.
+
 ## Still to port
 
 Roughly in the order they are worth doing.
@@ -322,7 +359,7 @@ file would hand over.
 
 | Dropped                                                    | Why                                                                                                                                                                                                                                                                                    |
 | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`editor.hook.ts`** — all 829 lines                       | CodeMirror does cursors, selections, column-preserving movement, undo, search projection, and clipboard. It also gives multi-cursor, folding and bracket matching, which the TUI never had. Only `SYNTAX_GROUP_BY_TOKEN` was worth keeping, as the shape of `editor.theme.ts`.         |
+| **`editor.hook.ts`** — all 829 lines                       | CodeMirror does cursors, selections, column-preserving movement, undo, search projection, and clipboard. It also gives multi-cursor, folding and bracket matching, which the TUI never had. Only `SYNTAX_GROUP_BY_TOKEN` was worth keeping, as the shape of `editor.theme.ts`. Find-in-file came back later as `editor-find.*`, built on `@codemirror/search`'s `SearchQuery` — see below. |
 | All `*.component.tsx`                                      | OpenTUI views. ~2,000 lines, none portable.                                                                                                                                                                                                                                            |
 | `lib/theme`'s `icons` layer                                | It existed because a terminal can't ship a font and every glyph had to measure 1–2 cells. Icons are SVG now; the entire problem is gone.                                                                                                                                               |
 | `lib/preflight/`                                           | A Bun version gate. Electron bundles its own Node.                                                                                                                                                                                                                                     |

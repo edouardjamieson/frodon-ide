@@ -306,6 +306,14 @@ a call into a store                                     never into a component
   `closeActiveTab`, which lives on the window store, because "the thing in
   front" is a statement about windows: nothing else should have to know that
   an editor calls it a file, a terminal a session and a board a key.
+- **What a key cannot reach, it asks for.** A command is a call into a store,
+  and some of what a chord wants is not in one: `mod+s` needs the text inside
+  a CodeMirror view, and `mod+f` needs a find bar belonging to one particular
+  pane. Both park a request naming a window — `pendingSave`, `pendingFind` —
+  which the editor mounted on that window consumes and clears, the same shape
+  `pendingReveal` already had. The guard is the same too: a request addressed
+  to a terminal is never made, because nothing would ever come along to take
+  it and it would fire the instant a file was opened there.
 
 Nothing is listened for in main. A global shortcut registered there fires
 while the app is in the background, which is right for a media key and wrong

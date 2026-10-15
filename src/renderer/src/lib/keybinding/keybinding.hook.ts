@@ -22,6 +22,7 @@ export function useCommands(): Record<CommandId, () => void> {
   const openGit = useWindowStore((state) => state.openGit);
   const openPicker = useFilePickerStore((state) => state.openPicker);
   const requestSave = useEditorStore((state) => state.requestSave);
+  const requestFind = useEditorStore((state) => state.requestFind);
   const setModule = useSidebarStore((state) => state.setModule);
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed);
 
@@ -58,9 +59,27 @@ export function useCommands(): Record<CommandId, () => void> {
     }
   }, [focusedId, requestSave]);
 
+  /**
+   * Asks the focused window to open its find bar.
+   *
+   * Guarded exactly as `save` is, and for the second of its two reasons: a
+   * request addressed to a terminal would sit on the store until an editor
+   * came along, and then open a find bar in a window nobody asked about. The
+   * chord does nothing in a shell, which is the right answer — there is
+   * nothing in one to search.
+   */
+  const findInFile = useCallback(() => {
+    const { windows } = useWindowStore.getState();
+    const focused = windows.find((window) => window.id === focusedId);
+    if (focused?.type === 'editor' && focused.activeFile) {
+      requestFind(focusedId);
+    }
+  }, [focusedId, requestFind]);
+
   return useMemo(
     () => ({
       'file.save': save,
+      'editor.find': findInFile,
       'tab.close': () => closeActiveTab(focusedId),
       'picker.open': () => openPicker(),
       'sidebar.toggle': () => toggleCollapsed(),
@@ -73,6 +92,7 @@ export function useCommands(): Record<CommandId, () => void> {
     }),
     [
       save,
+      findInFile,
       closeActiveTab,
       focusedId,
       openPicker,

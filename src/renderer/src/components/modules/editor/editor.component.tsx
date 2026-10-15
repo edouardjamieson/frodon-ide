@@ -1,5 +1,6 @@
 import { FileX, RotateCw, TriangleAlert, X } from 'lucide-react';
 import { useEditor } from './editor.hook';
+import EditorFind from './editor-find.component';
 
 interface EditorProps {
   /** The pane this editor belongs to — see `useEditor`. */
@@ -68,14 +69,16 @@ function Notice({
  * mounted anywhere without bringing a header along.
  */
 export default function Editor({ windowId, path, openPaths }: EditorProps) {
-  const { hostRef, error, diverged, missing, reload, dismiss } = useEditor(
-    windowId,
-    path,
-    openPaths
-  );
+  const { hostRef, error, diverged, missing, reload, dismiss, find } =
+    useEditor(windowId, path, openPaths);
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col bg-editor">
+      {/* Above the notices, because it is the one strip here that was asked
+          for: a bar that appears under a warning you did not ask about reads
+          as part of the warning. */}
+      {find.open ? <EditorFind {...find} /> : null}
+
       {error ? (
         <div className="shrink-0 px-3 py-2 font-mono text-[12px] text-fg-danger select-text">
           {error}

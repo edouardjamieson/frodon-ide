@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useAppInfo } from '~/lib/app';
 import { useEditorStore } from '~/lib/editor';
 import { useFilePickerStore } from '~/lib/file-picker';
-import { useSidebarStore } from '~/lib/sidebar';
+import { useSidebarStore, type SidebarModule } from '~/lib/sidebar';
 import { useWindowStore } from '~/lib/window';
 import { chordOfEvent, commandFor } from './keybinding.service';
 import type { CommandId } from './keybinding.def';
@@ -26,12 +26,21 @@ export function useCommands(): Record<CommandId, () => void> {
   const setModule = useSidebarStore((state) => state.setModule);
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed);
 
-  /** Shows a sidebar module, opening the panel if it was hidden. */
+  /**
+   * Shows a sidebar module, opening the panel if it was hidden. What all three
+   * of the `mod+shift` sidebar chords do.
+   *
+   * It only ever shows. Pressing the chord for the module already on screen
+   * leaves it there rather than collapsing the panel, because `mod+b` is how
+   * the panel goes away and a key with two meanings is a key you have to look
+   * at the screen to use. The rail buttons do toggle — a click on the thing
+   * you are already looking at has nothing else it could mean.
+   */
   const showModule = useCallback(
-    (module: 'EXPLORER' | 'SEARCH' | 'BOARDS') => {
+    (module: SidebarModule) => {
       setModule(module);
-      // Asking for search while the sidebar is collapsed means asking for the
-      // sidebar too. Reading `collapsed` through the store rather than
+      // Asking for a module while the sidebar is collapsed means asking for
+      // the sidebar too. Reading `collapsed` through the store rather than
       // subscribing to it keeps this command out of the re-render path of
       // every drag of the sidebar's edge.
       if (useSidebarStore.getState().collapsed) toggleCollapsed();
@@ -83,7 +92,9 @@ export function useCommands(): Record<CommandId, () => void> {
       'tab.close': () => closeActiveTab(focusedId),
       'picker.open': () => openPicker(),
       'sidebar.toggle': () => toggleCollapsed(),
+      'sidebar.explorer': () => showModule('EXPLORER'),
       'sidebar.search': () => showModule('SEARCH'),
+      'sidebar.boards': () => showModule('BOARDS'),
       'git.open': () => openGit(),
       // A no-op when the grid is full in that direction, which is `split`'s
       // own answer and not something a shortcut should second-guess.

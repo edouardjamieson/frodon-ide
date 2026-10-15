@@ -4,7 +4,6 @@ import {
   ChevronRight,
   FolderClosed,
   FolderGit2,
-  LayoutTemplate,
   PencilRuler,
   Search,
 } from 'lucide-react';
@@ -124,7 +123,7 @@ function SidebarMenu({ collapsed }: { collapsed: boolean }) {
       onClick: () => toggleModule('EXPLORER'),
       label: 'Explorer',
       focused: module === 'EXPLORER' && !collapsed,
-      shortcut: ['mod', 'b'],
+      shortcut: ['mod', 'shift', 'e'],
     },
     {
       icon: <Search className="size-5" />,
@@ -138,6 +137,7 @@ function SidebarMenu({ collapsed }: { collapsed: boolean }) {
       onClick: () => toggleModule('BOARDS'),
       label: 'Boards',
       focused: module === 'BOARDS' && !collapsed,
+      shortcut: ['mod', 'shift', 'b'],
     },
     {
       icon: <FolderGit2 className="size-5" />,
@@ -145,12 +145,6 @@ function SidebarMenu({ collapsed }: { collapsed: boolean }) {
       label: 'Source control',
       focused: false,
       shortcut: ['mod', 'shift', 'g'],
-    },
-    {
-      icon: <LayoutTemplate className="size-5" />,
-      onClick: () => {},
-      label: 'Manage windows',
-      focused: false,
     },
   ];
 
@@ -168,6 +162,7 @@ function SidebarMenu({ collapsed }: { collapsed: boolean }) {
           ),
           onClick: toggleCollapsed,
           label: collapsed ? 'Show explorer' : 'Hide explorer',
+          shortcut: ['mod', 'b'],
         }}
         className="mt-auto"
       />

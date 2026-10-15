@@ -14,7 +14,9 @@ export type CommandId =
   | 'tab.close'
   | 'picker.open'
   | 'sidebar.toggle'
+  | 'sidebar.explorer'
   | 'sidebar.search'
+  | 'sidebar.boards'
   | 'git.open'
   | 'window.splitRight'
   | 'window.splitDown';

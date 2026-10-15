@@ -27,7 +27,14 @@ export const DEFAULT_KEYBINDINGS: Keybinding[] = [
   { chord: 'mod+w', command: 'tab.close' },
   { chord: 'mod+p', command: 'picker.open' },
   { chord: 'mod+b', command: 'sidebar.toggle' },
+  // One chord per sidebar module, each naming the module rather than toggling
+  // it: `mod+b` is how the panel goes away, and a shortcut that both showed
+  // the explorer and hid it would be two answers to one key. The rail buttons
+  // do toggle, because a click on the thing already on screen has nothing
+  // else it could mean.
+  { chord: 'mod+shift+e', command: 'sidebar.explorer' },
   { chord: 'mod+shift+f', command: 'sidebar.search' },
+  { chord: 'mod+shift+b', command: 'sidebar.boards' },
   { chord: 'mod+shift+g', command: 'git.open' },
   // The arrow points at where the new window appears: beside the focused one,
   // or on a row of its own below it.

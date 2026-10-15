@@ -51,6 +51,65 @@ Worth writing down, because the diff is bigger than the table suggests:
 - **Window titles and `swapWindows` did not come over.** Renaming wanted an
   input dialog and moving wanted the arrow-key overlay; both belong with the
   keybinding registry and the command palette rather than in the layout code.
+- **The arrangement now outlives the page.** New here, not ported: the TUI
+  rebuilt its workbench on every launch and nobody minded, because a terminal
+  session was already something you set up by hand. A desktop app that forgets
+  which four tiles you had open is a minute of clicking every morning. So
+  `lib/layout/` snapshots the window store after it settles and `main/layout/`
+  keeps the result in `~/.frodon/layouts.json`, keyed by project root. Details
+  below.
+
+### What a saved layout holds, and what it does not
+
+- **Not `WindowState`.** The live model carries ids that mean nothing in the
+  next run of the app, session ids that name live PTYs in main, and tab ids
+  that name DOM elements. `shared/layout.def.ts` is a separate, narrower type
+  — the file format — so nothing is written down that the restore cannot
+  honor. `snapshotOf` converts through an exhaustive switch, which is what
+  keeps the two from drifting: a new window type fails to compile until
+  someone has decided what is worth remembering about it.
+- **The contents that are strings come back; the ones that are processes do
+  not.** Editor tabs are paths, board tabs are keys, browser tabs are urls, so
+  all three restore. A terminal's shell is the one thing that cannot: it is a
+  process, it is gone, and the window comes back as its tile with one fresh
+  shell. The "type and position only" version of this feature was the original
+  plan and is strictly worse: it gives back a grid of welcome screens.
+- **A restored page is the guest's first navigation, not its second.** The
+  url goes on the element's `src` before it attaches, so a tab opens on the
+  right page rather than flashing `about:blank` on the way — and its back
+  stack starts empty instead of one entry deep. Getting it there needed one
+  new thing in `lib/browser/`: a `restored` map the store consults in
+  `openTab`, separate from `tabs` because `dropTab` would otherwise take the
+  seed straight back out when React mounts the view twice in development. A
+  tab's pinned viewport rides along with its url, because pinning a preview to
+  393 × 852 is a decision the person made and not a fact the page reported.
+  History does not: the back stack lives in the guest process and dies with it.
+- **The save loop listens to two stores.** A page navigating changes nothing
+  the window store would notify about, so `useLayoutSaveEffect` also watches
+  the browser store — gated on the two fields a layout records, since that is
+  the chattiest store in the app and a guest reports a title and three flags
+  several times per page.
+- **Main prunes before it answers.** A layout saved in March can name files
+  deleted in April, and a tab pointing at a file that is gone is worse than no
+  tab — it opens, fails to read, and shows an error about something already
+  decided. So `readProjectLayout` stats the paths and checks board keys
+  against the listing, the same way `listRecentProjects` drops folders that
+  moved. A window whose contents all vanished keeps its place as an empty one
+  of its kind: the tile was the part worth restoring.
+- **A url on that file is input.** It sits in a home directory and can be
+  hand-edited, so saved pages are checked against `isAllowedBrowserUrl` before
+  they cross — `javascript:` being the one worth naming. `main/browser/`
+  refuses the same thing again at `will-attach-webview`; the difference is
+  that a url dropped on read is a tab that never existed, where one dropped at
+  attach is a tab whose guest failed to load.
+- **The renderer repacks.** `rowsOf` assumes rows contiguous from 0 and
+  columns contiguous from 0 within each row. Everything that _builds_ windows
+  maintains that; a layout read back from a file that a person can hand-edit
+  does not, so `packWindows` makes the coordinates legal again and drops
+  whatever no longer fits.
+- **`~/.frodon/`, not `.frodon/`.** The in-project directory is for things
+  worth reviewing and diffing, which is exactly right for boards and exactly
+  wrong here — nobody needs a pull request that moves someone else's terminal.
 
 ### What changed in the terminal port
 

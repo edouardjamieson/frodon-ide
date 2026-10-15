@@ -16,6 +16,7 @@ import {
   insertSplit,
   nextSessionId,
   nextTabId,
+  packWindows,
   removeWindow,
 } from './window.service';
 
@@ -90,6 +91,26 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
       windows: remaining,
       focusedId: focusedId === id && heir ? heir.id : focusedId,
     });
+  },
+
+  restore: (windows, focusedId) => {
+    // Nothing to restore. Leaving the workbench alone is the only sensible
+    // reading: the alternative is a page with no windows and no way to make
+    // one.
+    if (windows.length === 0) return;
+
+    const packed = packWindows(windows);
+    if (packed.length === 0) return;
+
+    // The focus is checked against what actually landed rather than trusted,
+    // because `packWindows` may have dropped the window it named — a layout
+    // written when the grid allowed more than it does now.
+    const focused = packed.some((window) => window.id === focusedId)
+      ? focusedId
+      : (packed[0]?.id ?? focusedId);
+
+    // A reveal parked by the last project has nothing to land on here.
+    set({ windows: packed, focusedId: focused, pendingReveal: null });
   },
 
   openFile: (path, windowId, reveal) => {

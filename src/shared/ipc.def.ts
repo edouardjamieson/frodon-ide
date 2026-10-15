@@ -44,6 +44,7 @@ import type {
   GitResult,
   GitStatus,
 } from './git.def';
+import type { LayoutSnapshot } from './layout.def';
 import type { RecentProject } from './project.def';
 import type {
   ReplaceRequest,
@@ -84,6 +85,29 @@ export interface IpcContract {
    * channel in this app is `file:delete`, and it asks first.
    */
   'project:forget-recent': { req: { path: string }; res: RecentProject[] };
+  /**
+   * The workbench arrangement this project was last left in, or null.
+   *
+   * Read once, right after `project:tree`, and in that order on purpose: main
+   * prunes board tabs against the boards the *open* project has, so it has to
+   * know which project that is before it answers.
+   *
+   * Null is every way there can fail to be one — never arranged, file gone,
+   * written by an older version — because they all mean the same thing on
+   * screen, and a renderer that told them apart would do nothing different.
+   */
+  'project:layout': { req: { root: string }; res: LayoutSnapshot | null };
+  /**
+   * Records that arrangement. Called on a debounce whenever it changes, and
+   * only when it actually did — see `sameSnapshot`.
+   *
+   * The renderer sends windows and nothing else: the version stamp and the
+   * timestamp are the file's business, and main puts them on.
+   */
+  'project:save-layout': {
+    req: { root: string; layout: LayoutSnapshot };
+    res: void;
+  };
 
   /** Reads a file as UTF-8 text. Rejects if unreadable. */
   'file:read': { req: { path: string }; res: string };
@@ -358,6 +382,11 @@ export interface FrodonApi {
     tree: (root: string) => Promise<Res<'project:tree'>>;
     recents: () => Promise<Res<'project:recents'>>;
     forgetRecent: (path: string) => Promise<Res<'project:forget-recent'>>;
+    layout: (root: string) => Promise<Res<'project:layout'>>;
+    saveLayout: (
+      root: string,
+      layout: LayoutSnapshot
+    ) => Promise<Res<'project:save-layout'>>;
     /** Subscribes to tree changes. Returns an unsubscribe function. */
     onChanged: (listener: (files: File[]) => void) => () => void;
   };

@@ -188,6 +188,45 @@ export function removeWindow(
 }
 
 /**
+ * The same windows with their coordinates made legal again: rows contiguous
+ * from 0, columns contiguous from 0 within each row, nothing past the caps.
+ *
+ * Everything in this file maintains that invariant as it goes — `insertSplit`
+ * shifts, `removeWindow` repacks — and `rowsOf` relies on it. So nothing that
+ * was *built* here needs this. A layout read back from a file was not: it is
+ * JSON that a person can open in an editor, written by a version of the app
+ * that may have had different caps, and a window at row 7 would be a hole in
+ * the middle of the workbench or a tile nobody can see.
+ *
+ * Windows that do not fit are dropped rather than folded into a free slot.
+ * Restoring the first six tiles of a nine-tile arrangement is recognisable;
+ * restoring all nine somewhere else is not.
+ */
+export function packWindows(windows: WindowState[]): WindowState[] {
+  const byRow = new Map<number, WindowState[]>();
+
+  for (const window of windows) {
+    const row = byRow.get(window.row);
+    if (row) row.push(window);
+    else byRow.set(window.row, [window]);
+  }
+
+  const rows = [...byRow.entries()].sort(([a], [b]) => a - b);
+  const packed: WindowState[] = [];
+  let rowIndex = 0;
+
+  for (const [, row] of rows.slice(0, MAX_ROWS)) {
+    const inRow = [...row].sort(byCol).slice(0, MAX_COLS);
+    inRow.forEach((window, col) => {
+      packed.push({ ...window, row: rowIndex, col });
+    });
+    rowIndex += 1;
+  }
+
+  return packed;
+}
+
+/**
  * The first slot with room in it, scanning rows top to bottom, or null when
  * the grid is full.
  *

@@ -94,6 +94,17 @@ main's side of that line. Anything that is purely about presentation —
 which directories are expanded, which pane has focus, the active theme — lives
 in a renderer store and never crosses.
 
+There is one exception, and it is an exception that follows the rule rather
+than breaking it: **the arrangement of the workbench is written down.** It is
+presentation state like any other, but it is the only piece expensive enough
+to rebuild by hand that losing it is felt — four tiles, a terminal and the two
+files you were reading against each other. So the renderer snapshots it after
+it settles and `main/layout/` keeps the result in `~/.frodon/layouts.json`,
+keyed by project root, because the file is main's the way every file is. What
+crosses is a narrow format of its own (`shared/layout.def.ts`) and not
+`WindowState`: see `docs/migration.md` for what it holds, and for the one
+thing — a live shell — it cannot.
+
 ### The second half of that: facts that change back
 
 A replica is only honest if the thing it replicates reports every change, and
@@ -141,7 +152,11 @@ Two rules keep it small:
 
 - **The layout is derived, not stored.** A window knows its row and column;
   nothing knows a width. Sizing is the panel library's, and dragging a
-  splitter changes no application state at all.
+  splitter changes no application state at all. That holds even now that an
+  arrangement survives a quit: what is saved is the grid, so a project opens
+  back onto the same tiles holding the same things, with the splitters at
+  their defaults. Remembering where a splitter was dragged to would mean
+  storing a size, which is the one thing this model does not do.
 - **A module owns its contents.** `WindowState` is a discriminated union, so
   an editor's tabs live on the editor window. Adding a window type is a member
   on that union, a module file, and the two switches in
@@ -235,7 +250,11 @@ code is refusal — `main/browser/` clamps every preference the renderer asked
 for before the guest exists, pins the storage partition, and sends popups to
 the user's real browser. The renderer writes the same settings onto the element
 itself, which is documentation rather than defence: the element's attributes
-are written by the side being defended against.
+are written by the side being defended against. `src` is the exception on both
+counts — it is the one attribute main reads rather than overwrites, and the
+one that can come from outside this process, because a restored layout carries
+the page a tab opens on. It is checked against the scheme list twice: once in
+`main/layout/` as it is read off disk, and again at `will-attach-webview`.
 
 **The element is created by hand, not by JSX.** A `<webview>` reloads its page
 when it is moved in the DOM, so a re-render of an unrelated prop could throw

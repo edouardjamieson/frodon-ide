@@ -80,9 +80,33 @@ export type BrowserReport = Partial<
   >
 >;
 
+/** Where a tab should start, for a tab that is not starting from nothing. */
+export interface BrowserTabSeed {
+  url: string;
+  viewport: Viewport | null;
+}
+
 export interface BrowserStore {
   /** Keyed by tab id. A tab exists here from mount to unmount, and no longer. */
   tabs: Record<string, BrowserTab>;
+
+  /**
+   * The page each tab opens on, for tabs restored with a project.
+   *
+   * Separate from `tabs` rather than written into it, because `dropTab` would
+   * take it straight back out: React mounts twice in development, so the
+   * seeded tab would be dropped and re-created blank between the restore and
+   * the first paint. This map is what `openTab` consults, and the only thing
+   * that empties it is the next restore.
+   *
+   * It outlives the view, which is the one place this module lets anything do
+   * that — and it means a browser window that is remounted (splitting the
+   * grid moves it in the React tree, which reloads its guest) comes back on
+   * the page it was restored onto instead of on `about:blank`. That is a
+   * better wrong answer than the one it replaces, not a right one: a tab
+   * navigated somewhere else since the restore still snaps back.
+   */
+  restored: Record<string, BrowserTabSeed>;
 
   /**
    * Seeds a tab. Idempotent, because it is called from the view's mount
@@ -91,6 +115,12 @@ export interface BrowserStore {
   openTab: (id: string) => void;
   /** Forgets a tab. Called when the view holding its page unmounts. */
   dropTab: (id: string) => void;
+  /**
+   * Hands over where a project's restored tabs should open, replacing
+   * whatever the last project left. Called once, before the windows holding
+   * them are put on screen.
+   */
+  restoreTabs: (seeds: Record<string, BrowserTabSeed>) => void;
 
   /** The address bar, mid-edit. Null hands the bar back to `url`. */
   setDraft: (id: string, draft: string | null) => void;

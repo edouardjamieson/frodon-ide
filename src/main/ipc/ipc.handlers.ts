@@ -16,6 +16,7 @@ import {
   listRecentProjects,
   recordRecentProject,
 } from '@main/recents';
+import { readProjectLayout, writeProjectLayout } from '@main/layout';
 import {
   checkout,
   commit,
@@ -131,6 +132,15 @@ export function registerIpcHandlers(): void {
     growToWorkbench(event);
     return files;
   });
+
+  // Read right after `project:tree`, never beside it: pruning a layout's
+  // board tabs means listing the open project's boards, and `openProject`
+  // above is what makes that question answerable.
+  handle('project:layout', ({ root }) => readProjectLayout(root));
+
+  handle('project:save-layout', ({ root, layout }) =>
+    writeProjectLayout(root, layout)
+  );
 
   handle('project:recents', () => listRecentProjects());
 

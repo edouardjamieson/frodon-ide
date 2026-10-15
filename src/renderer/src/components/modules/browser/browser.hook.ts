@@ -69,6 +69,18 @@ export function useWebview({ tabId, onFocus }: UseWebviewOptions) {
 
     openTab(tabId);
 
+    // Where this guest starts. `openTab` has just put the tab in the store,
+    // with whatever page a restored layout said it opens on — see `restored`
+    // in `browser.store.ts` — so the answer is read back from there rather
+    // than subscribed to: this effect must not re-run when a page navigates,
+    // and the url is about to stop being the one in hand anyway.
+    //
+    // As the attribute rather than a `loadURL` after attach, because a
+    // restored tab should not show a blank page on its way to the right one,
+    // and because an extra navigation is an extra entry in a back stack that
+    // ought to start empty.
+    const start = useBrowserStore.getState().tabs[tabId]?.url ?? BLANK_URL;
+
     const view = document.createElement('webview') as WebviewElement;
     // Attributes rather than properties, and all of them set before the
     // element is in the document: a `<webview>` reads its configuration once,
@@ -78,8 +90,10 @@ export function useWebview({ tabId, onFocus }: UseWebviewOptions) {
     // `main/browser/`. It is written here anyway because the element is also
     // the documentation of what the guest is supposed to be, and because a
     // defence that exists in one place is a defence that moves when that place
-    // is refactored.
-    view.setAttribute('src', BLANK_URL);
+    // is refactored. `src` is the one that is not merely restated: main vets
+    // it against the scheme list and cancels the attach if it does not pass,
+    // which is what makes a hand-edited layouts file safe to read.
+    view.setAttribute('src', start);
     view.setAttribute('partition', BROWSER_PARTITION);
     // `allowpopups` is deliberately *absent* rather than set to 'false'. It is
     // an HTML boolean attribute, so presence is what counts and

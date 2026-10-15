@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useProjectStore } from './project.store';
 import { projectColor, shortenPath } from './project.service';
 import { useHome } from '~/lib/app';
+import { applyProjectLayout, fetchProjectLayout } from '~/lib/layout';
 import { useTheme } from '~/lib/theme';
 
 /**
@@ -28,7 +29,18 @@ export const useProject = () => {
       setOpening(true);
       try {
         const tree = await window.frodon.project.tree(path);
+        // After the tree and never beside it: `project:tree` is what tells
+        // main which project is open, and main prunes a saved layout's board
+        // tabs against that project's boards.
+        const layout = await fetchProjectLayout(path);
+
+        // Both in one tick, and in this order. React batches the two store
+        // writes into a single render, so the workbench never flashes a
+        // default arrangement on its way to the saved one — and the save
+        // subscription reads the root to decide what it is writing for, so
+        // the root has to be the new one before the windows are.
         setProject(path, tree);
+        applyProjectLayout(path, layout);
       } finally {
         setOpening(false);
       }

@@ -193,6 +193,21 @@ export interface WindowStore {
   close: (id: string) => void;
 
   /**
+   * Replaces the whole workbench — every window and the focus — in one go.
+   *
+   * The one action that does not grow the grid from what is already there,
+   * and it exists for exactly one caller: restoring the arrangement a project
+   * was last left in. The windows arrive already built, because the thing
+   * that builds them is reading a file format and knows what a saved terminal
+   * turns into; this just commits them.
+   *
+   * An empty list is ignored rather than honored. A workbench with nothing in
+   * it has no surface left to spawn from, which is the same reason `close`
+   * seeds a fresh window when the last one goes.
+   */
+  restore: (windows: WindowState[], focusedId: string) => void;
+
+  /**
    * Where the editor should land once the file is on screen, or null.
    *
    * One-shot: the editor that honors it clears it. Parking it on the store is

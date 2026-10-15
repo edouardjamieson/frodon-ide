@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { BLANK_URL } from './browser.constant';
-import type { BrowserStore, BrowserTab } from './browser.def';
+import type { BrowserStore, BrowserTab, BrowserTabSeed } from './browser.def';
 
 /**
  * Every open tab's state, keyed by tab id.
@@ -12,20 +12,30 @@ import type { BrowserStore, BrowserTab } from './browser.def';
  * load rewrites five fields, and five rewrites of the window store is five
  * re-renders of every pane in the workbench.
  *
- * Nothing in here is persisted and nothing crosses IPC. A tab lives from the
- * mount of the view that holds its page to its unmount, which is the same
- * lifetime as the guest process behind it.
+ * A tab lives from the mount of the view that holds its page to its unmount,
+ * which is the same lifetime as the guest process behind it. `restored` is
+ * the one thing here that outlives a view, and the one thing that comes from
+ * disk: the page a tab opens on when a project is reopened onto the windows
+ * it was left in. Everything else is still the guest's own report, and still
+ * crosses nothing.
  */
 export const useBrowserStore = create<BrowserStore>((set, get) => ({
   tabs: {},
+  restored: {},
 
   openTab: (id) => {
     // Idempotent: this is called from a mount effect, and React mounts twice
     // in development. Re-seeding would throw away a page that is already open.
     if (get().tabs[id]) return;
 
-    set((state) => ({ tabs: { ...state.tabs, [id]: blankTab(id) } }));
+    // A restored tab opens on the page it was left on; every other tab opens
+    // on nothing, with the address bar waiting.
+    const seed = get().restored[id];
+
+    set((state) => ({ tabs: { ...state.tabs, [id]: blankTab(id, seed) } }));
   },
+
+  restoreTabs: (seeds) => set({ restored: seeds }),
 
   dropTab: (id) => {
     if (!get().tabs[id]) return;
@@ -87,17 +97,24 @@ function patch(
   set((state) => ({ tabs: { ...state.tabs, [id]: { ...tab, ...next } } }));
 }
 
-/** A tab that has been opened and pointed nowhere. */
-function blankTab(id: string): BrowserTab {
+/**
+ * A tab that has been opened and pointed nowhere, or at whatever it was
+ * restored onto.
+ *
+ * `loading` stays false even for a restored tab: the guest has not started
+ * yet, and `did-start-loading` is what says it has. Guessing at it here would
+ * leave a spinner on a tab whose page failed to attach.
+ */
+function blankTab(id: string, seed?: BrowserTabSeed): BrowserTab {
   return {
     id,
-    url: BLANK_URL,
+    url: seed?.url ?? BLANK_URL,
     draft: null,
     title: '',
     loading: false,
     canGoBack: false,
     canGoForward: false,
-    viewport: null,
+    viewport: seed?.viewport ?? null,
     error: null,
   };
 }

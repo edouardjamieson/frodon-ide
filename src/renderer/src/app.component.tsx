@@ -7,6 +7,7 @@ import {
 } from '~/lib/project';
 import { useGitSync } from '~/lib/git';
 import { useFileWatchSync } from '~/lib/file-watch';
+import { useLayoutSaveEffect } from '~/lib/layout';
 import { useBoardAutosaveEffect } from '~/lib/board';
 import { useRecentFilesEffect } from '~/lib/file-picker';
 import { useKeybindingEffect } from '~/lib/keybinding';
@@ -23,7 +24,9 @@ import Backdrop from './components/ui/backdrop';
  * `useFileWatchSync` (tells main which files are open, and hears back when
  * one of them changes outside Frodon),
  * `useProjectColorEffect` (publishes the project's color as a CSS variable)
- * `useBoardAutosaveEffect` (writes dirty boards after a quiet moment) and
+ * `useBoardAutosaveEffect` (writes dirty boards after a quiet moment),
+ * `useLayoutSaveEffect` (remembers how the workbench is arranged, so the
+ * project opens tomorrow the way it was left today),
  * `useRecentFilesEffect` (records what was last looked at, for the picker)
  * and `useKeybindingEffect` (the one keydown listener the whole app shares).
  * Mounting any of them twice would double the work on every change — and for
@@ -37,6 +40,7 @@ export default function App() {
   useFileWatchSync();
   useProjectColorEffect();
   useBoardAutosaveEffect();
+  useLayoutSaveEffect();
   useRecentFilesEffect();
   useKeybindingEffect();
 

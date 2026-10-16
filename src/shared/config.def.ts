@@ -26,12 +26,26 @@
 export const MAX_PROJECT_NAME_LENGTH = 60;
 
 /**
- * Longest icon, in code points.
+ * How many *characters* an icon may be — as a reader counts them, not as the
+ * string does.
  *
- * Not one, because a single emoji is routinely several: a flag is two
- * regional indicators, and a family is four emoji joined by zero-width
- * joiners. Eight is comfortably past the longest of those and still far short
- * of anything that would draw as a word.
+ * Two, which is one emoji or a short set of initials. The distinction this
+ * rests on is the whole reason it is not a string length: a single emoji is
+ * routinely several code points — a flag is two regional indicators, a family
+ * is four emoji joined by zero-width joiners — while `12345678` is eight code
+ * points and eight characters. Only a grapheme count tells those apart, so
+ * that is what is counted. See `isValidProjectIcon`.
+ */
+export const MAX_ICON_GRAPHEMES = 2;
+
+/**
+ * Longest icon in code points, as a second and blunter bound.
+ *
+ * A zero-width joiner sequence can be arbitrarily long and still count as one
+ * grapheme — twenty emoji joined end to end are one character by every rule
+ * above — so the grapheme limit alone bounds nothing. Eight is past the
+ * longest emoji anybody has (a family is seven) and far short of a string
+ * worth worrying about.
  */
 export const MAX_ICON_LENGTH = 8;
 
@@ -90,6 +104,28 @@ export interface UserConfig {
 /** Control characters, which belong in no field here. */
 const CONTROL = /\p{Cc}/u;
 
+/**
+ * Characters as a person counts them, rather than as UTF-16 does.
+ *
+ * Built once at module load: a `Segmenter` is not free to construct, and this
+ * is called on every keystroke in the icon field.
+ */
+const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+
+function graphemeCount(value: string): number {
+  return [...GRAPHEMES.segment(value)].length;
+}
+
+/**
+ * Whether a string holds a picture rather than letters.
+ *
+ * `Extended_Pictographic` is the Unicode property that means "this character
+ * is an emoji or a symbol drawn like one", and it is the only honest way to
+ * ask: there is no plausible test for "is an emoji" built out of ranges, and
+ * every attempt at one is wrong by the next Unicode release.
+ */
+const PICTOGRAPHIC = /\p{Extended_Pictographic}/u;
+
 export function isValidProjectName(value: string): boolean {
   const name = value.trim();
   return (
@@ -102,16 +138,28 @@ export function isValidProjectName(value: string): boolean {
 /**
  * Whether a string is something we are willing to draw in a 24px square.
  *
- * Not "is this an emoji" — that question has no answer worth the regex, and
- * a person who wants `λ` for their project should get `λ`. What is refused is
- * what would break the square: nothing, control characters, whitespace, or
- * enough code points to be a sentence.
+ * **One emoji, or one or two letters.** Those are different limits, which is
+ * why this is not a length check: a person who wants `λ` or `v7` should get
+ * it, two emoji in a 24px square are a mess, and an emoji is not one
+ * character by any measure a string exposes.
+ *
+ * `🐈‍⬛` is three code points and `👨‍👩‍👧‍👦` is seven, so a code-point ceiling
+ * loose enough for an emoji is loose enough for `12345678` — which is exactly
+ * what it let through. Graphemes are what tell one character from eight, the
+ * pictographic test is what tells a picture from a letter, and the code-point
+ * ceiling stays behind both to bound a joiner sequence, which can be any
+ * length at all and still count as a single grapheme.
  */
 export function isValidProjectIcon(value: string): boolean {
   const icon = value.trim();
   if (icon.length === 0) return false;
   if (CONTROL.test(icon) || /\s/u.test(icon)) return false;
-  return [...icon].length <= MAX_ICON_LENGTH;
+  if ([...icon].length > MAX_ICON_LENGTH) return false;
+
+  // A picture stands alone; letters may come in pairs.
+  const limit = PICTOGRAPHIC.test(icon) ? 1 : MAX_ICON_GRAPHEMES;
+
+  return graphemeCount(icon) <= limit;
 }
 
 export function isValidThemeName(value: string): boolean {

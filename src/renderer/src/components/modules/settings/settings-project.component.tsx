@@ -80,7 +80,7 @@ export default function SettingsProject() {
         <Field
           label="Icon"
           htmlFor="settings-project-icon"
-          hint="One emoji, or anything short. Left empty, it is the first letter of the name."
+          hint="One emoji, or a letter or two. Left empty, it is the first letter of the name."
         >
           <div className="flex items-center gap-2">
             <Input
@@ -89,9 +89,11 @@ export default function SettingsProject() {
               spellCheck={false}
               autoComplete="off"
               placeholder={icon}
-              // Code points, not characters: `maxLength` counts UTF-16 units,
-              // and a single emoji is routinely two of them — or seven, for a
-              // family. The real limit is the shared grammar below.
+              // A backstop for a paste, not the rule. `maxLength` counts
+              // UTF-16 units, and one emoji is routinely several of them —
+              // `🐈‍⬛` is four — so it cannot express "two characters". The
+              // grammar below is what decides; this only stops a pasted
+              // paragraph from being measured at all.
               maxLength={MAX_ICON_LENGTH * 2}
               className="w-16 text-center"
               onChange={(event) => {

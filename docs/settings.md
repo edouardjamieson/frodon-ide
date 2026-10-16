@@ -16,12 +16,12 @@ just categories within a scope.
 
 Every field is optional, and that is the model rather than an omission.
 
-| Field          | Written         | Absent                     |
-| -------------- | --------------- | -------------------------- |
-| `name`         | the chosen name | the folder's basename      |
-| `hue`          | 0–359           | hashed from the name       |
-| `icon`         | an emoji        | the first letter of `name` |
-| `theme` (user) | a theme name    | `frodon-dark`              |
+| Field          | Written                   | Absent                     |
+| -------------- | ------------------------- | -------------------------- |
+| `name`         | the chosen name           | the folder's basename      |
+| `hue`          | 0–359                     | hashed from the name       |
+| `icon`         | one emoji, or 1–2 letters | the first letter of `name` |
+| `theme` (user) | a theme name              | `frodon-dark`              |
 
 So renaming a folder still renames the project, and clearing a field in the
 dialog goes back to deriving rather than storing an empty string. Writing a

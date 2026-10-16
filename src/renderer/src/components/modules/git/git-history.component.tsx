@@ -2,13 +2,20 @@ import { useMemo } from 'react';
 import { cn } from 'cn';
 import { GitBranch, LoaderCircle, RefreshCw } from 'lucide-react';
 import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from '~/components/ui';
+import {
   buildGraph,
   relativeTime,
+  useCommitDetail,
   useGitLog,
   useGitStore,
   ROW_HEIGHT,
   type GraphRow,
 } from '~/lib/git';
+import GitCommitDetail from './git-commit-detail.component';
 import GitGraph from './git-graph.component';
 import type { GitLogRequest } from '@shared/git.def';
 
@@ -28,11 +35,27 @@ const SCOPES: { value: GitLogRequest['scope']; label: string }[] = [
  * The laning is a `useMemo` over the commits, so it reruns when a commit
  * lands and not when the working tree changes under it — and `useGitLog`
  * makes sure the commits themselves are only re-read when HEAD moves.
+ *
+ * Clicking a row opens what that commit did, in a panel below the graph. The
+ * panel is appended to the same group rather than replacing the graph, which
+ * is not a layout preference: the graph's scroll container has to stay the
+ * same DOM node, or clicking a commit forty rows down would scroll the
+ * history back to the top underneath it.
  */
 export default function GitHistory() {
   const { commits, loading, scope, setScope, reload } = useGitLog();
   const graph = useMemo(() => buildGraph(commits), [commits]);
   const branch = useGitStore((state) => state.status.branch);
+  const { sha, open, close } = useCommitDetail();
+
+  // The row the panel belongs to. Looked up in the log rather than copied into
+  // the store, so there is one answer to what a commit's subject is — and so
+  // that a commit which falls off the end of a reloaded history takes its
+  // panel with it instead of leaving a header describing nothing.
+  const openCommit = useMemo(
+    () => commits.find((entry) => entry.sha === sha) ?? null,
+    [commits, sha]
+  );
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -77,11 +100,39 @@ export default function GitHistory() {
           {loading ? 'Reading the history…' : 'No commits yet.'}
         </p>
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden py-1">
-          {graph.rows.map((row) => (
-            <CommitRow key={row.commit.sha} row={row} lanes={graph.lanes} />
-          ))}
-        </div>
+        <ResizablePanelGroup orientation="vertical" className="min-h-0 flex-1">
+          <ResizablePanel id="history-graph" minSize="20%">
+            <div className="flex h-full flex-col overflow-y-auto overflow-x-hidden py-1">
+              {graph.rows.map((row) => (
+                <CommitRow
+                  key={row.commit.sha}
+                  row={row}
+                  lanes={graph.lanes}
+                  selected={row.commit.sha === sha}
+                  // Clicking the open commit closes it. A row is a toggle for
+                  // the same reason the rail buttons are: a click on the thing
+                  // already on screen has nothing else it could mean.
+                  onOpen={() =>
+                    row.commit.sha === sha ? close() : open(row.commit.sha)
+                  }
+                />
+              ))}
+            </div>
+          </ResizablePanel>
+
+          {openCommit ? (
+            <>
+              <ResizableHandle />
+              <ResizablePanel
+                id="history-detail"
+                minSize="25%"
+                defaultSize="55%"
+              >
+                <GitCommitDetail commit={openCommit} />
+              </ResizablePanel>
+            </>
+          ) : null}
+        </ResizablePanelGroup>
       )}
     </div>
   );
@@ -95,14 +146,28 @@ export default function GitHistory() {
  * with the dot it belongs to. Truncation is the right trade here anyway: a
  * commit subject that does not fit on one line has already failed.
  */
-function CommitRow({ row, lanes }: { row: GraphRow; lanes: number }) {
+function CommitRow({
+  row,
+  lanes,
+  selected,
+  onOpen,
+}: {
+  row: GraphRow;
+  lanes: number;
+  selected: boolean;
+  onOpen: () => void;
+}) {
   const { commit } = row;
 
   return (
     <div
       style={{ height: ROW_HEIGHT }}
       title={`${commit.shortSha}  ${commit.subject}`}
-      className="group/commit flex items-center gap-2 px-2 transition-colors hover:bg-row-hover"
+      onClick={onOpen}
+      className={cn(
+        'group/commit flex cursor-pointer items-center gap-2 px-2 transition-colors',
+        selected ? 'bg-row-selected' : 'hover:bg-row-hover'
+      )}
     >
       <GitGraph row={row} lanes={lanes} />
 

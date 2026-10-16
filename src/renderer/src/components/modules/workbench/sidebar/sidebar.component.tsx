@@ -21,7 +21,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '../../../ui';
 import Boards from './boards';
 import Explorer from './explorer';
 import GlobalSearch from './search';
-import AnimatedLogo from '~/components/utils/animated-logo';
 
 interface SidebarMenuItem {
   icon: ReactNode;
@@ -180,9 +179,6 @@ function SidebarMenu({ collapsed }: { collapsed: boolean }) {
           shortcut: ['mod', 'b'],
         }}
       />
-      <div className="w-full flex justify-center">
-        <AnimatedLogo className="w-6" />
-      </div>
     </div>
   );
 }

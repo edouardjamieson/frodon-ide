@@ -88,11 +88,6 @@ export default function Settings() {
                     </TooltipTrigger>
                     <TooltipContent>{scope.file}</TooltipContent>
                   </Tooltip>
-
-                  {/* The whole point of the scope axis, in eight words.
-                  <p className="font-mono text-[10px] text-fg-subtle">
-            
-                  </p> */}
                 </div>
 
                 {items.map((category) => (

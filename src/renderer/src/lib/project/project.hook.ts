@@ -1,9 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useProjectStore } from './project.store';
-import { projectColor, shortenPath } from './project.service';
+import {
+  resolveProjectColor,
+  resolveProjectHue,
+  resolveProjectIcon,
+  resolveProjectName,
+  shortenPath,
+} from './project.service';
 import { useHome } from '~/lib/app';
 import { applyProjectLayout, fetchProjectLayout } from '~/lib/layout';
-import { useTheme } from '~/lib/theme';
+import {
+  applyProjectConfig,
+  fetchProjectConfig,
+  useConfigStore,
+} from '~/lib/config';
+import { useTheme, useThemeStore } from '~/lib/theme';
 
 /**
  * Opening a project and keeping the tree live.
@@ -13,7 +24,7 @@ import { useTheme } from '~/lib/theme';
  * This hook is the whole of the renderer's side of that arrangement.
  */
 export const useProject = () => {
-  const { root, name, files, setProject } = useProjectStore();
+  const { root, files, setProject } = useProjectStore();
   const [opening, setOpening] = useState(false);
 
   /**
@@ -30,17 +41,24 @@ export const useProject = () => {
       try {
         const tree = await window.frodon.project.tree(path);
         // After the tree and never beside it: `project:tree` is what tells
-        // main which project is open, and main prunes a saved layout's board
-        // tabs against that project's boards.
-        const layout = await fetchProjectLayout(path);
+        // main which project is open, and both of these are answered for
+        // whichever project that is — the layout has its board tabs pruned
+        // against that project's boards, and the config is read out of that
+        // project's own `.frodon/`.
+        const [layout, config] = await Promise.all([
+          fetchProjectLayout(path),
+          fetchProjectConfig(),
+        ]);
 
-        // Both in one tick, and in this order. React batches the two store
+        // All three in one tick, and in this order. React batches the store
         // writes into a single render, so the workbench never flashes a
-        // default arrangement on its way to the saved one — and the save
-        // subscription reads the root to decide what it is writing for, so
-        // the root has to be the new one before the windows are.
+        // default arrangement on its way to the saved one and the header
+        // never shows a folder name on its way to the chosen one — and both
+        // save subscriptions read the root to decide what they are writing
+        // for, so the root has to be the new one before either is seeded.
         setProject(path, tree);
         applyProjectLayout(path, layout);
+        applyProjectConfig(path, config);
       } finally {
         setOpening(false);
       }
@@ -55,19 +73,47 @@ export const useProject = () => {
   }, [openPath]);
 
   const shortPath = useProjectShortPath();
-  const color = useProjectColor();
+  const { name, color, icon } = useProjectIdentity();
 
   return {
     root,
     shortPath,
     name,
     color,
+    icon,
     files,
     open,
     openPath,
     opening,
     isOpen: root !== '',
   };
+};
+
+/**
+ * What the project is called, what color it is, and what stands for it —
+ * each one the choice in `.frodon/config.json` or, failing that, the
+ * derivation.
+ *
+ * One hook for the three because they are one answer: the color is hashed
+ * from the name and the icon is the first letter of it, so a component that
+ * resolved them separately could draw a badge whose letter and hue came from
+ * two different names for half a frame.
+ */
+export const useProjectIdentity = () => {
+  const root = useProjectStore((state) => state.root);
+  const config = useConfigStore((state) => state.project);
+  const dark = useTheme().dark;
+
+  return useMemo(() => {
+    const name = resolveProjectName(root, config);
+
+    return {
+      name,
+      hue: resolveProjectHue(name, config),
+      color: resolveProjectColor(name, config, dark),
+      icon: resolveProjectIcon(name, config),
+    };
+  }, [root, config, dark]);
 };
 
 /**
@@ -130,7 +176,7 @@ export const useProjectShortPath = (): string => {
 };
 
 /**
- * The project's generated color.
+ * The project's color.
  *
  * Most components should reach for the `project` utility classes instead —
  * `useProjectColorEffect` keeps `--fd-project-color` current, so a badge is
@@ -138,21 +184,32 @@ export const useProjectShortPath = (): string => {
  * exceptions `useTheme` exists for: handing a color to something that isn't
  * CSS.
  */
-export const useProjectColor = (): string => {
-  const name = useProjectStore((state) => state.name);
-  const dark = useTheme().dark;
-
-  return useMemo(() => projectColor(name, dark), [name, dark]);
-};
+export const useProjectColor = (): string => useProjectIdentity().color;
 
 /**
- * Publishes the project color to `:root` as `--fd-project-color`, next to the
- * theme's own variables and on the same terms: written once, read by CSS, and
- * re-rendering nothing when it changes. Mount this ONCE near the app root.
+ * Hands the project's hue to the theme, and publishes its color to `:root` as
+ * `--fd-project-color`. Mount this ONCE near the app root.
+ *
+ * Two writes of one fact, and they are not redundant. The hue goes into the
+ * theme because the accent *is* the project's color — every focused border,
+ * cursor and accent fill in the app is built from it, and that resolution
+ * belongs to `lib/theme`, which owns how bright a color should be on this
+ * background. The CSS variable is the same color by a different route, kept
+ * because it is the one that can be *absent*: with no project open there is
+ * no wash behind the workbench, and `var(--fd-project-color, transparent)` is
+ * how the backdrop says so.
  */
 export const useProjectColorEffect = (): void => {
   const root = useProjectStore((state) => state.root);
-  const color = useProjectColor();
+  const { hue, color } = useProjectIdentity();
+  const setHue = useThemeStore((state) => state.setHue);
+
+  // Null rather than the hue of the empty string: the launcher is not a
+  // project with an unlucky color, it is no project, and the accent there is
+  // grey for exactly that reason.
+  useEffect(() => {
+    setHue(root ? hue : null);
+  }, [root, hue, setHue]);
 
   useEffect(() => {
     const { style } = document.documentElement;

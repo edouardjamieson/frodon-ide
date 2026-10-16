@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useAppInfo } from '~/lib/app';
 import { useEditorStore } from '~/lib/editor';
 import { useFilePickerStore } from '~/lib/file-picker';
+import { useSettingsStore } from '~/lib/settings';
 import { useSidebarStore, type SidebarModule } from '~/lib/sidebar';
 import { useWindowStore } from '~/lib/window';
 import { chordOfEvent, commandFor } from './keybinding.service';
@@ -21,6 +22,7 @@ export function useCommands(): Record<CommandId, () => void> {
   const split = useWindowStore((state) => state.split);
   const openGit = useWindowStore((state) => state.openGit);
   const openPicker = useFilePickerStore((state) => state.openPicker);
+  const openSettings = useSettingsStore((state) => state.openSettings);
   const requestSave = useEditorStore((state) => state.requestSave);
   const requestFind = useEditorStore((state) => state.requestFind);
   const setModule = useSidebarStore((state) => state.setModule);
@@ -96,6 +98,10 @@ export function useCommands(): Record<CommandId, () => void> {
       'sidebar.search': () => showModule('SEARCH'),
       'sidebar.boards': () => showModule('BOARDS'),
       'git.open': () => openGit(),
+      // No section named, so the dialog reopens on the page it was last left
+      // on — the chord is for going back to settings, and the places that
+      // mean a *particular* setting pass one.
+      'settings.open': () => openSettings(),
       // A no-op when the grid is full in that direction, which is `split`'s
       // own answer and not something a shortcut should second-guess.
       'window.splitRight': () => split(focusedId, 'right'),
@@ -110,6 +116,7 @@ export function useCommands(): Record<CommandId, () => void> {
       toggleCollapsed,
       showModule,
       openGit,
+      openSettings,
       split,
     ]
   );

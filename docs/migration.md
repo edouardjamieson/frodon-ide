@@ -350,6 +350,16 @@ placeholders are waiting for it: `DEFAULT_EXCLUDE` in
 `renderer/src/lib/keybinding/`, which is already written in the shape a config
 file would hand over.
 
+**Two of the four layers are already there.** The settings dialog reads and
+writes `<root>/.frodon/config.json` and `~/.frodon/config.json` through
+`main/config/` — see `docs/settings.md` — so this port is not starting from
+nothing: it adds the defaults and `.local` layers around them, the merge, and
+the sections (`exclude`, `actions`, `keybindings`) those two files do not yet
+carry. The user layer lands at `~/.frodon/` rather than the TUI's
+`~/.config/frodon`, because `~/.frodon/` is where this app already keeps the
+recents list, the saved layouts and the local boards, and one directory per
+app is enough.
+
 ### 2. Actions — `lib/actions/`
 
 `{{variable}}` resolution is pure and ports untouched. The spawn becomes

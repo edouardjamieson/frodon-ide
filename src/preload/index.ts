@@ -41,6 +41,13 @@ const api: FrodonApi = {
       return () => ipcRenderer.removeListener('project:changed', handler);
     },
   },
+  config: {
+    project: () => ipcRenderer.invoke('config:project'),
+    saveProject: (config) =>
+      ipcRenderer.invoke('config:save-project', { config }),
+    user: () => ipcRenderer.invoke('config:user'),
+    saveUser: (config) => ipcRenderer.invoke('config:save-user', { config }),
+  },
   file: {
     read: (path) => ipcRenderer.invoke('file:read', { path }),
     write: (path, content) =>

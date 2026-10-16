@@ -121,9 +121,11 @@
   --color-error-border: var(--fd-error-border);
   --color-error-title: var(--fd-error-title-fg);
 
-  /* The open project's generated color. Not a theme role: it comes from the
-     folder name, not from the theme, and `useProjectColorEffect` writes it.
-     The fallback covers the frames before a project is open. */
+  /* The open project's color. The same value as `--fd-fg-accent` while a
+     project is open — the accent *is* the project's color — but written by
+     `useProjectColorEffect` rather than by the theme, and absent when there
+     is no project. The fallback is what the launcher gets: the theme's
+     accent, which with no hue to build from is grey. */
   --color-project: var(--fd-project-color, var(--fd-fg-accent));
 
   /*

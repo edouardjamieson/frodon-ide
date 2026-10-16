@@ -110,6 +110,19 @@ and a menu accelerator is handled ahead of the renderer — which is why
 `main/app/menu.service.ts` builds the menu by hand with no `close` item.
 Binding any other chord the menu already owns means doing the same there.
 
+## Adding a setting
+
+Go through `src/shared/config.def.ts`, and decide the scope first: a project
+setting lands in `<root>/.frodon/config.json` and turns up in a pull request;
+a user setting lands in `~/.frodon/config.json` and does not. Add the field,
+add its check to the sanitizer beside it, then put a control on the matching
+page under `components/modules/settings/`.
+
+Every field is optional, and **absent means derived** — a project with no
+`name` is called after its folder, one with no `hue` is colored by hashing
+that name. Never write a derivation into the file; clearing a field removes
+the key. `docs/settings.md` has the model.
+
 ## Module convention
 
 Every feature — visual or not — is a folder of single-responsibility files
@@ -134,6 +147,13 @@ re-render at all.
 
 Adding a color means adding a **role**: `ThemeRoles` → `ROLE_DEFAULTS` →
 `@theme inline` in `styles.css`. All three. `docs/theme.md` explains why.
+
+**No theme has an accent.** The accent family is generated from the open
+project's hue — so a focus ring, a cursor and a selected row are the color of
+the project you are in, and a theme that shipped a brand color would be
+arguing with it. A theme owns the neutrals, the syntax and the sixteen
+terminal colors; `ThemeDefinition` cannot express an accent at all. With no
+project open the chroma is zero and the accent is grey.
 
 `useTheme()` is only for things CSS doesn't style — currently just
 `editor.theme.ts`, which hands colors to CodeMirror's own theme API.
@@ -199,8 +219,12 @@ each removable from the list, and a workbench that is remembered with them —
 a project reopens onto the tiles it was left on, holding the files, boards and
 web pages that were in them, saved per project in `~/.frodon/layouts.json`, and
 find-in-file on `mod+f` — a bar above the document with the same three toggles
-the project-wide search has, every match highlighted and counted.
+the project-wide search has, every match highlighted and counted, and a
+settings dialog on `mod+,` — scope down the side, category under it, the
+project's name, color and icon written into `.frodon/config.json` where the
+repository carries them, and the theme written into `~/.frodon/config.json`
+where it stays on this machine.
 
-Everything else — config layering, the command palette, LSP, and the dialog
-that should ask before a tab with unsaved work is closed — is listed in
-`docs/migration.md` roughly in the order it is worth building.
+Everything else — the rest of the config layering, the command palette, LSP,
+and the dialog that should ask before a tab with unsaved work is closed — is
+listed in `docs/migration.md` roughly in the order it is worth building.

@@ -18,6 +18,12 @@ import {
 } from '@main/recents';
 import { readProjectLayout, writeProjectLayout } from '@main/layout';
 import {
+  readProjectConfig,
+  readUserConfig,
+  writeProjectConfig,
+  writeUserConfig,
+} from '@main/config';
+import {
   checkout,
   commit,
   createBranch,
@@ -145,6 +151,21 @@ export function registerIpcHandlers(): void {
   handle('project:recents', () => listRecentProjects());
 
   handle('project:forget-recent', ({ path }) => forgetRecentProject(path));
+
+  // Read right after `project:tree` for the same reason the layout is: this
+  // answers for whichever project main has open, and `openProject` above is
+  // what decides which one that is. The pair of writes take no root either —
+  // a renderer-supplied directory is a directory a renderer could have main
+  // write a file into.
+  handle('config:project', () => readProjectConfig());
+
+  handle('config:save-project', ({ config }) => writeProjectConfig(config));
+
+  // The one config channel that answers before a project is open: the
+  // launcher is a screen too, and it is already wearing the theme.
+  handle('config:user', () => readUserConfig());
+
+  handle('config:save-user', ({ config }) => writeUserConfig(config));
 
   handle('file:read', ({ path }) => readFileText(path));
 

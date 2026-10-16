@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { reparentPath, type File } from '@shared/fs.def';
-import { projectName } from './project.service';
 import type { ProjectStore } from './project.def';
 
 /** Every directory path in a tree, depth-first. */
@@ -19,7 +18,6 @@ function directoryPaths(files: File[]): string[] {
 
 export const useProjectStore = create<ProjectStore>((set, get) => ({
   root: '',
-  name: '',
   files: [],
   recents: [],
   expanded: new Set<string>(),
@@ -30,7 +28,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   setProject: (root, files) =>
     set({
       root,
-      name: projectName(root),
       files,
       // A different project: nothing selected in it yet, and a half-typed name
       // from the last one has no directory to land in any more.

@@ -105,6 +105,13 @@ crosses is a narrow format of its own (`shared/layout.def.ts`) and not
 `WindowState`: see `docs/migration.md` for what it holds, and for the one
 thing — a live shell — it cannot.
 
+Settings need no exception at all: they are two files, so `main/config/` owns
+them — `<root>/.frodon/config.json` for what a project calls itself and
+`~/.frodon/config.json` for what one person prefers — and the renderer holds
+a replica it edits and hands back. What makes them worth a document of their
+own is the layering on top: every field is optional, and absent means the UI
+derives it. See `docs/settings.md`.
+
 ### The second half of that: facts that change back
 
 A replica is only honest if the thing it replicates reports every change, and

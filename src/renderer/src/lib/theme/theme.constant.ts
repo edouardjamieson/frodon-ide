@@ -1,7 +1,50 @@
-import type { PaletteKey, RoleKey, ThemeDefinition } from './theme.def';
+import type {
+  AccentKey,
+  PaletteKey,
+  RoleKey,
+  ThemeDefinition,
+} from './theme.def';
 
 /** The theme used when config names none, and the root of every `extends` chain. */
 export const DEFAULT_THEME_NAME = 'frodon-dark';
+
+/**
+ * The accent family, as lightness and chroma per step.
+ *
+ * The hue is the project's and nothing here knows it. What these numbers
+ * decide is everything else: how bright the accent is against this kind of
+ * background, and where the two washes sit relative to it.
+ *
+ * **The washes go opposite ways on the two backgrounds**, which is the reason
+ * there are four steps and not three. On a dark theme, text over a wash is
+ * light, so a wash has to be *darker* than the accent; on a light theme the
+ * text is dark, so it has to be *lighter*. `accentMuted` is not a wash at all
+ * — it is the hover state of a filled accent button, with `fgOnAccent` on top
+ * — so it steps toward the background in both.
+ *
+ * `oklch` rather than hex for the reason the project color was always
+ * generated that way: L is perceptual, so one pair of numbers holds across
+ * all 360 hues. A hue that is out of sRGB at this chroma has the chroma
+ * reduced until it fits, rather than being clipped per channel into a
+ * different hue — see `oklchToHex`.
+ */
+export const ACCENT_RAMP: Record<
+  'dark' | 'light',
+  Record<AccentKey, { lightness: number; chroma: number }>
+> = {
+  dark: {
+    accent: { lightness: 0.78, chroma: 0.14 },
+    accentMuted: { lightness: 0.64, chroma: 0.13 },
+    accentStrong: { lightness: 0.52, chroma: 0.11 },
+    accentSubtle: { lightness: 0.4, chroma: 0.08 },
+  },
+  light: {
+    accent: { lightness: 0.56, chroma: 0.15 },
+    accentMuted: { lightness: 0.46, chroma: 0.14 },
+    accentStrong: { lightness: 0.82, chroma: 0.14 },
+    accentSubtle: { lightness: 0.92, chroma: 0.07 },
+  },
+};
 
 /**
  * Which palette entry each role falls back to when a theme doesn't name it.
@@ -76,7 +119,11 @@ export const ROLE_DEFAULTS: Record<RoleKey, PaletteKey> = {
   editorSelectionBg: 'bgSelection',
   editorCursor: 'accent',
   editorSearchMatchBg: 'accentSubtle',
-  editorSearchMatchActiveBg: 'accentMuted',
+  // The *strong* wash, not the muted fill: both of these sit behind the
+  // document's own text, and `accentMuted` is a button color that happens to
+  // land near one of them on a dark background and nowhere near it on a light
+  // one. See `ACCENT_RAMP`.
+  editorSearchMatchActiveBg: 'accentStrong',
 
   // Git
   gitStagedFg: 'success',
@@ -108,6 +155,11 @@ export const ROLE_DEFAULTS: Record<RoleKey, PaletteKey> = {
 /**
  * The themes that ship with Frodon.
  *
+ * None of them names an accent, and none of them can: that one color is the
+ * open project's, generated per theme from `ACCENT_RAMP` above. What a theme
+ * owns is everything around it — the neutrals it sits on, the syntax, the
+ * sixteen terminal colors.
+ *
  * `frodon-dark` is the root every other theme ultimately extends, so it is the
  * only one that has to be exhaustive. `frodon-light` exists as much to keep
  * the role layer honest as to be used: anything that hardcodes a dark
@@ -119,7 +171,7 @@ export const ROLE_DEFAULTS: Record<RoleKey, PaletteKey> = {
 export const BUILT_IN_THEMES: ThemeDefinition[] = [
   {
     name: 'frodon-dark',
-    description: 'The default. Near-black neutrals with a lime accent.',
+    description: 'The default. Near-black neutrals that get out of the way.',
     dark: true,
     colors: {
       palette: {
@@ -136,10 +188,6 @@ export const BUILT_IN_THEMES: ThemeDefinition[] = [
         fgMuted: '#a3a3a3',
         fgSubtle: '#525252',
         fgOnAccent: '#0a0a0a',
-
-        accent: '#9ae600',
-        accentMuted: '#5ea500',
-        accentSubtle: '#497d00',
 
         danger: '#e7000b',
         warning: '#e3b341',
@@ -179,7 +227,8 @@ export const BUILT_IN_THEMES: ThemeDefinition[] = [
   },
   {
     name: 'frodon-light',
-    description: 'The same shapes on paper. Deeper lime so it holds on white.',
+    description:
+      'The same shapes on paper, with everything deepened to hold on white.',
     dark: false,
     colors: {
       palette: {
@@ -197,20 +246,9 @@ export const BUILT_IN_THEMES: ThemeDefinition[] = [
         fgSubtle: '#8b8b94',
         fgOnAccent: '#ffffff',
 
-        accent: '#4d8c00',
-        accentMuted: '#3d7000',
-        accentSubtle: '#d9f2a3',
-
         danger: '#c81e1e',
         warning: '#a16207',
         success: '#15803d',
-      },
-      // A wash sitting *behind* dark text has to go the other way than it does
-      // on a dark background, so the two search-match roles are pinned rather
-      // than taken from `accentSubtle`/`accentMuted`.
-      roles: {
-        editorSearchMatchBg: '#e8f7c2',
-        editorSearchMatchActiveBg: '#b4e05c',
       },
       syntax: {
         plain: '#1f2328',
@@ -246,7 +284,7 @@ export const BUILT_IN_THEMES: ThemeDefinition[] = [
   },
   {
     name: 'nocturne',
-    description: 'Cool blues and violets for working after dark.',
+    description: 'Cool blue-grey neutrals for working after dark.',
     dark: true,
     colors: {
       palette: {
@@ -263,10 +301,6 @@ export const BUILT_IN_THEMES: ThemeDefinition[] = [
         fgMuted: '#a0a6ba',
         fgSubtle: '#5c6377',
         fgOnAccent: '#11131a',
-
-        accent: '#7aa2f7',
-        accentMuted: '#3d59a1',
-        accentSubtle: '#2a3a5e',
 
         danger: '#f7768e',
         warning: '#e0af68',

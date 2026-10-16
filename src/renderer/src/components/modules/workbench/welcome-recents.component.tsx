@@ -1,8 +1,9 @@
 import { X } from 'lucide-react';
 import { useHome } from '~/lib/app';
 import {
-  projectColor,
-  projectName,
+  resolveProjectColor,
+  resolveProjectIcon,
+  resolveProjectName,
   shortenPath,
   useProject,
   useRecentProjects,
@@ -68,7 +69,13 @@ function Row({
   const home = useHome();
   const dark = useTheme().dark;
 
-  const name = projectName(recent.path);
+  // Resolved through the same three functions the open project goes through,
+  // against the config main read out of that project on its way here. A
+  // project that renamed itself is listed under the name it chose, which is
+  // the only reason `RecentProject` carries a config at all.
+  const name = resolveProjectName(recent.path, recent.config);
+  const color = resolveProjectColor(name, recent.config, dark);
+  const icon = resolveProjectIcon(name, recent.config);
 
   return (
     <div className="group flex items-center gap-1 rounded-md pr-1 transition-colors hover:bg-row-hover border">
@@ -79,15 +86,17 @@ function Row({
         title={recent.path}
         className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/50 disabled:opacity-50"
       >
-        {/* Generated, not authored — the same hash of the folder name the
-            header and the backdrop use, so a project is the same color here
-            as it will be once it is open. The one legitimate reason for a
-            color in JS; see `docs/theme.md`. */}
+        {/* Chosen if the project chose one, hashed from its name otherwise —
+            the same answer the header and the backdrop will give, so a
+            project is the same color here as it will be once it is open. The
+            one legitimate reason for a color in JS; see `docs/theme.md`. */}
         <span
           aria-hidden
-          className="size-2 shrink-0 rounded-full"
-          style={{ backgroundColor: projectColor(name, dark) }}
-        />
+          style={{ backgroundColor: color }}
+          className="flex size-5 shrink-0 items-center justify-center rounded-md text-[10px] font-bold text-shadow-lg"
+        >
+          {icon}
+        </span>
         <span className="truncate text-[13px] text-fg">{name}</span>
         <span className="min-w-0 flex-1 truncate text-right text-[11px] text-fg-subtle">
           {shortenPath(recent.path, home)}

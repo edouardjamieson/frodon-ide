@@ -1,4 +1,4 @@
-import type { Keybinding } from './keybinding.def';
+import type { CommandId, Keybinding } from './keybinding.def';
 
 /**
  * The default bindings.
@@ -36,8 +36,35 @@ export const DEFAULT_KEYBINDINGS: Keybinding[] = [
   { chord: 'mod+shift+f', command: 'sidebar.search' },
   { chord: 'mod+shift+b', command: 'sidebar.boards' },
   { chord: 'mod+shift+g', command: 'git.open' },
+  // The chord every app on the platform uses for this, and one no menu here
+  // claims: the hand-built menu has no Preferences item, and Electron's
+  // `appMenu` role does not add one. See `main/app/menu.service.ts`.
+  { chord: 'mod+,', command: 'settings.open' },
   // The arrow points at where the new window appears: beside the focused one,
   // or on a row of its own below it.
   { chord: 'mod+shift+right', command: 'window.splitRight' },
   { chord: 'mod+shift+down', command: 'window.splitDown' },
 ];
+
+/**
+ * What each command is called, for a human.
+ *
+ * Here rather than in the settings dialog that currently reads it, because
+ * the dialog is not the last thing that will want these: a command palette is
+ * this same table with a search field over it. Written as a `Record` so a new
+ * `CommandId` fails to compile until it has a name people can read.
+ */
+export const COMMAND_LABELS: Record<CommandId, string> = {
+  'file.save': 'Save the file',
+  'editor.find': 'Find in this file',
+  'tab.close': 'Close the tab',
+  'picker.open': 'Go to file',
+  'sidebar.toggle': 'Show or hide the sidebar',
+  'sidebar.explorer': 'Explorer',
+  'sidebar.search': 'Search the project',
+  'sidebar.boards': 'Boards',
+  'git.open': 'Source control',
+  'settings.open': 'Settings',
+  'window.splitRight': 'Split to the right',
+  'window.splitDown': 'Split downwards',
+};

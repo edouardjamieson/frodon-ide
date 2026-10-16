@@ -20,6 +20,7 @@
  * from either side — no `electron`, no `node:*`, no React. Types and plain
  * data only.
  */
+import type { ProjectConfig, UserConfig } from './config.def';
 import type {
   BoardDocument,
   BoardRef,
@@ -108,6 +109,40 @@ export interface IpcContract {
     req: { root: string; layout: LayoutSnapshot };
     res: void;
   };
+
+  /**
+   * The open project's own settings — its name, its color, its icon.
+   *
+   * Takes no root, for the reason `git:status` and the board channels take
+   * none: main already knows which project is open, and a path from the
+   * renderer would be a path main then writes a file into. The ordering that
+   * follows is the same as `project:layout`'s — this is read *after*
+   * `project:tree`, because that is the call that says which project this is
+   * about.
+   *
+   * A project with no config file, an unreadable one, or one whose every
+   * field failed its check all answer `{}`. They mean the same thing on
+   * screen — nothing has been chosen, so everything is derived — and a
+   * renderer that told them apart would do nothing different.
+   */
+  'config:project': { req: void; res: ProjectConfig };
+  /**
+   * Writes those settings, replacing the file.
+   *
+   * The whole config every time rather than a patch: it is three small
+   * fields, and a patch channel would put a merge in main that the renderer
+   * has already done. Fields the person has not chosen are absent rather than
+   * written out — see `ProjectConfig` — so the file stays a list of
+   * decisions.
+   */
+  'config:save-project': { req: { config: ProjectConfig }; res: FsResult };
+  /**
+   * The person's own settings, which belong to the machine and not to any
+   * project. Read once at startup, before a project is open — so unlike the
+   * pair above it is answerable from the launcher.
+   */
+  'config:user': { req: void; res: UserConfig };
+  'config:save-user': { req: { config: UserConfig }; res: FsResult };
 
   /** Reads a file as UTF-8 text. Rejects if unreadable. */
   'file:read': { req: { path: string }; res: string };
@@ -389,6 +424,12 @@ export interface FrodonApi {
     ) => Promise<Res<'project:save-layout'>>;
     /** Subscribes to tree changes. Returns an unsubscribe function. */
     onChanged: (listener: (files: File[]) => void) => () => void;
+  };
+  config: {
+    project: () => Promise<Res<'config:project'>>;
+    saveProject: (config: ProjectConfig) => Promise<Res<'config:save-project'>>;
+    user: () => Promise<Res<'config:user'>>;
+    saveUser: (config: UserConfig) => Promise<Res<'config:save-user'>>;
   };
   file: {
     read: (path: string) => Promise<Res<'file:read'>>;

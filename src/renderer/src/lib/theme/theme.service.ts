@@ -8,11 +8,13 @@
  * default theme's, one key at a time.
  */
 import {
+  ACCENT_RAMP,
   BUILT_IN_THEMES,
   DEFAULT_THEME_NAME,
   ROLE_DEFAULTS,
 } from './theme.constant';
 import type {
+  AccentKey,
   PaletteKey,
   RoleKey,
   Theme,
@@ -28,6 +30,124 @@ const HEX_COLOR = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
 
 export function isHexColor(value: unknown): value is string {
   return typeof value === 'string' && HEX_COLOR.test(value);
+}
+
+/* -------------------------------------------------------------------------
+ * The accent family
+ *
+ * The one part of a palette that is computed rather than read. A hue comes in
+ * — the open project's — and four colors come out, at the lightness and
+ * chroma this theme's background calls for.
+ *
+ * It ends in hex, like every other value in a resolved theme, and that is not
+ * cosmetic. `Theme.colors` promises literal colors because its readers are not
+ * all CSS: xterm parses these strings itself, CodeMirror puts them in inline
+ * styles, and the board canvas hands them to a 2D context. An `oklch()` string
+ * would be at the mercy of four different parsers; a hex string is understood
+ * by all of them.
+ * ---------------------------------------------------------------------- */
+
+/** sRGB's transfer function, applied to one linear-light channel. */
+function gamma(channel: number): number {
+  return channel <= 0.0031308
+    ? 12.92 * channel
+    : 1.055 * Math.pow(channel, 1 / 2.4) - 0.055;
+}
+
+/** OKLCH to linear-light sRGB, which may land outside the cube. */
+function oklchToLinearRgb(
+  lightness: number,
+  chroma: number,
+  hue: number
+): [number, number, number] {
+  const radians = (hue * Math.PI) / 180;
+  const a = chroma * Math.cos(radians);
+  const b = chroma * Math.sin(radians);
+
+  // OKLab's cube-rooted cone responses, undone.
+  const l = (lightness + 0.3963377774 * a + 0.2158037573 * b) ** 3;
+  const m = (lightness - 0.1055613458 * a - 0.0638541728 * b) ** 3;
+  const s = (lightness - 0.0894841775 * a - 1.291485548 * b) ** 3;
+
+  return [
+    4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+    -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+    -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s,
+  ];
+}
+
+function inGamut([r, g, b]: [number, number, number]): boolean {
+  // A hair of tolerance, so a channel that misses by a rounding error is not
+  // worth desaturating the whole color over.
+  const epsilon = 0.0001;
+  return [r, g, b].every(
+    (channel) => channel >= -epsilon && channel <= 1 + epsilon
+  );
+}
+
+/**
+ * An OKLCH triple as `#rrggbb`.
+ *
+ * A hue that is out of sRGB at the chroma asked for — a saturated blue at the
+ * lightness a dark theme's accent wants, say — has its **chroma reduced until
+ * it fits**, keeping the lightness and the hue. Clipping each channel into
+ * range instead would be one line shorter and would hand back a different
+ * hue, which is the one property of this color that was chosen on purpose.
+ */
+export function oklchToHex(
+  lightness: number,
+  chroma: number,
+  hue: number
+): string {
+  let rgb = oklchToLinearRgb(lightness, chroma, hue);
+
+  for (let c = chroma; !inGamut(rgb) && c > 0; c -= 0.002) {
+    rgb = oklchToLinearRgb(lightness, Math.max(c, 0), hue);
+  }
+
+  return `#${rgb
+    .map((channel) => {
+      const byte = Math.round(Math.min(1, Math.max(0, gamma(channel))) * 255);
+      return byte.toString(16).padStart(2, '0');
+    })
+    .join('')}`;
+}
+
+/**
+ * One accent color at a given hue, for a given background.
+ *
+ * Exported because the launcher needs it for projects that are *not* open —
+ * five rows, five hues, none of them the live theme's — which is the one case
+ * `theme.palette.accent` cannot answer.
+ */
+export function accentColor(hue: number, dark: boolean): string {
+  const { lightness, chroma } = ACCENT_RAMP[dark ? 'dark' : 'light'].accent;
+  return oklchToHex(lightness, chroma, hue);
+}
+
+/**
+ * The whole family, for the palette.
+ *
+ * A null hue is a chroma of zero: a grey accent, which is what the launcher
+ * gets. Nothing there belongs to a project yet, and inventing a color to
+ * stand in for one would be picking a brand color by the back door.
+ */
+export function accentPalette(
+  hue: number | null,
+  dark: boolean
+): Record<AccentKey, string> {
+  const ramp = ACCENT_RAMP[dark ? 'dark' : 'light'];
+  const steps = Object.entries(ramp) as [
+    AccentKey,
+    { lightness: number; chroma: number },
+  ][];
+
+  return Object.fromEntries(
+    steps.map(([key, { lightness, chroma }]) => [
+      key,
+      oklchToHex(lightness, hue === null ? 0 : chroma, hue ?? 0),
+    ])
+  ) as Record<AccentKey, string>;
 }
 
 /**
@@ -128,15 +248,34 @@ function resolveRole(
   return palette[ROLE_DEFAULTS[role]];
 }
 
-/** Flattens `name`'s `extends` chain and validates the result. */
+/**
+ * Flattens `name`'s `extends` chain, validates the result, and builds the
+ * accent family around `hue`.
+ *
+ * The hue is an argument rather than something read from a store because this
+ * stays a pure function of its inputs: the same name and the same hue give
+ * the same theme, which is what lets the store re-resolve on either one
+ * changing without wondering whether anything else moved.
+ */
 export function resolveTheme(
   name: string,
-  definitions: ThemeDefinition[] = BUILT_IN_THEMES
+  definitions: ThemeDefinition[] = BUILT_IN_THEMES,
+  hue: number | null = null
 ): Theme {
   const byName = new Map(definitions.map((theme) => [theme.name, theme]));
   const chain = resolveChain(name, byName);
   const leaf = chain[chain.length - 1];
 
+  // Taken from the chain rather than from the leaf, because `dark` inherits
+  // like everything else — a theme that extends `frodon-light` and recolors
+  // two things is still a light theme — and because the accent family is
+  // built from it, so getting it wrong now shows up as a wash going the wrong
+  // way rather than as a stray `color-scheme`.
+  const dark =
+    [...chain].reverse().find((definition) => definition.dark !== undefined)
+      ?.dark ?? true;
+
+  const accents = accentPalette(hue, dark);
   const palette = {} as ThemePalette;
   const syntax = {} as ThemeSyntax;
   const ansi = {} as ThemeAnsi;
@@ -153,6 +292,20 @@ export function resolveTheme(
     Object.assign(roleOverrides, definition.colors?.roles ?? {});
   }
 
+  // After the merge and before the roles, which is the only place it can go:
+  // a role may name a palette key, so the palette has to be final first — and
+  // an accent a theme wrote has to be overwritten rather than merged with.
+  // TypeScript already refuses an authored accent, so anything arriving here
+  // came from a config file and is told why it was dropped.
+  for (const key of Object.keys(accents) as AccentKey[]) {
+    if (key in palette) {
+      console.warn(
+        `theme: "${key}" is generated from the open project's color and cannot be set by a theme`
+      );
+    }
+  }
+  Object.assign(palette, accents);
+
   const colors = {} as ThemeRoles;
   for (const role of Object.keys(ROLE_DEFAULTS) as RoleKey[]) {
     colors[role] = resolveRole(role, roleOverrides[role], palette);
@@ -161,7 +314,7 @@ export function resolveTheme(
   return {
     name: leaf?.name ?? DEFAULT_THEME_NAME,
     description: leaf?.description ?? '',
-    dark: leaf?.dark ?? true,
+    dark,
     palette,
     colors,
     syntax,

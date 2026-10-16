@@ -6,6 +6,7 @@ import {
   FolderGit2,
   PencilRuler,
   Search,
+  Settings,
 } from 'lucide-react';
 import { useMemo, type ReactNode } from 'react';
 import { useProject } from '~/lib/project';
@@ -14,6 +15,7 @@ import {
   useSidebarResize,
   type SidebarModule,
 } from '~/lib/sidebar';
+import { useOpenSettings } from '~/lib/settings';
 import { useOpenGit } from '~/lib/window';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../../ui';
 import Boards from './boards';
@@ -105,6 +107,10 @@ function SidebarMenu({ collapsed }: { collapsed: boolean }) {
   // width the sidebar does not have. Clicking it again focuses that window
   // rather than opening a second.
   const openGit = useOpenGit();
+  // Neither a module nor a window: a dialog over everything. It sits at the
+  // bottom with the collapse toggle, away from the four things that change
+  // what the panel is showing.
+  const openSettings = useOpenSettings();
 
   const toggleModule = (newModule: SidebarModule) => {
     if (module === newModule) {
@@ -155,6 +161,15 @@ function SidebarMenu({ collapsed }: { collapsed: boolean }) {
       ))}
       <SidebarMenuItem
         item={{
+          icon: <Settings className="size-5" />,
+          onClick: () => openSettings(),
+          label: 'Settings',
+          shortcut: ['mod', ','],
+        }}
+        className="mt-auto"
+      />
+      <SidebarMenuItem
+        item={{
           icon: collapsed ? (
             <ChevronRight className="size-5" />
           ) : (
@@ -164,7 +179,6 @@ function SidebarMenu({ collapsed }: { collapsed: boolean }) {
           label: collapsed ? 'Show explorer' : 'Hide explorer',
           shortcut: ['mod', 'b'],
         }}
-        className="mt-auto"
       />
       <div className="w-full flex justify-center">
         <AnimatedLogo className="w-6" />

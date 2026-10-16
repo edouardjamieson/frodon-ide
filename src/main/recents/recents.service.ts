@@ -21,8 +21,21 @@ import { createLogger } from '@main/logger';
 // need first; it is imported rather than spelled a second time, so there
 // stays exactly one answer to where Frodon keeps things in a home directory.
 import { FRODON_DIRNAME } from '@main/board';
+import { readConfigOfProject } from '@main/config';
 import { MAX_RECENT_PROJECTS, RECENTS_FILENAME } from './recents.constant';
 import type { RecentProject } from '@shared/project.def';
+
+/**
+ * A row as the file holds it: a path and a time, and nothing derived or read
+ * from anywhere else.
+ *
+ * The config each project carries is attached on the way out, by `decorate`,
+ * and never written back here. It belongs to that project's own
+ * `.frodon/config.json` — copying it into this list would be caching a file
+ * next to the file, and the copy would be wrong the first time somebody
+ * renamed a project from inside it.
+ */
+type StoredRecent = Omit<RecentProject, 'config'>;
 
 const log = createLogger('recents');
 
@@ -31,9 +44,9 @@ function recentsFile(): string {
 }
 
 /** Whether a parsed entry is one we are willing to hand to the renderer. */
-function isRecent(value: unknown): value is RecentProject {
+function isRecent(value: unknown): value is StoredRecent {
   if (typeof value !== 'object' || value === null) return false;
-  const entry = value as Partial<RecentProject>;
+  const entry = value as Partial<StoredRecent>;
   return (
     typeof entry.path === 'string' &&
     path.isAbsolute(entry.path) &&
@@ -50,8 +63,8 @@ function isRecent(value: unknown): value is RecentProject {
  * duplicate or an extra row — by a hand edit, or by two windows writing at
  * once — is repaired by the next read instead of being carried forward.
  */
-function normalize(entries: RecentProject[]): RecentProject[] {
-  const byPath = new Map<string, RecentProject>();
+function normalize(entries: StoredRecent[]): StoredRecent[] {
+  const byPath = new Map<string, StoredRecent>();
 
   for (const entry of entries) {
     const existing = byPath.get(entry.path);
@@ -65,7 +78,7 @@ function normalize(entries: RecentProject[]): RecentProject[] {
     .slice(0, MAX_RECENT_PROJECTS);
 }
 
-async function read(): Promise<RecentProject[]> {
+async function read(): Promise<StoredRecent[]> {
   let raw: string;
   try {
     raw = await fsp.readFile(recentsFile(), 'utf8');
@@ -85,7 +98,7 @@ async function read(): Promise<RecentProject[]> {
   }
 }
 
-async function write(entries: RecentProject[]): Promise<void> {
+async function write(entries: StoredRecent[]): Promise<void> {
   const file = recentsFile();
   try {
     await fsp.mkdir(path.dirname(file), { recursive: true });
@@ -99,7 +112,7 @@ async function write(entries: RecentProject[]): Promise<void> {
 }
 
 /** Entries whose directory is still there, in order. */
-async function present(entries: RecentProject[]): Promise<RecentProject[]> {
+async function present(entries: StoredRecent[]): Promise<StoredRecent[]> {
   const checks = await Promise.all(
     entries.map(async (entry) => {
       try {
@@ -111,6 +124,23 @@ async function present(entries: RecentProject[]): Promise<RecentProject[]> {
   );
 
   return entries.filter((_entry, index) => checks[index]);
+}
+
+/**
+ * The same entries, each carrying its project's own settings.
+ *
+ * One small read per row, in parallel, on a list capped at five — the same
+ * budget `present` already spends on `stat`. What it buys is that the
+ * launcher calls a project whatever that project calls itself, which is the
+ * only screen in the app that would otherwise be left out.
+ */
+async function decorate(entries: StoredRecent[]): Promise<RecentProject[]> {
+  return Promise.all(
+    entries.map(async (entry) => ({
+      ...entry,
+      config: await readConfigOfProject(entry.path),
+    }))
+  );
 }
 
 /**
@@ -130,7 +160,7 @@ export async function listRecentProjects(): Promise<RecentProject[]> {
 
   if (alive.length !== entries.length) await write(alive);
 
-  return alive;
+  return decorate(alive);
 }
 
 /**
@@ -157,5 +187,5 @@ export async function forgetRecentProject(
   // nothing — the same discipline the tree and the git poller keep.
   if (remaining.length !== entries.length) await write(remaining);
 
-  return remaining;
+  return decorate(remaining);
 }

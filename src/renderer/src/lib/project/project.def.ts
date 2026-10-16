@@ -18,8 +18,12 @@ export interface ProjectDraft {
 export interface ProjectStore {
   /** Absolute path of the open project root, or '' when none is open. */
   root: string;
-  name: string;
   files: File[];
+
+  // No name here, deliberately. What a project is called is the folder's
+  // basename *unless* its config says otherwise, and storing either answer
+  // beside the root would be storing a derivation that goes stale the moment
+  // the other half changes. `useProjectIdentity` resolves the two together.
 
   setProject: (root: string, files: File[]) => void;
   setFiles: (files: File[]) => void;

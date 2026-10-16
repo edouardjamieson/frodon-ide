@@ -87,10 +87,10 @@ export default function BranchMenu() {
             <span className="text-xs font-semibold">{label}</span>
             <div className="flex items-center gap-1">
               {changeSet.staged > 0 && (
-                <div className="size-2 border border-green-500 bg-green-500/40 rounded-full"></div>
+                <div className="size-2 rounded-full border border-git-staged bg-git-staged/40"></div>
               )}
               {changeSet.dirty > 0 && (
-                <div className="size-2 border border-yellow-500 bg-yellow-500/40 rounded-full"></div>
+                <div className="size-2 rounded-full border border-git-changed bg-git-changed/40"></div>
               )}
             </div>
           </Button>

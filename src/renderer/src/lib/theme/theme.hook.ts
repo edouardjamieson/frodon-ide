@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { useThemeStore } from './theme.store';
-import { applyTheme, collectThemes, resolveTheme } from './theme.service';
+import { applyTheme, collectThemes } from './theme.service';
 import type { Theme, ThemeDefinition } from './theme.def';
 
 /**
@@ -32,21 +32,17 @@ export const useThemeEffect = (): void => {
  * a config file.
  */
 export const useThemeSwitcher = () => {
-  const { theme, available, setTheme, setAvailable } = useThemeStore();
+  const { theme, available, select, setAvailable } = useThemeStore();
 
-  const apply = useCallback(
-    (name: string) => setTheme(resolveTheme(name, available)),
-    [available, setTheme]
-  );
+  const apply = useCallback((name: string) => select(name), [select]);
 
   /** Replaces the selectable set (built-ins + config) and re-resolves `name`. */
   const load = useCallback(
     (userThemes: ThemeDefinition[], name: string) => {
-      const themes = collectThemes(userThemes);
-      setAvailable(themes);
-      setTheme(resolveTheme(name, themes));
+      setAvailable(collectThemes(userThemes));
+      select(name);
     },
-    [setAvailable, setTheme]
+    [setAvailable, select]
   );
 
   const themes = useMemo(

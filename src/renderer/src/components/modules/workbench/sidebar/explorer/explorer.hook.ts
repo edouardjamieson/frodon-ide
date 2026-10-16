@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { useProjectStore } from '~/lib/project';
+import { useProjectIdentity, useProjectStore } from '~/lib/project';
 import { useOpenFile, useWindowStore } from '~/lib/window';
 import { describeDirectory, newEntryDirectory } from './explorer.service';
 import { isAtOrUnder } from '@shared/fs.def';
@@ -161,7 +161,9 @@ export function useExplorerActions(): ExplorerActions {
  */
 export function useExplorerToolbar() {
   const root = useProjectStore((state) => state.root);
-  const name = useProjectStore((state) => state.name);
+  // The project's chosen name when it has one, so the toolbar calls the root
+  // folder what the header calls it.
+  const { name } = useProjectIdentity();
   const files = useProjectStore((state) => state.files);
   const selected = useProjectStore((state) => state.selected);
   const expandAll = useProjectStore((state) => state.expandAll);

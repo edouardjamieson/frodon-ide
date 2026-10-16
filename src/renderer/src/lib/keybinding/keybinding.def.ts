@@ -18,6 +18,7 @@ export type CommandId =
   | 'sidebar.search'
   | 'sidebar.boards'
   | 'git.open'
+  | 'settings.open'
   | 'window.splitRight'
   | 'window.splitDown';
 

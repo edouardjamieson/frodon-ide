@@ -49,12 +49,31 @@ export interface ThemePalette {
   /** Text drawn *on top of* `accent` — must contrast with it, not with `bg`. */
   fgOnAccent: string;
 
-  /** The brand color. Marks where you are: focus, cursor, current branch. */
+  /**
+   * The accent family: **generated, never authored.**
+   *
+   * These four are the one part of a resolved palette that does not come from
+   * the theme. The accent is the open project's color — see
+   * `lib/project/project.service.ts` — built at the lightness and chroma this
+   * theme's mode calls for, so every place the UI says "here you are" says it
+   * in the color of the project you are in. A theme that shipped an accent of
+   * its own would be a second brand color competing with the project's, which
+   * is exactly the thing this app does not want: `ThemeDefinition` therefore
+   * cannot express one.
+   *
+   * Only the hue is the project's. The four steps below are the theme's, and
+   * they go in opposite directions on a dark background and a light one —
+   * which is the whole reason there are four. See `ACCENT_RAMP`.
+   */
+
+  /** The project's color. Focus, cursor, current branch, accent fills. */
   accent: string;
-  /** A step down from `accent`, for hover states and inactive matches. */
+  /** A step toward the background: hover states of an accent fill. */
   accentMuted: string;
-  /** The faintest accent, for washes behind text that must stay readable. */
+  /** The faintest wash, behind text that must stay readable. */
   accentSubtle: string;
+  /** A stronger wash, still behind body text: the match you are on. */
+  accentStrong: string;
 
   danger: string;
   warning: string;
@@ -62,6 +81,13 @@ export interface ThemePalette {
 }
 
 export type PaletteKey = keyof ThemePalette;
+
+/** The entries a theme does not get to write. See `ThemePalette`. */
+export type AccentKey =
+  'accent' | 'accentMuted' | 'accentSubtle' | 'accentStrong';
+
+/** What a theme author actually writes: everything but the accent family. */
+export type AuthoredPalette = Omit<ThemePalette, AccentKey>;
 
 /**
  * Every themeable surface in the UI.
@@ -286,7 +312,12 @@ export interface ThemeDefinition {
    */
   extends?: string;
   colors?: {
-    palette?: Partial<ThemePalette>;
+    /**
+     * Not `Partial<ThemePalette>`: the accent family is generated from the
+     * open project's hue, so there is nothing for a theme to say about it and
+     * saying it is a compile error rather than a value quietly dropped.
+     */
+    palette?: Partial<AuthoredPalette>;
     /** Each value is a literal hex color or the name of a palette key. */
     roles?: Partial<Record<RoleKey, string>>;
     syntax?: Partial<ThemeSyntax>;
@@ -295,9 +326,26 @@ export interface ThemeDefinition {
 }
 
 export interface ThemeStore {
+  /** The live theme, resolved against `available` *and* `hue`. */
   theme: Theme;
   /** Every theme that can be selected: built-ins plus whatever config adds. */
   available: ThemeDefinition[];
-  setTheme: (theme: Theme) => void;
+  /**
+   * The hue the accent family is built from — the open project's — or null
+   * when no project is open.
+   *
+   * It lives here rather than in the project store because it is an input to
+   * theme resolution, and because this is the direction that does not make a
+   * cycle: `lib/project` already reads the theme (it needs to know whether
+   * the background is dark), so it pushes the hue in and reads the color back
+   * out. Null is a chroma of zero — a grey accent, which is the honest answer
+   * on a launcher with no project to be the color of.
+   */
+  hue: number | null;
+
+  /** Resolves `name` against the current definitions and hue, and applies it. */
+  select: (name: string) => void;
   setAvailable: (available: ThemeDefinition[]) => void;
+  /** Re-resolves the live theme around a new accent hue. A no-op if unchanged. */
+  setHue: (hue: number | null) => void;
 }

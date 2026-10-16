@@ -31,6 +31,7 @@ import { emptyGitStatus } from '@shared/git.def';
 import type {
   GitBranches,
   GitCommit,
+  GitCommitDetail,
   GitCommitRequest,
   GitDiff,
   GitDiffRequest,
@@ -42,6 +43,7 @@ import type {
 import {
   parseBranches,
   parseCommit,
+  parseCommitFiles,
   parseDiff,
   parseLog,
   parseStatus,
@@ -49,6 +51,8 @@ import {
 import {
   BASE_CANDIDATES,
   BRANCH_FIELDS,
+  COMMIT_DETAIL_FORMAT,
+  DIFF_MERGES,
   GIT_ENV,
   GRAPH_FORMAT,
   LOG_FORMAT,
@@ -586,9 +590,13 @@ function pathspec(path: string): string {
  * is the normal case rather than a failure.
  */
 export async function readDiff(request: GitDiffRequest): Promise<GitDiff> {
+  const commit =
+    request.commit && isCommitish(request.commit) ? request.commit : undefined;
+
   const empty: GitDiff = {
     path: request.path,
     staged: request.staged,
+    ...(commit ? { commit } : {}),
     binary: false,
     lines: [],
     added: 0,
@@ -598,9 +606,32 @@ export async function readDiff(request: GitDiffRequest): Promise<GitDiff> {
   if (!root || !request.path) return empty;
 
   const spec = pathspec(request.path);
-  const args = request.staged
-    ? ['diff', '--no-color', '--cached', '--', spec]
-    : ['diff', '--no-color', '--', spec];
+
+  // Three readings of "this file's changes", and the commit one is both the
+  // simplest and the only one that cannot go stale. `git show` rather than
+  // `diff <sha>^ <sha>` because a root commit has no `<sha>^` and would fail
+  // — the first commit in a repository is exactly the one whose patch is
+  // every line of every file, so it is worth getting right.
+  // Both paths for a rename, so `-M` can pair them: a pathspec that names
+  // only where a file ended up makes git call the move an addition of every
+  // line in it. See `GitDiffRequest.oldPath`.
+  const specs =
+    commit && request.oldPath ? [pathspec(request.oldPath), spec] : [spec];
+
+  const args = commit
+    ? [
+        'show',
+        '--no-color',
+        DIFF_MERGES,
+        '-M',
+        '--format=',
+        commit,
+        '--',
+        ...specs,
+      ]
+    : request.staged
+      ? ['diff', '--no-color', '--cached', '--', spec]
+      : ['diff', '--no-color', '--', spec];
 
   const tracked = await run(args);
 
@@ -614,8 +645,10 @@ export async function readDiff(request: GitDiffRequest): Promise<GitDiff> {
   let stdout = tracked.stdout;
 
   // Nothing came back and the file is not staged: it is probably untracked,
-  // which `git diff` ignores entirely.
-  if (!stdout && !request.staged) {
+  // which `git diff` ignores entirely. Never for a commit — a path that is in
+  // a commit is tracked by definition, and `--no-index` against the working
+  // tree would answer a different question entirely.
+  if (!stdout && !commit && !request.staged) {
     // `--no-index` compares two files on disk rather than two trees, so this
     // is the one place that wants a filesystem path and not a pathspec.
     const untracked = await run([
@@ -630,6 +663,68 @@ export async function readDiff(request: GitDiffRequest): Promise<GitDiff> {
   }
 
   return { ...empty, ...parseDiff(stdout) };
+}
+
+/**
+ * Whether a string is something we are willing to hand `git` as a revision.
+ *
+ * The shas the renderer sends come from a log main itself produced, so this
+ * is belt rather than braces — but it is a string from the other process that
+ * becomes an argument to a subprocess, and `--upload-pack=…` is the shape of
+ * the thing that makes that interesting. A hex object id is all this feature
+ * ever needs, so it is all that is allowed.
+ */
+function isCommitish(sha: string): boolean {
+  return /^[0-9a-f]{4,40}$/i.test(sha);
+}
+
+/**
+ * What a commit did: its message body, and the files it touched.
+ *
+ * Two subprocesses rather than one. `git show` can print a formatted header
+ * and a `--name-status` list together, but under `-z` the two use the same
+ * separator and telling where the body ends means knowing how many NULs the
+ * body itself contained. Two reads, each with output of exactly one shape, is
+ * worth more than one process — and this runs when a commit is clicked, not
+ * on a timer.
+ *
+ * They run in parallel because neither needs the other, and because a commit
+ * opening is the one git read in the app with somebody waiting on it.
+ */
+export async function readCommitDetail(sha: string): Promise<GitCommitDetail> {
+  const empty: GitCommitDetail = { sha, body: '', files: [], merge: false };
+  if (!root || !isCommitish(sha)) return empty;
+
+  const [message, names] = await Promise.all([
+    run(['show', '-s', '--no-color', `--format=${COMMIT_DETAIL_FORMAT}`, sha]),
+    run([
+      'show',
+      '--no-color',
+      '--name-status',
+      // Rename detection, so a moved file is one row saying where it came
+      // from rather than a delete and an add that the reader has to pair up.
+      '-M',
+      DIFF_MERGES,
+      // An empty format, so stdout is the file list and nothing else.
+      '--format=',
+      '-z',
+      sha,
+    ]),
+  ]);
+
+  if (message.code !== 0) {
+    log.warn(`commit detail failed: ${message.stderr.trim()}`);
+    return empty;
+  }
+
+  const [parents = '', body = ''] = message.stdout.split('\x1f');
+
+  return {
+    sha,
+    body: body.trim(),
+    files: names.code === 0 ? parseCommitFiles(names.stdout) : [],
+    merge: parents.trim().split(' ').filter(Boolean).length > 1,
+  };
 }
 
 /**

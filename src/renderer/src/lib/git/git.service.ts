@@ -8,8 +8,13 @@
  * storing its output would mean a commit made "2 minutes ago" still saying so
  * tomorrow.
  */
-import type { GitFileStatus, GitStatus } from '@shared/git.def';
-import type { GitChange } from './git.def';
+import type {
+  GitDiffRequest,
+  GitFileChange,
+  GitFileStatus,
+  GitStatus,
+} from '@shared/git.def';
+import type { DiffSelection, GitChange } from './git.def';
 
 /** What the branch button says. */
 export function branchLabel(status: GitStatus): string {
@@ -145,5 +150,78 @@ export function statusLetter(status: GitFileStatus): string {
       return '!';
     default:
       return '?';
+  }
+}
+
+/**
+ * Whether two selections name the same patch.
+ *
+ * Written out rather than compared by reference because the two sides are
+ * never the same object: one is the request a read was issued for and the
+ * other is whatever the store holds now, built by a different click. It is
+ * what stops a slow read from putting one file's patch under another's name.
+ */
+export function sameSelection(
+  a: DiffSelection | null,
+  b: DiffSelection | null
+): boolean {
+  if (a === null || b === null) return a === b;
+  if (a.path !== b.path) return false;
+  if (a.source.kind !== b.source.kind) return false;
+
+  return (
+    a.source.kind !== 'commit' ||
+    a.source.sha === (b.source as { sha: string }).sha
+  );
+}
+
+/** The git request a selection makes. */
+export function diffRequestOf(selection: DiffSelection): GitDiffRequest {
+  return {
+    path: selection.path,
+    staged: selection.source.kind === 'index',
+    ...(selection.source.kind === 'commit'
+      ? { commit: selection.source.sha }
+      : {}),
+    ...(selection.oldPath ? { oldPath: selection.oldPath } : {}),
+  };
+}
+
+/**
+ * One letter per row, the way every git UI abbreviates a commit's files.
+ *
+ * Git's own letters here, unlike `statusLetter` — in a commit the letter says
+ * what kind of change it was, which is exactly the question, rather than
+ * which side of the index it is on.
+ */
+export function changeLetter(change: GitFileChange): string {
+  switch (change) {
+    case 'added':
+      return 'A';
+    case 'deleted':
+      return 'D';
+    case 'renamed':
+      return 'R';
+    case 'copied':
+      return 'C';
+    case 'type-changed':
+      return 'T';
+    default:
+      return 'M';
+  }
+}
+
+/** And its color, from the same three roles the diff and the tree use. */
+export function changeColor(change: GitFileChange): string {
+  switch (change) {
+    case 'added':
+      return 'text-git-added';
+    case 'deleted':
+      return 'text-git-removed';
+    case 'renamed':
+    case 'copied':
+      return 'text-git-untracked';
+    default:
+      return 'text-git-changed';
   }
 }

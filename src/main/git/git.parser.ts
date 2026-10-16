@@ -25,7 +25,9 @@
 import type {
   GitBranchInfo,
   GitCommit,
+  GitCommitFile,
   GitDiffLine,
+  GitFileChange,
   GitLogCommit,
 } from '@shared/git.def';
 
@@ -392,4 +394,76 @@ export function parseDiff(stdout: string): {
   }
 
   return { lines, added, removed, binary };
+}
+
+/**
+ * Git's status letter, as a word.
+ *
+ * The letter carries a similarity score on a rename or a copy — `R100`,
+ * `C075` — so only the first character is read. `U` (unmerged) and the
+ * pairing-broken `B` cannot appear in a commit, and an unknown letter is a
+ * record type git added after this was written: both are dropped rather than
+ * guessed at, the same way `parseStatus` drops a record kind it does not know.
+ */
+function fileChange(letter: string | undefined): GitFileChange | null {
+  switch (letter) {
+    case 'A':
+      return 'added';
+    case 'M':
+      return 'modified';
+    case 'D':
+      return 'deleted';
+    case 'R':
+      return 'renamed';
+    case 'C':
+      return 'copied';
+    case 'T':
+      return 'type-changed';
+    default:
+      return null;
+  }
+}
+
+/**
+ * `--name-status -z`: `M<NUL>path<NUL>`, or `R100<NUL>old<NUL>new<NUL>`.
+ *
+ * Fields rather than records — unlike porcelain v2, which terminates a whole
+ * record with a NUL, this format puts one between the status and the path.
+ * So the walk is a cursor over fields, and how many it consumes depends on
+ * the letter it just read: a rename and a copy carry both of their paths.
+ *
+ * `-z` for the reason every other reader here uses it: a path is bytes, and
+ * without it git quotes anything non-ASCII and the parser has to unescape C
+ * string literals to get a path back.
+ */
+export function parseCommitFiles(stdout: string): GitCommitFile[] {
+  const fields = stdout.split('\0');
+  const files: GitCommitFile[] = [];
+
+  for (let index = 0; index < fields.length; index += 1) {
+    const status = fields[index];
+    if (!status) continue;
+
+    const change = fileChange(status[0]);
+    // An unreadable letter means the fields after it cannot be counted
+    // either, so the walk stops rather than resyncing onto a path and calling
+    // it a status.
+    if (!change) break;
+
+    const pair = change === 'renamed' || change === 'copied';
+    const first = fields[index + 1];
+    const second = pair ? fields[index + 2] : undefined;
+    index += pair ? 2 : 1;
+
+    // A truncated record — the output ended mid-pair. Nothing to report.
+    if (!first || (pair && !second)) break;
+
+    files.push(
+      pair
+        ? { path: second as string, change, oldPath: first }
+        : { path: first, change }
+    );
+  }
+
+  return files;
 }

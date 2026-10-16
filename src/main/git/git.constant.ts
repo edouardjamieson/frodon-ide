@@ -126,5 +126,32 @@ export const BRANCH_FIELDS = [
   '%(contents:subject)',
 ];
 
+/**
+ * How a merge commit is diffed.
+ *
+ * Load-bearing, and silently so without it. `git show` on a merge prints a
+ * *combined* diff by default, which lists only the files that differ from
+ * every parent — for an ordinary merge of a branch that fast-forwarded
+ * cleanly, that is nothing at all, and a merge commit reads as having
+ * changed no files. First-parent is the view that answers "what did merging
+ * this bring in", which is the question somebody clicking a merge is asking.
+ *
+ * Needs git 2.31 (2021). Older gits spell it `-m --first-parent`; the day
+ * that matters, this is the one place to say so.
+ */
+export const DIFF_MERGES = '--diff-merges=first-parent';
+
+/**
+ * `parents`, then the message body.
+ *
+ * Unit-separated like `GRAPH_FORMAT`, and for the same reason: `%b` is free
+ * text that can hold anything, newlines included, so the one field that can
+ * contain the separator goes last where nothing follows it.
+ *
+ * `%b` and not `%B` — the subject is already on the row that opened the
+ * commit, and repeating it under itself reads as a bug.
+ */
+export const COMMIT_DETAIL_FORMAT = '%P%x1f%b';
+
 /** Branches whose names every repository with a remote agrees to look at. */
 export const BASE_CANDIDATES = ['main', 'master', 'develop', 'trunk'];

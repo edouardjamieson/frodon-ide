@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { useProjectStore } from '~/lib/project';
 import { useGitStore } from './git.store';
-import { branchLabel, changesOf } from './git.service';
+import {
+  branchLabel,
+  changesOf,
+  diffRequestOf,
+  sameSelection,
+} from './git.service';
 import { HISTORY_LIMIT } from './git.constant';
 import type { GitFileStatus, GitResult, GitStatus } from '@shared/git.def';
 import type { GitOperation } from './git.def';
@@ -290,35 +295,37 @@ export const useGitChanges = () => {
 /**
  * The selected file's patch.
  *
- * Re-read when the selection changes and when the snapshot does — staging a
- * file moves its changes from one side of the index to the other, so the
- * patch under it is a different patch. An edit to a file that was *already*
- * modified changes no snapshot, so nothing here notices it; that is what the
- * refresh button on the pane is for.
+ * Re-read when the selection changes and, for the working tree and the index,
+ * when the snapshot does — staging a file moves its changes from one side of
+ * the index to the other, so the patch under it is a different patch. An edit
+ * to a file that was *already* modified changes no snapshot, so nothing here
+ * notices it; that is what the refresh button on the pane is for.
+ *
+ * A commit's patch is exempt from all of that. It cannot change, so a poll
+ * must not re-read it — which is why the snapshot only reaches the dependency
+ * list when the selection is one that can go stale.
  */
 export const useGitDiff = () => {
   const diff = useGitStore((state) => state.diff);
   const loading = useGitStore((state) => state.diffLoading);
-  const selected = useGitStore((state) => state.selected);
-  const staged = useGitStore((state) => state.selectedStaged);
+  const selection = useGitStore((state) => state.selection);
   const status = useGitStore((state) => state.status);
 
   const reload = useCallback(async (): Promise<void> => {
     const store = useGitStore.getState();
-    if (!store.selected) {
+    const target = store.selection;
+    if (!target) {
       store.setDiff(null);
       return;
     }
 
-    const request = { path: store.selected, staged: store.selectedStaged };
     store.setDiffLoading(true);
     try {
-      const next = await window.frodon.git.diff(request);
+      const next = await window.frodon.git.diff(diffRequestOf(target));
       const after = useGitStore.getState();
       // The selection moved while this was in flight. Storing it now would
       // put one file's patch under another file's name.
-      if (after.selected !== request.path) return;
-      if (after.selectedStaged !== request.staged) return;
+      if (!sameSelection(after.selection, target)) return;
       after.setDiff(next);
     } catch (cause) {
       console.error('git: reading the diff failed', cause);
@@ -327,11 +334,66 @@ export const useGitDiff = () => {
     }
   }, []);
 
+  // Null for a commit, so a tick of the poller does not re-read a patch that
+  // is incapable of having changed.
+  const volatile = selection?.source.kind === 'commit' ? null : status;
+
   useEffect(() => {
     void reload();
-  }, [reload, selected, staged, status]);
+  }, [reload, selection, volatile]);
 
-  return { diff, loading, selected, staged, reload };
+  return { diff, loading, selection, reload };
+};
+
+/**
+ * The commit the history has open: what it did, and the way in and out.
+ *
+ * The read happens here rather than in the row that was clicked, for the
+ * reason every other read in this file is a hook: the panel has to survive
+ * the row scrolling out of the graph, and a fetch owned by a component that
+ * unmounts is a fetch that has to be redone.
+ *
+ * Nothing re-reads. The only signal that would justify one is HEAD moving,
+ * and a commit whose patch changed under its own sha is not a thing git
+ * allows — an amend or a rebase produces a *different* commit, whose sha the
+ * history is already re-reading to find.
+ */
+export const useCommitDetail = () => {
+  const sha = useGitStore((state) => state.openCommit);
+  const detail = useGitStore((state) => state.commitDetail);
+  const loading = useGitStore((state) => state.commitLoading);
+  const open = useGitStore((state) => state.openCommitDetail);
+
+  const close = useCallback(() => open(''), [open]);
+
+  useEffect(() => {
+    if (!sha) return;
+
+    let cancelled = false;
+    useGitStore.getState().setCommitLoading(true);
+
+    void window.frodon.git
+      .commitDetail(sha)
+      .then((next) => {
+        // Another commit was opened while this was in flight, or the panel
+        // was closed. Either way this answer is about something nobody is
+        // looking at any more.
+        if (cancelled || useGitStore.getState().openCommit !== sha) return;
+        useGitStore.getState().setCommitDetail(next);
+      })
+      .catch((cause: unknown) =>
+        console.error('git: reading the commit failed', cause)
+      )
+      .finally(() => {
+        if (!cancelled) useGitStore.getState().setCommitLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sha]);
+
+  return { sha, detail, loading, open, close };
 };
 
 /**

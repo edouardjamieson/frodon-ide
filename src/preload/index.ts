@@ -79,6 +79,7 @@ const api: FrodonApi = {
       ipcRenderer.invoke('git:create-branch', { branch }),
     branchDetails: () => ipcRenderer.invoke('git:branch-details'),
     log: (request) => ipcRenderer.invoke('git:log', request),
+    commitDetail: (sha) => ipcRenderer.invoke('git:commit-detail', { sha }),
     diff: (request) => ipcRenderer.invoke('git:diff', request),
     stage: (paths) => ipcRenderer.invoke('git:stage', { paths }),
     unstage: (paths) => ipcRenderer.invoke('git:unstage', { paths }),

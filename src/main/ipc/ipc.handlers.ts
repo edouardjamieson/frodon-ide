@@ -34,6 +34,7 @@ import {
   pull,
   push,
   readBranches,
+  readCommitDetail,
   readDiff,
   readLog,
   stage,
@@ -233,6 +234,10 @@ export function registerIpcHandlers(): void {
   handle('git:branch-details', () => readBranches());
 
   handle('git:log', (request) => readLog(request));
+
+  // Read on a click rather than on a tick, which is the whole shape of it: a
+  // commit cannot change, so nothing here is ever re-read for staleness.
+  handle('git:commit-detail', ({ sha }) => readCommitDetail(sha));
 
   handle('git:diff', (request) => readDiff(request));
 

@@ -1,11 +1,40 @@
 import type {
   GitBranches,
+  GitCommitDetail,
   GitDiff,
   GitFileStatus,
   GitLogCommit,
   GitLogRequest,
   GitStatus,
 } from '@shared/git.def';
+
+/**
+ * Where a patch comes from.
+ *
+ * The three readings of "this file's changes" the app can ask for, as a type
+ * rather than a boolean, because a boolean only had room for two of them. The
+ * first two move under the pane and are re-read when a snapshot lands. The
+ * third cannot move at all, which is most of what makes it easy: a commit's
+ * patch is read once and stays correct.
+ */
+export type DiffSource =
+  { kind: 'worktree' } | { kind: 'index' } | { kind: 'commit'; sha: string };
+
+/** A file, and which version of its changes to show. */
+export interface DiffSelection {
+  /** Repository-relative, the way git reports and accepts paths. */
+  path: string;
+  source: DiffSource;
+  /**
+   * Where a commit moved it from, when it did.
+   *
+   * Carried rather than looked up because it is needed on both sides: git
+   * wants it to see the patch as a rename at all, and the pane says it above
+   * the diff — which is what keeps "No changes in this file" from reading as
+   * a bug on a file that was purely moved.
+   */
+  oldPath?: string;
+}
 
 /**
  * The operation in flight, if any.
@@ -86,13 +115,30 @@ export interface GitStore {
   /** The branch view's rows, and the branch they are all measured against. */
   branchDetails: GitBranches;
   branchesLoading: boolean;
-  /** The file the commit view has selected, repository-relative, or ''. */
-  selected: string;
-  /** Whether the selection means its staged side. */
-  selectedStaged: boolean;
+  /**
+   * The file whose patch is on screen, and which version of it — or null.
+   *
+   * One selection for the whole window rather than one per tab, because there
+   * is one diff pane at a time: picking a file in the commit tab and then
+   * opening a commit in the history replaces it, which is the same thing the
+   * person just did on screen.
+   */
+  selection: DiffSelection | null;
   /** The patch for that selection. Null until one has been read. */
   diff: GitDiff | null;
   diffLoading: boolean;
+
+  /**
+   * The commit the history has open, or '' when the graph is alone.
+   *
+   * A sha and not the commit itself: the row that opened it already holds the
+   * subject, the author and the date, and the panel looks the rest up in the
+   * log it is drawn from. What it cannot look up is `detail`, which is a
+   * subprocess away.
+   */
+  openCommit: string;
+  commitDetail: GitCommitDetail | null;
+  commitLoading: boolean;
   /**
    * The commit message being written.
    *
@@ -108,9 +154,13 @@ export interface GitStore {
   setLogScope: (scope: GitLogRequest['scope']) => void;
   setBranchDetails: (details: GitBranches) => void;
   setBranchesLoading: (loading: boolean) => void;
-  select: (path: string, staged: boolean) => void;
+  select: (selection: DiffSelection | null) => void;
   setDiff: (diff: GitDiff | null) => void;
   setDiffLoading: (loading: boolean) => void;
+  /** Opens a commit in the history, or closes the panel with ''. */
+  openCommitDetail: (sha: string) => void;
+  setCommitDetail: (detail: GitCommitDetail | null) => void;
+  setCommitLoading: (loading: boolean) => void;
   setMessage: (message: string) => void;
   setBranches: (branches: string[]) => void;
   setOperation: (operation: GitOperation | null) => void;

@@ -37,6 +37,7 @@ import type {
 } from './fs.def';
 import type {
   GitBranches,
+  GitCommitDetail,
   GitCommitRequest,
   GitDiff,
   GitDiffRequest,
@@ -232,6 +233,16 @@ export interface IpcContract {
    * nobody is looking at must not be walking its history every three seconds.
    */
   'git:log': { req: GitLogRequest; res: GitLogCommit[] };
+  /**
+   * What one commit did: its message body, and the files it touched.
+   *
+   * Read when a commit is opened in the history and never polled — a commit
+   * is immutable, so this is the one git read in the app with no staleness
+   * story at all. The subject, author and date are not in it: the row that
+   * opened the commit already has them, and this channel is only the part
+   * that costs a subprocess.
+   */
+  'git:commit-detail': { req: { sha: string }; res: GitCommitDetail };
   /**
    * One file's patch, already parsed into numbered lines.
    *
@@ -460,6 +471,7 @@ export interface FrodonApi {
     createBranch: (branch: string) => Promise<Res<'git:create-branch'>>;
     branchDetails: () => Promise<Res<'git:branch-details'>>;
     log: (request: Req<'git:log'>) => Promise<Res<'git:log'>>;
+    commitDetail: (sha: string) => Promise<Res<'git:commit-detail'>>;
     diff: (request: Req<'git:diff'>) => Promise<Res<'git:diff'>>;
     stage: (paths: string[]) => Promise<Res<'git:stage'>>;
     unstage: (paths: string[]) => Promise<Res<'git:unstage'>>;

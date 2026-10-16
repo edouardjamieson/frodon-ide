@@ -142,12 +142,74 @@ export interface GitBranches {
   branches: GitBranchInfo[];
 }
 
+/**
+ * What a commit did to one file.
+ *
+ * Git's own letters, spelled out — `A`, `M`, `D`, `R`, `C`, `T` — because the
+ * letter is an implementation detail of `--name-status` and the renderer
+ * should not be the place that remembers what `T` meant.
+ */
+export type GitFileChange =
+  'added' | 'modified' | 'deleted' | 'renamed' | 'copied' | 'type-changed';
+
+export interface GitCommitFile {
+  /** Repository-relative, and the path as it is *after* the commit. */
+  path: string;
+  change: GitFileChange;
+  /** Where it came from, on a rename or a copy. Absent otherwise. */
+  oldPath?: string;
+}
+
+/**
+ * What one commit did, beyond what the history row already shows.
+ *
+ * Read when a commit is opened and never polled: a commit is immutable, so
+ * unlike the working tree there is no staleness to chase and nothing to
+ * refresh. The subject, author and date are not here because the row that
+ * opened this already has them — this is only the part that costs a
+ * subprocess.
+ */
+export interface GitCommitDetail {
+  sha: string;
+  /** The message below the subject, trimmed. Empty when there is none. */
+  body: string;
+  files: GitCommitFile[];
+  /**
+   * A merge, whose files are what it did to its **first parent**.
+   *
+   * Worth saying on screen rather than silently: `git show` on a merge
+   * reports, by default, only the files that differ from *every* parent —
+   * which for an ordinary merge is none at all. First-parent is the view that
+   * answers "what did merging this bring in", and it is one reading of a
+   * merge rather than the whole truth about one.
+   */
+  merge: boolean;
+}
+
 /** Which version of a file's changes to diff. */
 export interface GitDiffRequest {
   /** Repository-relative, the way git reports and accepts paths. */
   path: string;
   /** The staged diff (`--cached`) rather than the working tree's. */
   staged: boolean;
+  /**
+   * Read the patch out of this commit instead of the working tree.
+   *
+   * Takes precedence over `staged`, which has nothing to say about a commit:
+   * the index is where a change is on its way *to* a commit, and once it is
+   * in one there is only the commit.
+   */
+  commit?: string;
+  /**
+   * Where the file came from, when the commit renamed or copied it.
+   *
+   * Not decoration — it changes the diff. Rename detection only pairs paths
+   * that are both inside the pathspec, so asking for the new path alone makes
+   * git report a move as a file written from nothing: every line added, and
+   * the one line that actually changed buried in it. Naming both is what
+   * turns that back into a rename.
+   */
+  oldPath?: string;
 }
 
 export type GitDiffLineKind = 'add' | 'remove' | 'context' | 'hunk' | 'meta';
@@ -172,6 +234,8 @@ export interface GitDiffLine {
 export interface GitDiff {
   path: string;
   staged: boolean;
+  /** The commit this patch came out of, when it came out of one. */
+  commit?: string;
   /** Git declined to diff it. `lines` is empty. */
   binary: boolean;
   lines: GitDiffLine[];

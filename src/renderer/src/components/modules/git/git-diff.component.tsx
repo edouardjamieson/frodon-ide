@@ -17,9 +17,9 @@ import type { GitDiff, GitDiffLine } from '@shared/git.def';
  * `git status`, so no snapshot arrives and nothing here knows to re-read.
  */
 export default function GitDiff() {
-  const { diff, loading, selected, staged, reload } = useGitDiff();
+  const { diff, loading, selection, reload } = useGitDiff();
 
-  if (!selected) {
+  if (!selection) {
     return (
       <p className="flex h-full items-center justify-center px-4 text-center text-[12px] text-fg-subtle">
         Pick a file to see what changed in it.
@@ -31,10 +31,28 @@ export default function GitDiff() {
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 items-center gap-2 border-b border-pane-border px-2 py-1">
         <span className="truncate font-mono text-[11px] text-fg-muted">
-          {selected}
+          {selection.path}
         </span>
+        {/* A moved file's patch is often empty — that is what a pure rename
+            is — so the pane has to say what happened, or "No changes in this
+            file" reads as a failure rather than as the answer. */}
+        {selection.oldPath ? (
+          <span
+            title={selection.oldPath}
+            className="shrink-0 font-mono text-[10px] text-fg-subtle"
+          >
+            ← {selection.oldPath.slice(selection.oldPath.lastIndexOf('/') + 1)}
+          </span>
+        ) : null}
+        {/* Which of the three things "its changes" can mean. A commit says so
+            by its short sha, because that is what the row that opened it is
+            showing and the two have to be recognisably the same thing. */}
         <span className="shrink-0 text-[10px] text-fg-subtle">
-          {staged ? 'staged' : 'working tree'}
+          {selection.source.kind === 'commit'
+            ? selection.source.sha.slice(0, 7)
+            : selection.source.kind === 'index'
+              ? 'staged'
+              : 'working tree'}
         </span>
 
         {diff && !diff.binary ? (
@@ -46,17 +64,22 @@ export default function GitDiff() {
           <span className="ml-auto" />
         )}
 
-        <button
-          aria-label="Reload the diff"
-          onClick={() => void reload()}
-          className="flex size-5 shrink-0 cursor-pointer items-center justify-center rounded text-fg-muted transition-colors hover:bg-project/20 hover:text-fg"
-        >
-          {loading ? (
-            <LoaderCircle className="size-3 animate-spin" />
-          ) : (
-            <RefreshCw className="size-3" />
-          )}
-        </button>
+        {/* Only where staleness is possible. A commit's patch cannot change,
+            so a reload button on one would be an invitation to check whether
+            the past had moved. */}
+        {selection.source.kind === 'commit' ? null : (
+          <button
+            aria-label="Reload the diff"
+            onClick={() => void reload()}
+            className="flex size-5 shrink-0 cursor-pointer items-center justify-center rounded text-fg-muted transition-colors hover:bg-project/20 hover:text-fg"
+          >
+            {loading ? (
+              <LoaderCircle className="size-3 animate-spin" />
+            ) : (
+              <RefreshCw className="size-3" />
+            )}
+          </button>
+        )}
       </div>
 
       <DiffBody diff={diff} loading={loading} />

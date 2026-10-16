@@ -43,10 +43,12 @@ export const useGitStore = create<GitStore>((set) => ({
   logScope: 'branch',
   branchDetails: { base: '', branches: [] },
   branchesLoading: false,
-  selected: '',
-  selectedStaged: false,
+  selection: null,
   diff: null,
   diffLoading: false,
+  openCommit: '',
+  commitDetail: null,
+  commitLoading: false,
   message: '',
 
   // Main compares before it pushes, so anything arriving here is a real
@@ -67,9 +69,17 @@ export const useGitStore = create<GitStore>((set) => ({
 
   // Selecting clears the patch rather than leaving the previous file's on
   // screen under the new file's name while the read is in flight.
-  select: (selected, selectedStaged) =>
-    set({ selected, selectedStaged, diff: null }),
+  select: (selection) => set({ selection, diff: null }),
   setDiff: (diff) => set({ diff }),
   setDiffLoading: (diffLoading) => set({ diffLoading }),
+
+  // Opening a commit drops whatever was selected along with the detail it
+  // belonged to: the file list is about to be replaced, and a patch from the
+  // commit above this one would otherwise sit under it until something was
+  // clicked. Closing is the same operation with no sha.
+  openCommitDetail: (openCommit) =>
+    set({ openCommit, commitDetail: null, selection: null, diff: null }),
+  setCommitDetail: (commitDetail) => set({ commitDetail }),
+  setCommitLoading: (commitLoading) => set({ commitLoading }),
   setMessage: (message) => set({ message }),
 }));

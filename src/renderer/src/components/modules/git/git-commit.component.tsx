@@ -161,15 +161,23 @@ function FileRow({
   actionLabel: string;
 }) {
   const select = useGitStore((state) => state.select);
+  // The same file can be in both lists — edited, part of it staged — so the
+  // row is only the selected one when the side matches too.
   const selected = useGitStore(
     (state) =>
-      state.selected === file.path && state.selectedStaged === file.staged
+      state.selection?.path === file.path &&
+      state.selection.source.kind === (file.staged ? 'index' : 'worktree')
   );
   const openFile = useOpenFile();
 
   return (
     <div
-      onClick={() => select(file.path, file.staged)}
+      onClick={() =>
+        select({
+          path: file.path,
+          source: { kind: file.staged ? 'index' : 'worktree' },
+        })
+      }
       onDoubleClick={() => openFile(file.absolute)}
       className={cn(
         'group/file flex cursor-pointer items-center gap-2 px-2 py-0.5 transition-colors',

@@ -352,7 +352,7 @@ file would hand over.
 
 **Two of the four layers are already there.** The settings dialog reads and
 writes `<root>/.frodon/config.json` and `~/.frodon/config.json` through
-`main/config/` — see `docs/settings.md` — so this port is not starting from
+`main/config/` — see `docs/features/settings.md` — so this port is not starting from
 nothing: it adds the defaults and `.local` layers around them, the merge, and
 the sections (`exclude`, `actions`, `keybindings`) those two files do not yet
 carry. The user layer lands at `~/.frodon/` rather than the TUI's
@@ -379,6 +379,70 @@ app is enough.
 | `ui/ascii-animation`, `ui/icon`, `ui/tooltip`, `ui/loader` | Cell-grid primitives with no meaning here.                                                                                                                                                                                                                                             |
 | `utils/shortcut.hook.ts`                                   | `ctrl+${string}` against OpenTUI's key events. Rebuilt, not ported: `renderer/src/lib/keybinding/` is the registry the TUI wanted and never got, and it can tell Cmd from Ctrl — which a terminal reading control bytes never could. Still waiting on the config layer to rebind from. |
 | Bun entirely                                               | Electron embeds Node and cannot be made to run on Bun, so Bun was only ever the package manager here. The project now uses pnpm for that.                                                                                                                                              |
+
+## Parked
+
+Not ports, and not dropped either: ideas that were designed far enough to
+cost something and then deliberately not built. The design is written down so
+that picking one up later is a decision rather than a rediscovery.
+
+### An MCP server — 2026-10-17
+
+The idea: an MCP server in main, so that an agent running in a Frodon
+terminal could reach the workbench — open a file at a line, paste a command
+into a visible terminal tile, open the git window, read and draw on boards.
+The premise was that an all-in-one IDE should not make you leave it, and an
+agent that can only print text makes you leave it constantly.
+
+**Parked because the daily value is small and the cost is front-loaded.**
+`open_file` saves `mod+p` and three characters against a picker that already
+ranks the whole project as you type; `open_git` saves `mod+shift+g`. The
+agent is already inside the IDE — that was the premise — so what the tools
+actually buy is not having to move your hands, and your hands are on the
+keyboard anyway. Against that: a third IPC shape, a socket with a lifecycle
+and a Windows equivalent, a fourth build output, a shipped dependency in
+main, and a board write-conflict that needs the whole external-change story
+`main/watch/` already gives files. The config layer, the command palette and
+LSP each change more about a working day than all seven tools together.
+
+**Two pieces were kept, because they earn their place without it.**
+
+- **Commands with arguments and a target window.** `CommandId` is nullary and
+  acts on `focusedId`; the palette needs the same widening the MCP server
+  would have, and it is a renderer-only refactor with no new dependencies.
+  Doing it for the palette leaves half of this built.
+- **The env stamp in `createSession`.** `FRODON_PROJECT`, `FRODON_SESSION`
+  and `FRODON_WINDOW` into the PTY's environment is five lines, no
+  dependency, and no commitment to any of the rest.
+
+**The non-obvious part, so it does not have to be found twice.** Frodon
+spawns the shell, so it stamps the environment of every process that will
+ever run in that tile — and environment is inherited all the way down the
+process tree, through the shell, through the agent, into whatever the agent
+spawns. That turns discovery into nothing: main listens on a unix socket at
+`~/.frodon/run/<id>.sock` (0600 — the permissions are the authorization, so
+there is no port, no token and no reachable-from-a-web-page problem), exports
+`FRODON_SOCK` and the path of a ~50-line stdio↔socket shim as
+`FRODON_MCP_BIN`, and a client config names the shim and nothing else. One
+entry works for every project and every window forever, because *which*
+project and *which* tile a call lands on is decided by the environment of the
+shell the caller is in, not by the config — and `FRODON_SESSION` resolves
+through the terminal registry's `senderId` to the exact `webContents`, so
+"open a terminal beside me" is answerable. Outside a Frodon terminal the
+variable is unset and the server does not start, which is the correct
+behavior rather than a failure.
+
+Three smaller conclusions worth keeping: a pasted command should arrive
+**without** the trailing `\r`, so the Enter key is the consent gate and no
+permission dialog has to exist; the board element model must not be exposed
+to a model — absolute geometry and flat point arrays are the wrong altitude,
+and nodes-and-edges compiled by a layout pass is the right one; and the
+inverse, reading a hand-drawn board back as its text and labelled shapes, was
+the only tool in the set with no equivalent anywhere else.
+
+**Worth revisiting when** this has been the daily driver long enough to name
+the specific moment the agent should have been able to reach the UI. Building
+it now would be guessing at that moment.
 
 ## The thing this unlocks
 

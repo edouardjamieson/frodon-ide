@@ -68,12 +68,22 @@ Tailwind 4
 
 ## Docs
 
+Everything is indexed at [`docs/README.md`](docs/README.md), which is also the
+right place for an AI agent to start.
+
 | | |
 | --- | --- |
+| [docs/README.md](docs/README.md) | the index: what this is, the shape of the app, where to look for a thing |
 | [architecture.md](docs/architecture.md) | the process split, layout, state ownership, security |
 | [ipc.md](docs/ipc.md) | how the two halves talk, and how to add a channel |
 | [theme.md](docs/theme.md) | the palette → roles → CSS variables pipeline |
+| [features/](docs/features/) | one file per feature: the goal, the mechanism, the user flows |
+| [decisions.md](docs/decisions.md) | every decision with an architectural consequence, and what it cost |
+| [learned.md](docs/learned.md) | what this project taught us that the code doesn't say |
 | [migration.md](docs/migration.md) | what came over from the TUI, what didn't, and why |
+
+[`CLAUDE.md`](CLAUDE.md) is the contract agents work under; the documentation
+conventions themselves are a skill at `.claude/skills/frodon-docs/`.
 
 ## License
 

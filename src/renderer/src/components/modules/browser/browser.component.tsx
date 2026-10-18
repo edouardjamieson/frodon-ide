@@ -1,5 +1,6 @@
 import { cn } from 'cn';
-import { Globe, TriangleAlert } from 'lucide-react';
+import { TriangleAlert } from 'lucide-react';
+import { BookmarkGrid } from '~/components/modules/bookmark';
 import { isBlank, useBrowserTab } from '~/lib/browser';
 import { useStageFit, useWebview } from './browser.hook';
 import BrowserToolbar from './browser-toolbar.component';
@@ -91,22 +92,14 @@ export default function Browser({
           className={cn('flex overflow-hidden', viewport ? 'rounded-sm' : '')}
         />
 
-        {tab && isBlank(tab.url) && !tab.loading ? <StartPage /> : null}
+        {/* The start page is the bookmarks, which is what a new tab is for
+            in every browser. It draws its own empty state when nothing has
+            been saved, so there is one component here and not two. */}
+        {tab && isBlank(tab.url) && !tab.loading ? (
+          <BookmarkGrid onNavigate={navigate} />
+        ) : null}
         {tab?.error ? <LoadError message={tab.error} onRetry={reload} /> : null}
       </div>
-    </div>
-  );
-}
-
-/** What a tab shows before it has been pointed anywhere. */
-function StartPage() {
-  return (
-    <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 bg-browser-stage">
-      <Globe className="size-6 text-fg-subtle" strokeWidth={1.5} />
-      <p className="text-[12px] text-fg-subtle">
-        Type an address above — or a port, like{' '}
-        <span className="text-fg-muted">localhost:5173</span>.
-      </p>
     </div>
   );
 }

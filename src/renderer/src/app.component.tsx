@@ -9,6 +9,7 @@ import { useGitSync } from '~/lib/git';
 import { useFileWatchSync } from '~/lib/file-watch';
 import { useLayoutSaveEffect } from '~/lib/layout';
 import { useBoardAutosaveEffect } from '~/lib/board';
+import { useBookmarkSyncEffect } from '~/lib/bookmark';
 import { useRecentFilesEffect } from '~/lib/file-picker';
 import { useConfigSaveEffect, useUserConfigEffect } from '~/lib/config';
 import { useKeybindingEffect } from '~/lib/keybinding';
@@ -27,6 +28,8 @@ import Backdrop from './components/ui/backdrop';
  * one of them changes outside Frodon),
  * `useProjectColorEffect` (publishes the project's color as a CSS variable)
  * `useBoardAutosaveEffect` (writes dirty boards after a quiet moment),
+ * `useBookmarkSyncEffect` (reads both bookmark files, once for the whole
+ * workbench rather than once per browser tile),
  * `useLayoutSaveEffect` (remembers how the workbench is arranged, so the
  * project opens tomorrow the way it was left today),
  * `useRecentFilesEffect` (records what was last looked at, for the picker),
@@ -45,6 +48,7 @@ export default function App() {
   useFileWatchSync();
   useProjectColorEffect();
   useBoardAutosaveEffect();
+  useBookmarkSyncEffect();
   useLayoutSaveEffect();
   useRecentFilesEffect();
   useUserConfigEffect();

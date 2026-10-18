@@ -112,6 +112,28 @@ Packaging will also need `prebuilds/` unpacked from the asar.
 
 ## The libraries
 
+### A capture-phase `stopPropagation` takes the event away from its own target
+`code` · 2026-10-18 · `src/renderer/.../bookmark/bookmark-editor.component.tsx`
+
+A text field inside a Radix menu has to stop its keystrokes, or the menu uses
+them for typeahead and closes on Enter — `CustomSize` in the viewport picker
+already did this on the input, on the bubble phase. With four fields the tidy
+move is one `onKeyDownCapture` on the wrapper instead, guarding all of them
+at once.
+
+It does stop the menu, and it also stops the field. Capture runs on the way
+**down**, and React dispatches from the root container, so the wrapper's
+handler runs before the event has reached the input at all — the input's own
+`onKeyDown` never fires. Typing still *looks* fine, because the browser's
+default action inserts the character whatever propagation did, so what breaks
+is only the part that reads the event: here, Enter to save and Escape to
+cancel.
+
+General form: a capture handler is an interception, not a wrapper. Use it to
+take a key away from a subtree — the keybinding registry listens in capture
+on `window` for exactly that reason — never to guard one on the subtree's
+behalf.
+
 ### A Radix context menu holds focus until its content unmounts
 `code` · 2026-10-13 · `src/renderer/.../explorer/explorer.component.tsx`
 

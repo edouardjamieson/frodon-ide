@@ -73,6 +73,7 @@ rules, and what is missing.
 | [file picker](features/file-picker.md) | `mod+p`, and the ranking that matters for paths |
 | [boards](features/boards.md) | the drawing surface, in two scopes |
 | [browser](features/browser.md) | web pages in a tile, and the lockdown around them |
+| [bookmarks](features/bookmarks.md) | pages worth keeping, grouped, in two scopes |
 | [settings](features/settings.md) | two config files, and "absent means derived" |
 | [keybindings](features/keybindings.md) | one capture-phase listener, named commands |
 
@@ -147,7 +148,8 @@ on real PTYs · git status polled in main, with pull/push/branch in the header,
 changed files colored in the tree, a history graph, branches, and a staging
 area with diffs · project-wide search with find and replace · a file picker
 that ranks the whole project as you type · boards, in the project or in your
-home directory · a browser with tabs pinnable to a device size · a launcher
+home directory · a browser with tabs pinnable to a device size, and bookmarks
+in groups saved with the project or privately · a launcher
 with the last five projects · a workbench that reopens where you left it · a
 settings dialog · themes.
 

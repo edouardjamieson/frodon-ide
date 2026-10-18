@@ -28,6 +28,7 @@ import type {
   BoardScope,
   BoardSummary,
 } from './board.def';
+import type { Bookmark, BookmarkEntry, BookmarkScope } from './bookmark.def';
 import type {
   File,
   FileChange,
@@ -340,6 +341,39 @@ export interface IpcContract {
   'board:rename': { req: { ref: BoardRef; name: string }; res: BoardResult };
   'board:delete': { req: BoardRef; res: FsResult };
 
+  /**
+   * Every bookmark in both scopes, in the order each file lists them.
+   *
+   * The one pair of channels the browser module has, and the only reason it
+   * earns them: a `<webview>` is a DOM element, so nothing else about a tab
+   * ever crosses — but a page saved last week has to come back from a file,
+   * and the renderer cannot read one. See `shared/bookmark.def.ts`.
+   *
+   * Takes no root, for the reason the board and config channels take none:
+   * main already knows which project is open, and a path from the renderer
+   * would be a path main then writes a file into.
+   *
+   * Unsorted on purpose. A bookmarks list is arranged rather than generated,
+   * and an order imposed in main is one the renderer cannot get back.
+   */
+  'bookmark:list': { req: void; res: BookmarkEntry[] };
+  /**
+   * Replaces one scope's file.
+   *
+   * The whole list every time, like `board:write` and for the same reasons:
+   * it is small, the renderer holds all of it, and a patch channel would put
+   * a merge in main that the renderer has already done.
+   *
+   * One scope per call, which is what makes moving a bookmark between them
+   * two calls. That is the right cost — the project file is committed, and
+   * rewriting it because a *local* bookmark was renamed would put noise in
+   * somebody's `git status`.
+   */
+  'bookmark:save': {
+    req: { scope: BookmarkScope; bookmarks: Bookmark[] };
+    res: FsResult;
+  };
+
   /** Host facts the renderer can't ask the DOM for. */
   'app:info': { req: void; res: AppInfo };
 }
@@ -508,6 +542,13 @@ export interface FrodonApi {
     create: (scope: BoardScope, name?: string) => Promise<Res<'board:create'>>;
     rename: (ref: BoardRef, name: string) => Promise<Res<'board:rename'>>;
     remove: (ref: BoardRef) => Promise<Res<'board:delete'>>;
+  };
+  bookmark: {
+    list: () => Promise<Res<'bookmark:list'>>;
+    save: (
+      scope: BookmarkScope,
+      bookmarks: Bookmark[]
+    ) => Promise<Res<'bookmark:save'>>;
   };
   app: {
     info: () => Promise<Res<'app:info'>>;

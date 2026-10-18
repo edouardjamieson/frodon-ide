@@ -20,6 +20,7 @@ import {
   type BrowserTab,
   type Viewport,
 } from '~/lib/browser';
+import { BookmarkMenu, BookmarkStar } from '~/components/modules/bookmark';
 import BrowserViewport from './browser-viewport.component';
 
 /**
@@ -30,6 +31,12 @@ import BrowserViewport from './browser-viewport.component';
  * puts it inside the tab it belongs to, which is what lets it talk to its own
  * guest by calling a function instead of parking a command somewhere for a
  * component in another subtree to pick up.
+ *
+ * The bookmarks pair sits between the address bar and the viewport picker,
+ * which is the order the row is read in: where you are, what you do about
+ * it, where else you could be, how big. The star takes `tab.url` and never
+ * `tab.draft` — half a typed address is not a page, and a star that lit up
+ * on what you were about to go to would be lying about what is saved.
  */
 export default function BrowserToolbar({
   tab,
@@ -121,6 +128,9 @@ export default function BrowserToolbar({
           />
         </div>
       </form>
+
+      <BookmarkStar url={tab.url} title={tab.title} />
+      <BookmarkMenu onNavigate={onNavigate} />
 
       <BrowserViewport
         viewport={tab.viewport}

@@ -18,6 +18,58 @@ their reasoning is the reasoning recorded at the time, not reconstructed.
 
 ---
 
+### ADR-0028 — Bookmarks are two scoped files, and the browser's only channel
+
+**When** 2026-10-18 · **Status** active · **Touches** bookmarks, browser, boards
+
+**What.** Bookmarks live in `<root>/.frodon/bookmarks.json` and
+`~/.frodon/bookmarks.json` — the project/local split boards and the config
+files already make. A bookmark is `{ id, url, title, group? }`; a *group* is
+that free string and nothing else, with no table of groups anywhere. Two
+channels, `bookmark:list` and `bookmark:save`, which are the first and only
+IPC the browser module has.
+
+**Why.** Three choices, each with a rejected alternative.
+
+*Both scopes rather than one.* The pages an IDE's browser is pointed at are
+mostly the project's own — the dev server, the staging deploy, the dashboard
+— and those are worth a teammate getting on clone. Local-only would have made
+`localhost:5173` a thing every person on a team retypes; project-only would
+have put a personal page into a pull request. The split already existed and
+cost one `scope` field on the way out of main.
+
+*A group as a string rather than a record.* A group has no color, no order
+and no description, so a table of them would be a table of names — and the
+join would buy nothing but the possibility of a bookmark pointing at a group
+that no longer exists.
+
+*A channel at all, in the module whose rule was that it adds none.* The
+browser's lockdown (ADR-0017) holds because a `<webview>` is a DOM element and
+nothing about a live tab needs main. Bookmarks are the one part that outlives
+the window, and the renderer cannot read a file. The rule is narrowed rather
+than dropped: these two channels, nothing else.
+
+**How.** `shared/bookmark.def.ts` holds the shape, the limits and the
+sanitizers; `main/bookmark/bookmark.service.ts` reads both files and writes
+one. Unlike `resolveBoardPath` there is no path to resolve — the filename is
+a constant and the renderer contributes no segment — so the care goes into
+content instead: a url is checked against `BROWSER_SCHEMES` on the way out of
+main and again by `normalizeUrl` before it loads. The renderer lists once, at
+the app shell, and every mutation writes a scope whole and re-reads both.
+
+**Cost.** Three.
+
+Merging two files means a group can span them, so the menu cannot say which
+file a row came from without a column it does not have the width for — the
+start page says it instead. Writing a scope whole means moving a bookmark
+between scopes is two calls, and a failure between them leaves the disk in a
+state only a re-read can describe. And the project file is committed, which
+makes a bookmarks list something a merge conflict can mangle:
+`sanitizeBookmarkDocument` drops duplicate ids and bad urls rather than
+refusing the file, so a bad merge loses entries silently instead of loudly.
+
+---
+
 ### ADR-0027 — The MCP server is parked, and two pieces of it are kept
 
 **When** 2026-10-17 · **Status** parked · **Touches** terminal, workbench

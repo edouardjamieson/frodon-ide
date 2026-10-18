@@ -48,6 +48,7 @@ import {
   renameBoard,
   writeBoard,
 } from '@main/board';
+import { listBookmarks, writeBookmarks } from '@main/bookmark';
 import {
   createDirectory,
   createFile,
@@ -283,6 +284,16 @@ export function registerIpcHandlers(): void {
   handle('board:rename', ({ ref, name }) => renameBoard(ref, name));
 
   handle('board:delete', (ref) => deleteBoard(ref));
+
+  // Bookmarks. The browser's only channels, and the only ones it needs: a
+  // `<webview>` is a DOM element, so navigation never crosses — but a page
+  // saved last week has to come back from a file. Neither takes a path or a
+  // name, so unlike the board channels there is nothing here to resolve.
+  handle('bookmark:list', () => listBookmarks());
+
+  handle('bookmark:save', ({ scope, bookmarks }) =>
+    writeBookmarks(scope, bookmarks)
+  );
 
   handle('app:info', () => ({
     platform: process.platform as Platform,

@@ -314,7 +314,8 @@ history graph, branches with their ahead/behind counts, a staging area with
 diffs, and what a commit did · project-wide search with find and replace,
 walked in main and jumped to in the editor · a file picker on `mod+p` that
 ranks the whole project as you type · boards, saved into the project or
-privately · a browser with tabs that can be pinned to a device size · a
+privately · a browser with tabs that can be pinned to a device size,
+and bookmarks in groups saved with the project or kept privately · a
 launcher offering the last five projects · a workbench that reopens onto the
 tiles it was left on · a settings dialog on `mod+,` · switching themes.
 

@@ -1,7 +1,8 @@
 # Browser
 
 Web pages in a tile, each tab able to be pinned to a device size so a layout
-can be previewed at a width the pane is not.
+can be previewed at a width the pane is not, with the pages worth keeping
+saved as [bookmarks](bookmarks.md).
 
 ## Goal
 
@@ -22,13 +23,21 @@ about what a guest page is *not* allowed to be.
 | `renderer/src/lib/browser/browser.store.ts` | tab state, and the seeds a restored layout left |
 | `renderer/src/lib/browser/browser.service.ts` | `normalizeUrl`, `fitScale` |
 | `components/modules/browser/` | the toolbar, the viewport, the element |
+| `components/modules/bookmark/` | the star and the menu in that toolbar, and the page a blank tab shows — see [bookmarks.md](bookmarks.md) |
 
 ## How it works
 
-### It adds no IPC channel
+### It adds almost no IPC channel
 
 A `<webview>` is a DOM element, so the address bar, the history and the page
-all live in the renderer. The only main-process code is refusal.
+all live in the renderer. Nothing about a live tab crosses the boundary, and
+the only main-process code in `main/browser/` is refusal.
+
+The exception is bookmarks, which are the one part of this module that
+outlives the window: a page saved last week comes back from a file, and the
+renderer cannot read one. That is `bookmark:list` and `bookmark:save`, and
+the rule is narrowed to those two rather than dropped — see
+[bookmarks.md](bookmarks.md) and ADR-0028.
 
 ### The lockdown is main's, not the renderer's
 
@@ -122,9 +131,11 @@ dropped at attach is a tab whose guest failed to load.
 ### Opening a page
 
 1. `openBrowser` routes to a browser window and always adds a new tab.
-2. Typing in the address bar: anything that parses as an allowed URL is
+2. A new tab shows the bookmarks as a grid — the new-tab page — with the
+   cursor already in the address bar.
+3. Typing in the address bar: anything that parses as an allowed URL is
    navigated to; anything else becomes a search.
-3. Back, forward, reload, and the guest's own title in the tab.
+4. Back, forward, reload, and the guest's own title in the tab.
 
 ### Previewing a layout
 
@@ -136,9 +147,10 @@ dropped at attach is a tab whose guest failed to load.
 
 - **Every capability a guest has is set by main.** If a security property is
   only written on the element, it is not set.
-- **No channel is added for this module.** Something that seems to need one is
-  probably asking the renderer to do main's vetting, or main to do the
-  renderer's drawing.
+- **The only channels this module has are the two bookmark ones.** Anything
+  else that seems to need one is probably asking the renderer to do main's
+  vetting, or main to do the renderer's drawing. The test bookmarks passed:
+  the thing being stored outlives the guest process.
 - **Nothing navigates the window holding the preload bridge.**
   `setWindowOpenHandler` denies every new window and sends http(s) to the
   user's real browser.
@@ -151,5 +163,5 @@ dropped at attach is a tab whose guest failed to load.
 
 ## See also
 
-[workbench.md](workbench.md) · [architecture.md](../architecture.md) ·
-[decisions.md](../decisions.md)
+[bookmarks.md](bookmarks.md) · [workbench.md](workbench.md) ·
+[architecture.md](../architecture.md) · [decisions.md](../decisions.md)

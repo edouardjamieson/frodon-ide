@@ -20,6 +20,7 @@
  */
 import { contextBridge, ipcRenderer } from 'electron';
 import type { BoardDocument, BoardRef, BoardScope } from '@shared/board.def';
+import type { Bookmark, BookmarkScope } from '@shared/bookmark.def';
 import type { File, FileChange } from '@shared/fs.def';
 import type { GitStatus } from '@shared/git.def';
 import type { FrodonApi } from '@shared/ipc.def';
@@ -130,6 +131,11 @@ const api: FrodonApi = {
     // `remove`, not `delete`: the latter is a reserved word, and a method
     // named around it reads worse than one named plainly.
     remove: (ref: BoardRef) => ipcRenderer.invoke('board:delete', ref),
+  },
+  bookmark: {
+    list: () => ipcRenderer.invoke('bookmark:list'),
+    save: (scope: BookmarkScope, bookmarks: Bookmark[]) =>
+      ipcRenderer.invoke('bookmark:save', { scope, bookmarks }),
   },
   app: {
     info: () => ipcRenderer.invoke('app:info'),

@@ -115,6 +115,11 @@ search panel.
 
 ## Not there yet
 
+- **A confirmation before replace-all.** Replacing across forty files
+  rewrites and saves all of them with no dialog and no undo beyond what the
+  open tabs happen to hold. Discarding *one* file's changes in the git
+  window asks first ([git.md](git.md)), which makes the smaller act the more
+  careful one — the wrong way round.
 - `ripgrep`. This is still JS.
 - Include/exclude globs per query.
 - Search within a folder, from the explorer's context menu.

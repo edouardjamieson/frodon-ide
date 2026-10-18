@@ -25,7 +25,8 @@
  * explicit act, wired to a menu item.
  */
 import { execFile } from 'node:child_process';
-import { BrowserWindow } from 'electron';
+import path from 'node:path';
+import { BrowserWindow, shell } from 'electron';
 import { createLogger } from '@main/logger';
 import { emptyGitStatus } from '@shared/git.def';
 import type {
@@ -759,6 +760,124 @@ export function unstage(paths: string[]): Promise<GitResult> {
     // repository — `:/` is the whole tree, matching what `add -A` stages.
     ...(files.length === 0 ? [':/'] : files.map(pathspec)),
   ]);
+}
+
+/* -------------------------------------------------------------------------
+ * Discarding
+ *
+ * The only operation in this module that destroys work, and the only one in
+ * the app that destroys it **unrecoverably** — `file:delete` goes to the
+ * Trash, and a commit can be found again in the reflog, but an uncommitted
+ * edit thrown away here exists nowhere afterwards. Everything below is
+ * shaped by that.
+ * ---------------------------------------------------------------------- */
+
+/**
+ * What discarding a path would actually do, or null when it must not happen.
+ *
+ * Two different acts wear one word, and the dialog has to promise the right
+ * one — "the changes will be lost" and "it will be moved to the Trash" are
+ * not the same sentence:
+ *
+ * - `restore` — a tracked file, put back to what the index holds. For a file
+ *   that is also staged this drops only the unstaged part, which is exactly
+ *   what the row in the Changes section represents.
+ * - `trash` — an untracked file. There is no previous version to restore, so
+ *   discarding it means it stops existing. Git's own answer is `clean -f`,
+ *   which unlinks; this app's answer is the Trash, the same promise the
+ *   explorer makes, because an unrecoverable delete of a file git never saw
+ *   is the worst outcome in this file.
+ *
+ * Null for a path the repository does not report as changed — and for a
+ * **conflicted** one, deliberately. Discarding a conflict means choosing
+ * `--ours`, `--theirs` or `--merge`, and a button that silently picks one of
+ * the three is a button that loses a merge. It is a separate decision with
+ * its own UI; until there is one, a conflicted row has no discard.
+ *
+ * Read from main's own snapshot rather than from anything the renderer sent.
+ * A renderer that could say "this one is untracked" could get a tracked file
+ * trashed instead of restored.
+ */
+export function discardKind(target: string): 'restore' | 'trash' | null {
+  if (status.unstaged.includes(target)) return 'restore';
+  if (status.untracked.includes(target)) return 'trash';
+  return null;
+}
+
+/**
+ * Throws away one file's unstaged changes.
+ *
+ * Takes a single path, unlike `stage` and `unstage`, and that is not an
+ * oversight: the confirmation names the file, and a dialog that says
+ * "discard 14 files?" is one nobody reads before clicking. A bulk discard
+ * would be a different feature with a different sentence.
+ *
+ * The kind is re-derived here rather than taken as an argument, so the
+ * handler's use of `discardKind` for wording cannot drift from what actually
+ * happens. The authority is this function.
+ */
+export async function discardChange(target: string): Promise<GitResult> {
+  if (!root) return { ok: false, error: 'No project is open.' };
+
+  const kind = discardKind(target);
+  if (!kind) {
+    // Either it stopped being changed between the click and the answer —
+    // another process committed it, or a watcher tick beat us — or it is a
+    // conflict, which this does not handle. Both are "nothing to do".
+    return { ok: true };
+  }
+
+  if (kind === 'restore') {
+    // Worktree only. Without `--staged` this restores from the index, so a
+    // partially staged file keeps what was staged — adding `--staged` here
+    // would quietly turn a discard into a discard *and* an unstage.
+    return operate(['restore', '--', pathspec(target)]);
+  }
+
+  return trashUntracked(target);
+}
+
+/**
+ * Moves an untracked file to the Trash.
+ *
+ * Not `deleteEntry` from `@main/fs`, though it does the same thing: that one
+ * checks containment against the **project** root, and the repository is not
+ * necessarily the project — opening `~/dev/frodon/src` gives a repo two
+ * levels up, whose changed files are legitimately outside the project. The
+ * boundary that matters here is the repository, so the check is written
+ * against it.
+ *
+ * The check is made even though the path came straight out of `git status`
+ * and so cannot escape, for the reason `resolveBoardPath` checks a path it
+ * has just built: a traversal should take two independent mistakes rather
+ * than one, and the cost here is a `startsWith`.
+ */
+async function trashUntracked(target: string): Promise<GitResult> {
+  // Always set by the time this runs: a path can only be `untracked` if a
+  // `git status` reported it, and that is the same run that sets `repoRoot`.
+  if (!status.repoRoot) return { ok: false, error: 'No repository is open.' };
+
+  const repoRoot = path.resolve(status.repoRoot);
+  const entry = path.resolve(repoRoot, target);
+
+  if (entry === repoRoot || !entry.startsWith(repoRoot + path.sep)) {
+    log.warn(`refused to discard a path outside the repository: ${target}`);
+    return { ok: false, error: 'That is outside the repository.' };
+  }
+
+  try {
+    await shell.trashItem(entry);
+    log.info(`discarded untracked ${target}`);
+  } catch (error) {
+    log.error(`discard failed for ${target}`, error);
+    return { ok: false, error: String(error) };
+  }
+
+  // `operate` is what normally refreshes the snapshot after a git command,
+  // and this one ran no git command — so the tick is taken by hand. Without
+  // it the row stays on screen until the next poll.
+  await tick();
+  return { ok: true };
 }
 
 /**

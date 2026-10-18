@@ -27,6 +27,8 @@ import {
   checkout,
   commit,
   createBranch,
+  discardChange,
+  discardKind,
   fetchRemote,
   getStatus,
   listBranches,
@@ -88,6 +90,47 @@ async function confirmDelete(
     cancelId: 1,
     message: `Delete "${basename(target)}"?`,
     detail: 'It will be moved to the Trash, and can be restored from there.',
+  };
+
+  const { response } = window
+    ? await dialog.showMessageBox(window, options)
+    : await dialog.showMessageBox(options);
+
+  return response === 0;
+}
+
+/**
+ * Asks before uncommitted work is thrown away.
+ *
+ * A second dialog rather than a flag on `confirmDelete`, because the promise
+ * is different and the wording is the whole point. Discarding a tracked
+ * file's changes is the one unrecoverable thing this app does — the Trash
+ * does not get a copy and neither does git — so that sentence says so
+ * plainly, while an untracked file gets the same "moved to the Trash"
+ * assurance the explorer gives.
+ *
+ * The verb on the button matches the outcome too. "Discard" and "Move to
+ * Trash" are both honest; "OK" would not be.
+ */
+async function confirmDiscard(
+  target: string,
+  kind: 'restore' | 'trash',
+  event: IpcMainInvokeEvent
+): Promise<boolean> {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  const options = {
+    type: 'warning' as const,
+    buttons: [kind === 'trash' ? 'Move to Trash' : 'Discard changes', 'Cancel'],
+    defaultId: 0,
+    cancelId: 1,
+    message:
+      kind === 'trash'
+        ? `Discard "${basename(target)}"?`
+        : `Discard changes to "${basename(target)}"?`,
+    detail:
+      kind === 'trash'
+        ? 'Git has never seen this file, so there is nothing to restore it to. It will be moved to the Trash, and can be recovered from there.'
+        : 'The file goes back to its last staged or committed state. Nothing else has a copy of these changes, so this cannot be undone.',
   };
 
   const { response } = window
@@ -246,6 +289,22 @@ export function registerIpcHandlers(): void {
   handle('git:stage', ({ paths }) => stage(paths));
 
   handle('git:unstage', ({ paths }) => unstage(paths));
+
+  // The second handler that asks before it acts, and the harsher of the two:
+  // `file:delete` fills the Trash, this throws away an edit that nothing
+  // anywhere has a copy of. `discardKind` is consulted here only to pick the
+  // wording — the service works it out again before acting, so the sentence
+  // and the act cannot disagree.
+  handle('git:discard', async ({ path }, event) => {
+    const kind = discardKind(path);
+    // Already clean, or conflicted — which this deliberately does not
+    // handle. Nothing to ask about and nothing to do.
+    if (!kind) return { ok: true };
+
+    if (!(await confirmDiscard(path, kind, event))) return { ok: true };
+
+    return discardChange(path);
+  });
 
   handle('git:commit', (request) => commit(request));
 

@@ -421,6 +421,20 @@ export const useGitStaging = () => {
     []
   );
 
+  /**
+   * Throws away one file's unstaged changes, after main has asked.
+   *
+   * One path rather than a list, matching the channel: the dialog names the
+   * file. The result is not worth reading — a cancel and a no-op both come
+   * back `{ ok: true }`, and the row list redraws from the `git:changed`
+   * that a real discard produces.
+   */
+  const discard = useCallback(
+    (path: string) =>
+      runOperation('stage', () => window.frodon.git.discard(path)),
+    []
+  );
+
   const commit = useCallback(async (amend = false): Promise<GitResult> => {
     const text = useGitStore.getState().message;
     const result = await runOperation('commit', () =>
@@ -430,5 +444,5 @@ export const useGitStaging = () => {
     return result;
   }, []);
 
-  return { message, setMessage, stage, unstage, commit, operation };
+  return { message, setMessage, stage, unstage, discard, commit, operation };
 };

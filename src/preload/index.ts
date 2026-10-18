@@ -84,6 +84,7 @@ const api: FrodonApi = {
     diff: (request) => ipcRenderer.invoke('git:diff', request),
     stage: (paths) => ipcRenderer.invoke('git:stage', { paths }),
     unstage: (paths) => ipcRenderer.invoke('git:unstage', { paths }),
+    discard: (path) => ipcRenderer.invoke('git:discard', { path }),
     commit: (request) => ipcRenderer.invoke('git:commit', request),
     onChanged: (listener) => {
       const handler = (_event: unknown, status: GitStatus) => listener(status);

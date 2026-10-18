@@ -267,6 +267,26 @@ export interface IpcContract {
   'git:stage': { req: { paths: string[] }; res: GitResult };
   /** The inverse. Same convention: an empty list means all of it. */
   'git:unstage': { req: { paths: string[] }; res: GitResult };
+  /**
+   * Throws away one file's unstaged changes, after asking.
+   *
+   * The asking is main's, in a native dialog, for the reason `file:delete`'s
+   * is: this destroys work, and a modal the window cannot be clicked past is
+   * the right register. It is the harsher of the two — a deleted file is in
+   * the Trash, an uncommitted edit discarded here is nowhere — so the dialog
+   * says which of the two is about to happen.
+   *
+   * One path, not an array like `git:stage`. The confirmation names the
+   * file, and "discard 14 files?" is a sentence nobody reads before
+   * clicking.
+   *
+   * A cancelled dialog answers `{ ok: true }`, indistinguishable from a
+   * discard that found nothing to do. Unlike `file:delete` — which needs
+   * `deleted` so the renderer does not close tabs for a file the person kept
+   * — nothing here has to react to the difference: the row list comes from
+   * the next `git:changed`, and a cancel produces no change to push.
+   */
+  'git:discard': { req: { path: string }; res: GitResult };
   /** Records what is staged. Fails with git's own message if a hook rejects it. */
   'git:commit': { req: GitCommitRequest; res: GitResult };
 
@@ -529,6 +549,7 @@ export interface FrodonApi {
     diff: (request: Req<'git:diff'>) => Promise<Res<'git:diff'>>;
     stage: (paths: string[]) => Promise<Res<'git:stage'>>;
     unstage: (paths: string[]) => Promise<Res<'git:unstage'>>;
+    discard: (path: string) => Promise<Res<'git:discard'>>;
     commit: (request: Req<'git:commit'>) => Promise<Res<'git:commit'>>;
     /** Subscribes to repository changes. Returns an unsubscribe function. */
     onChanged: (listener: (status: GitStatus) => void) => () => void;

@@ -149,6 +149,29 @@ Packaging will also need `prebuilds/` unpacked from the asar.
 
 ## The libraries
 
+### `git restore` without `--staged` restores from the index, not from HEAD
+`code` · 2026-10-18 · `src/main/git/git.service.ts`
+
+Discarding a file's unstaged changes has an obvious spelling —
+`git checkout HEAD -- <path>` — and it is wrong whenever the file is
+partially staged. It goes back to the last *commit*, so work that was
+deliberately staged a minute ago disappears along with the work that was
+not.
+
+`git restore -- <path>` restores the worktree from the **index** instead,
+which is what a row in a "Changes" list actually means: drop what is not
+staged, keep what is. Verified on a file edited, staged, then edited again —
+status `MM`, and after the restore the worktree matches the staged version
+and the status is `M ` with the staged half intact. Adding `--staged` flips
+it to the other side of the index and turns a discard into an unstage.
+
+The related trap: `restore` only works on tracked paths. On an untracked
+file it exits 1 with `pathspec … did not match any file(s) known to git`, so
+"discard" there is a different operation entirely — a delete — and has to be
+branched rather than handled by the same command.
+
+
+
 ### A capture-phase `stopPropagation` takes the event away from its own target
 `code` · 2026-10-18 · `src/renderer/.../bookmark/bookmark-editor.component.tsx`
 

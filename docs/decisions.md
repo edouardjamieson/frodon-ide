@@ -18,6 +18,70 @@ their reasoning is the reasoning recorded at the time, not reconstructed.
 
 ---
 
+### ADR-0030 — Discarding asks in main, trashes an untracked file, and refuses a conflict
+
+**When** 2026-10-18 · **Status** active · **Touches** git, explorer
+
+**What.** A changed file's row can discard its unstaged changes. Main asks
+first, in a native modal, as it does for `file:delete`
+([ADR-0019](#adr-0019--a-rename-compares-inodes-a-delete-goes-to-the-trash-after-main-asks)).
+A tracked file is `git restore`d from the index; an **untracked** one goes to
+the **Trash** rather than being unlinked; a **conflicted** one has no discard
+at all. `git:discard` takes one path, not a list.
+
+**Why.** Discarding destroys work *unrecoverably*: the Trash gets a copy of a
+deleted file and the reflog gets a copy of a bad commit, but nothing anywhere
+keeps an uncommitted edit. So the confirmation register is the strictest one
+available, and the dialog says which of two different outcomes is coming —
+"these changes will be lost" and "it will be moved to the Trash" are
+different promises and only one of them is true at a time.
+
+It is not the only unrecoverable thing here. `search:replace` rewrites and
+saves every matching file with no confirmation at all, which is the same
+class of act at a larger scale. That is a gap in that feature rather than an
+argument for leaving a gap in this one, and it is recorded as such below.
+
+The Trash for untracked files rather than git's `clean -f` is the one place
+this deliberately departs from git. `clean` unlinks, and a file git has never
+seen is precisely the file with no other copy; the explorer already promises
+the Trash for a delete, and making the harsher path the recoverable one costs
+nothing.
+
+Refusing a conflicted file is a refusal rather than a gap. Discarding a
+conflict means choosing `--ours`, `--theirs` or `--merge`; a single button
+cannot ask which, and picking one silently is how a merge is lost.
+
+One path rather than a list because the dialog names the file. "Discard 14
+files?" is a sentence people click past.
+
+**How.** `discardKind` in `main/git/git.service.ts` reads main's own
+snapshot to classify — never a flag from the renderer, which could otherwise
+get a tracked file trashed. The handler calls it for the wording;
+`discardChange` calls it again before acting, so the sentence and the act
+cannot drift. `restore` is run **without** `--staged`, which restores the
+worktree from the index and so preserves a partially staged file's staged
+half. The untracked path is trashed with a containment check against the
+**repository** root rather than `deleteEntry`'s project root, because the
+repository can sit above the project.
+
+**Cost.** Four.
+
+The confirmation is main's, so the renderer cannot style it — the same cost
+ADR-0019 pays. A cancel and a no-op are indistinguishable to the renderer
+(`{ ok: true }` for both), which is fine only because nothing in the UI has
+to react to the difference; the moment something does, this needs a
+`discarded` field. There is no bulk discard, so cleaning up twenty files is
+twenty dialogs. A conflicted file now has a visible hole in the row's
+affordances, which will look like an oversight until conflict resolution
+exists.
+
+And the app is now inconsistent about destroying work: discarding one file
+asks, while replace-all across forty files does not. This decision makes the
+smaller act the more careful one, which is the wrong way round — the fix is
+a confirmation on `search:replace`, not the removal of this one.
+
+---
+
 ### ADR-0029 — Main fetches remote content for the renderer; the CSP stays shut
 
 **When** 2026-10-18 · **Status** active · **Touches** browser, bookmarks

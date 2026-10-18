@@ -79,6 +79,45 @@ The TUI read `UU` letter by letter and called the file staged, which is
 backwards: the one thing you cannot do with a conflicted file is commit it.
 There is a fourth `GitFileStatus` and a `gitConflictedFg` role.
 
+### Discarding is the one thing here that cannot be undone
+
+A changed file's row carries a discard button beside the stage button, and
+what it throws away is gone: `file:delete` fills the Trash and a bad commit
+is still in the reflog, but an uncommitted edit discarded here exists nowhere
+afterwards. Several things follow.
+
+(`search:replace` is the other unrecoverable act in the app and it asks
+nothing — see [search.md](search.md). That is a gap there, not a precedent
+to follow here.)
+
+**It asks, in main.** `confirmDiscard` is a native modal beside the one
+`file:delete` uses — the same register, for a worse outcome. It is a second
+dialog rather than a flag on the first because the promise differs, and the
+wording is most of the point.
+
+**Two acts wear one word, and `discardKind` tells them apart.** A tracked
+file is `git restore`d; an untracked one has no previous version to go back
+to, so discarding it means it stops existing — and that goes to the **Trash**
+rather than git's own `clean -f`, which unlinks. The dialog says which is
+about to happen, and the button says `Discard changes` or `Move to Trash`
+accordingly. Main re-derives the kind inside `discardChange` rather than
+trusting the one it used for the wording, so the sentence and the act cannot
+disagree.
+
+**`restore` without `--staged`, which is the whole subtlety.** It restores
+the worktree from the *index*, so a partially staged file keeps what was
+staged and loses only what was not — which is exactly what a row in the
+Changes section represents. `git checkout HEAD -- <path>` is the spelling
+most people reach for and it would take the staged work with it.
+
+A **conflicted** file has no discard button, and main refuses it too.
+Discarding a conflict means choosing `--ours`, `--theirs` or `--merge`, and a
+button that quietly picks one of the three is a button that loses a merge.
+
+There is no "discard all" to match "Stage all": the confirmation names a
+file, and a dialog reading "discard 14 files?" is one nobody reads before
+clicking.
+
 ### One operation at a time, and failures are values
 
 `runOperation` is at module scope rather than inside the hook, because two
@@ -111,6 +150,18 @@ handler, so git's own stderr comes back as a value.
    switching tabs or focusing another window does not throw away a half-written
    message.
 
+### Discarding a change
+
+1. Hovering a row in **Changes** reveals two buttons: discard, then stage.
+   Discard is on the left, so the stage button stays where it has always
+   been — the destructive one makes room for itself rather than taking the
+   position fingers already go to.
+2. Clicking it opens a native modal naming the file and saying what will
+   happen to it: changes lost for a tracked file, Trash for an untracked one.
+3. Cancelling does nothing at all. Confirming refreshes the snapshot, and
+   the row leaves the list on the `git:changed` that follows.
+4. A conflicted row has no discard button.
+
 ### Reading history
 
 1. The history tab draws the log as a graph: a lane per branch, dots for
@@ -134,13 +185,23 @@ handler, so git's own stderr comes back as a value.
   takes a root; main already knows.
 - **Nothing in the renderer knows what `git push` is.** The hook adds which
   button to spin and what to say when the answer is no.
+- **Anything that destroys uncommitted work asks first, and main does the
+  asking.** The renderer may not decide that a discard is safe, and may not
+  tell main which kind of discard it is — `discardKind` reads main's own
+  snapshot, because a renderer that could say "this one is untracked" could
+  get a tracked file trashed instead of restored.
+- **A discard takes one path.** Not a list, unlike staging: the dialog names
+  the file it is about.
 
 ## Not there yet
 
 - Remotes beyond the current branch's upstream.
 - Stash, rebase, cherry-pick, tags.
 - A blame gutter, which wants the editor rather than this module.
-- Conflict resolution. The state exists; nothing acts on it.
+- Conflict resolution. The state exists; nothing acts on it, and discarding
+  a conflicted file is refused for the same reason.
+- Discarding a *staged* change, which would be an unstage and a discard in
+  one. The Staged section still only unstages.
 
 ## See also
 

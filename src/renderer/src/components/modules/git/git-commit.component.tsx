@@ -1,5 +1,5 @@
 import { cn } from 'cn';
-import { LoaderCircle, Minus, Plus } from 'lucide-react';
+import { LoaderCircle, Minus, Plus, Undo2 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import {
   Checkbox,
@@ -33,7 +33,7 @@ import GitDiff from './git-diff.component';
  */
 export default function GitCommit() {
   const { staged, changed } = useGitChanges();
-  const { stage, unstage } = useGitStaging();
+  const { stage, unstage, discard } = useGitStaging();
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -51,9 +51,13 @@ export default function GitCommit() {
                 icon: <Minus className="size-3" />,
                 onClick: () => void unstage([]),
               }}
-              rowAction={(file) => void unstage([file.path])}
-              rowIcon={<Minus className="size-3" />}
-              rowLabel="Unstage"
+              rowActions={[
+                {
+                  label: 'Unstage',
+                  icon: <Minus className="size-3" />,
+                  onAct: (file) => void unstage([file.path]),
+                },
+              ]}
             />
 
             <Section
@@ -64,9 +68,34 @@ export default function GitCommit() {
                 icon: <Plus className="size-3" />,
                 onClick: () => void stage([]),
               }}
-              rowAction={(file) => void stage([file.path])}
-              rowIcon={<Plus className="size-3" />}
-              rowLabel="Stage"
+              // Discard sits to the *left* of stage, so the button that has
+              // always been at the end of the row still is. Putting the
+              // destructive one where the fingers already go is how an
+              // afternoon's work gets thrown away by muscle memory — the
+              // safe action keeps its position and the new one makes room
+              // for itself.
+              //
+              // There is no "discard all": the confirmation names a file,
+              // and a dialog that says "discard 14 files?" is one nobody
+              // reads before clicking.
+              rowActions={[
+                {
+                  label: 'Discard changes',
+                  icon: <Undo2 className="size-3" />,
+                  onAct: (file) => void discard(file.path),
+                  danger: true,
+                  // A conflict cannot be discarded by a button: it would
+                  // mean silently choosing --ours, --theirs or --merge, and
+                  // picking one of the three for you is how a merge is
+                  // lost. Main refuses it too.
+                  enabled: (file) => file.status !== 'conflicted',
+                },
+                {
+                  label: 'Stage',
+                  icon: <Plus className="size-3" />,
+                  onAct: (file) => void stage([file.path]),
+                },
+              ]}
             />
 
             {staged.length === 0 && changed.length === 0 ? (
@@ -95,21 +124,36 @@ interface SectionAction {
   onClick: () => void;
 }
 
+/**
+ * One button on a file row.
+ *
+ * A list rather than a single action, because the Changes section has two
+ * and the Staged section has one. Declared once per section at the call
+ * site, not rebuilt per row: a changes list is tens of rows, and the rule
+ * that nothing is computed inside a per-file component holds whether or not
+ * this particular list is long.
+ */
+interface RowAction {
+  label: string;
+  icon: ReactNode;
+  onAct: (file: GitChange) => void;
+  /** Rows this does not apply to simply do not get the button. */
+  enabled?: (file: GitChange) => boolean;
+  /** Draws it red on hover. For the one that cannot be undone. */
+  danger?: boolean;
+}
+
 /** One of the two lists, with its own "do this to all of it" button. */
 function Section({
   title,
   files,
   action,
-  rowAction,
-  rowIcon,
-  rowLabel,
+  rowActions,
 }: {
   title: string;
   files: GitChange[];
   action: SectionAction;
-  rowAction: (file: GitChange) => void;
-  rowIcon: ReactNode;
-  rowLabel: string;
+  rowActions: RowAction[];
 }) {
   if (files.length === 0) return null;
 
@@ -133,9 +177,7 @@ function Section({
         <FileRow
           key={`${file.staged ? 's' : 'u'}:${file.path}`}
           file={file}
-          onAct={() => rowAction(file)}
-          actionIcon={rowIcon}
-          actionLabel={rowLabel}
+          actions={rowActions}
         />
       ))}
     </>
@@ -149,17 +191,7 @@ function Section({
  * clicking opens it in an editor — the thing you want immediately after
  * reading a diff and deciding it is wrong.
  */
-function FileRow({
-  file,
-  onAct,
-  actionIcon,
-  actionLabel,
-}: {
-  file: GitChange;
-  onAct: () => void;
-  actionIcon: ReactNode;
-  actionLabel: string;
-}) {
+function FileRow({ file, actions }: { file: GitChange; actions: RowAction[] }) {
   const select = useGitStore((state) => state.select);
   // The same file can be in both lists — edited, part of it staged — so the
   // row is only the selected one when the side matches too.
@@ -202,18 +234,29 @@ function FileRow({
         <span className="flex-1" />
       )}
 
-      <button
-        aria-label={`${actionLabel} ${file.path}`}
-        onClick={(event) => {
-          // The row under it selects on click; without this, staging a file
-          // would also move the diff pane to it.
-          event.stopPropagation();
-          onAct();
-        }}
-        className="flex size-5 shrink-0 cursor-pointer items-center justify-center rounded text-fg-muted opacity-0 transition-opacity group-hover/file:opacity-100 hover:bg-project/25 hover:text-fg"
-      >
-        {actionIcon}
-      </button>
+      {actions.map((action) =>
+        action.enabled && !action.enabled(file) ? null : (
+          <button
+            key={action.label}
+            aria-label={`${action.label} ${file.path}`}
+            title={action.label}
+            onClick={(event) => {
+              // The row under it selects on click; without this, staging a
+              // file would also move the diff pane to it.
+              event.stopPropagation();
+              action.onAct(file);
+            }}
+            className={cn(
+              'flex size-5 shrink-0 cursor-pointer items-center justify-center rounded text-fg-muted opacity-0 transition-opacity group-hover/file:opacity-100 focus-visible:opacity-100',
+              action.danger
+                ? 'hover:bg-destructive/15 hover:text-fg-danger'
+                : 'hover:bg-project/25 hover:text-fg'
+            )}
+          >
+            {action.icon}
+          </button>
+        )
+      )}
     </div>
   );
 }

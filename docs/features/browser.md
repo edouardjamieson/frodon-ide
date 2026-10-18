@@ -17,7 +17,8 @@ about what a guest page is *not* allowed to be.
 
 | Path | What it holds |
 | --- | --- |
-| `main/browser/browser.service.ts` | `hardenWebviews` — the entire main-process side, and it is all refusal |
+| `main/browser/browser.service.ts` | `hardenWebviews` — the lockdown, and it is all refusal |
+| `main/browser/favicon.service.ts` | `readFavicon` — the one thing here that is not refusal |
 | `shared/browser.def.ts` | the partition, the scheme list, `isAllowedBrowserUrl` |
 | `renderer/src/lib/browser/browser.def.ts` | tabs, viewports, and the slice of the tag this module touches |
 | `renderer/src/lib/browser/browser.store.ts` | tab state, and the seeds a restored layout left |
@@ -27,17 +28,54 @@ about what a guest page is *not* allowed to be.
 
 ## How it works
 
-### It adds almost no IPC channel
+### It adds a channel only for what the renderer cannot reach
 
-A `<webview>` is a DOM element, so the address bar, the history and the page
-all live in the renderer. Nothing about a live tab crosses the boundary, and
-the only main-process code in `main/browser/` is refusal.
+A `<webview>` is a DOM element, so the address bar, the history, the title
+and the page itself all live in the renderer and cross nothing. Three
+channels exist anyway, and all three are about **reach** rather than drawing:
 
-The exception is bookmarks, which are the one part of this module that
-outlives the window: a page saved last week comes back from a file, and the
-renderer cannot read one. That is `bookmark:list` and `bookmark:save`, and
-the rule is narrowed to those two rather than dropped — see
-[bookmarks.md](bookmarks.md) and ADR-0028.
+| Channel | What the renderer cannot do |
+| --- | --- |
+| `bookmark:list` · `bookmark:save` | touch the disk — a saved page outlives the guest |
+| `browser:favicon` | touch the network — the IDE's CSP forbids it |
+
+Anything that seems to need a fourth, for the tab in front of you, is asking
+the renderer to do main's vetting or main to do the renderer's drawing. See
+[bookmarks.md](bookmarks.md), ADR-0028 and ADR-0029.
+
+### A favicon is fetched by main, on the guest's session
+
+The guest reports its icon on `page-favicon-updated`, as a URL. The renderer
+can do nothing with that URL: the IDE's CSP is `img-src 'self' data:`, which
+exists so that a hostile string reaching the DOM — a filename, a branch name,
+a language-server message — has nowhere to send anything.
+
+**Relaxing it to `img-src https:` is the one-line fix and is the wrong one.**
+It would give every string that reaches an `<img>` in the privileged renderer
+a way out to the network, and put the request on the IDE's own session.
+
+So `readFavicon` fetches it and answers with a `data:` URL, which the CSP
+already allows. Three details carry the weight:
+
+- **`guest.fetch`, not `net.fetch`.** `net.fetch` always issues from the
+  default session. The request has to go out on `persist:frodon-browser` —
+  the session the page is already on — or an intranet icon behind a login
+  comes back as a 403 and everything else travels on the privileged session.
+- **The server's content type is ignored and the bytes are sniffed.** This is
+  both more permissive and stricter than trusting the header: MDN's
+  `favicon.ico` is a PNG served as `image/x-icon`, and one mislabel in a
+  five-site sample means the header cannot gate rendering. A server also
+  cannot get something that is not an image past `sniffImageType`.
+- **`file:` is not an allowed favicon scheme,** though it is an allowed page
+  scheme. A page declares its own icon URL, so honouring a `file:` one would
+  let the page choose which local file main reads and hands to the renderer.
+
+Answers are cached in main, hits and misses alike — four tabs on one site ask
+at the same moment, and a site with no icon would otherwise be re-asked on
+every navigation. The icon is dropped on `did-navigate` and kept on
+`did-navigate-in-page`: a route change inside a single-page app is the same
+document, and showing the last site's mark on this one is the single thing a
+favicon must never do.
 
 ### The lockdown is main's, not the renderer's
 
@@ -147,10 +185,14 @@ dropped at attach is a tab whose guest failed to load.
 
 - **Every capability a guest has is set by main.** If a security property is
   only written on the element, it is not set.
-- **The only channels this module has are the two bookmark ones.** Anything
-  else that seems to need one is probably asking the renderer to do main's
-  vetting, or main to do the renderer's drawing. The test bookmarks passed:
-  the thing being stored outlives the guest process.
+- **A channel here is for reach, not for drawing.** The disk and the network
+  are the two things the renderer cannot get to; everything about a live tab
+  it can. A proposed channel that is neither is asking the renderer to do
+  main's vetting, or main to do the renderer's drawing.
+- **The renderer never loads remote content.** Not an icon, not a
+  stylesheet, not an image. If something from the open web has to appear in
+  the IDE's own chrome, main fetches it on the guest's session and hands
+  over bytes. The CSP is the backstop, not the policy.
 - **Nothing navigates the window holding the preload bridge.**
   `setWindowOpenHandler` denies every new window and sends http(s) to the
   user's real browser.

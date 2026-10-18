@@ -116,5 +116,10 @@ function blankTab(id: string, seed?: BrowserTabSeed): BrowserTab {
     canGoForward: false,
     viewport: seed?.viewport ?? null,
     error: null,
+    // Not seeded from a restored tab, even though the url is. An icon is a
+    // fact the page reports and this one has not loaded yet; it arrives a
+    // moment later on `page-favicon-updated`, and caching it in the layout
+    // file would be storing a site's artwork in a window arrangement.
+    favicon: null,
   };
 }

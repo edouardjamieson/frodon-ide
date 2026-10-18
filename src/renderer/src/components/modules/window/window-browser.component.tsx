@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { cn } from 'cn';
 import { Globe, LoaderCircle, Plus, X } from 'lucide-react';
 import { hostOf, isBlank, useBrowserTabLabel } from '~/lib/browser';
@@ -69,7 +69,7 @@ function BrowserTab({
   onActivate: () => void;
   onClose: () => void;
 }) {
-  const { title, url, loading } = useBrowserTabLabel(tabId);
+  const { title, url, loading, favicon } = useBrowserTabLabel(tabId);
 
   // The title if the page has one, the host if it has not got that far, and a
   // number if it has not been pointed anywhere — numbered by position so
@@ -85,11 +85,10 @@ function BrowserTab({
         active ? 'bg-tab-active text-fg' : 'text-fg-muted hover:bg-tab-inactive'
       )}
     >
-      {loading ? (
-        <LoaderCircle className="size-3.5 shrink-0 animate-spin" />
-      ) : (
-        <Globe className="size-3.5 shrink-0" />
-      )}
+      {/* Keyed by the icon, so a tab that navigates to a site with a good
+          icon is not stuck on the globe because the previous site's icon
+          would not decode — see `broken` in `TabIcon`. */}
+      <TabIcon key={favicon ?? 'none'} loading={loading} favicon={favicon} />
       <span className="truncate">{label}</span>
 
       <button
@@ -107,6 +106,58 @@ function BrowserTab({
       </button>
     </div>
   );
+}
+
+/**
+ * The 14px square at the head of a tab chip.
+ *
+ * Three states in priority order, and the order is the whole of it: a
+ * spinner while the page is loading, the site's own icon once it has
+ * reported one, and the globe otherwise. Loading wins over the favicon
+ * deliberately — the icon of the page you are leaving is the most confusing
+ * thing to show while the next one is on its way.
+ *
+ * `src` is always a `data:` URL. The renderer cannot load a remote one and
+ * is not going to start: main fetches the icon on the guest's session and
+ * hands over the bytes, so nothing here touches the network. See
+ * `main/browser/favicon.service.ts`.
+ */
+function TabIcon({
+  loading,
+  favicon,
+}: {
+  loading: boolean;
+  favicon: string | null;
+}) {
+  // Reset by remounting rather than by an effect: the caller keys this on
+  // the icon, so a new icon is a new component and starts untried.
+  const [broken, setBroken] = useState(false);
+
+  if (loading) {
+    return <LoaderCircle className="size-3.5 shrink-0 animate-spin" />;
+  }
+
+  if (favicon && !broken) {
+    return (
+      <img
+        src={favicon}
+        alt=""
+        // Decorative: the tab is already labelled by its title beside this,
+        // so a screen reader reading the icon as well would say the site
+        // twice.
+        aria-hidden
+        // Main sniffed the bytes before sending them, so this is an image.
+        // It can still fail to *decode* — a truncated PNG, an ICO in a
+        // variant Chromium will not read — and an `<img>` that cannot decode
+        // draws a broken-image glyph, which looks worse than the globe it
+        // replaced. One strike and the fallback comes back.
+        onError={() => setBroken(true)}
+        className="size-3.5 shrink-0 rounded-[2px] object-contain"
+      />
+    );
+  }
+
+  return <Globe className="size-3.5 shrink-0" />;
 }
 
 export function BrowserWindowBody({ window: win }: { window: BrowserWindow }) {

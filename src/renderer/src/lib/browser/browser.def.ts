@@ -70,13 +70,31 @@ export interface BrowserTab {
   viewport: Viewport | null;
   /** The last load failure, as the guest described it. Cleared on success. */
   error: string | null;
+  /**
+   * The page's own icon, already resolved to a `data:` URL, or null for the
+   * generic globe.
+   *
+   * A `data:` URL and not the remote one the guest reported, because the
+   * renderer cannot load a remote one: the IDE's CSP is
+   * `img-src 'self' data:`. Main fetches it on the guest's session and hands
+   * back bytes — see `browser:favicon`. Storing the resolved form means the
+   * tab chip is an `<img src>` and nothing else, with no fetching in a
+   * component that renders once per tab.
+   */
+  favicon: string | null;
 }
 
 /** The fields the guest reports. Everything a page is allowed to tell us. */
 export type BrowserReport = Partial<
   Pick<
     BrowserTab,
-    'url' | 'title' | 'loading' | 'canGoBack' | 'canGoForward' | 'error'
+    | 'url'
+    | 'title'
+    | 'loading'
+    | 'canGoBack'
+    | 'canGoForward'
+    | 'error'
+    | 'favicon'
   >
 >;
 
@@ -172,6 +190,18 @@ export interface TitleEvent extends Event {
 export interface NavigateEvent extends Event {
   url: string;
   isMainFrame?: boolean;
+}
+
+/**
+ * `page-favicon-updated`. Absolute URLs, in document order.
+ *
+ * A page can declare several — a `.ico`, a couple of PNG sizes, an
+ * `apple-touch-icon`. The first is taken, because document order puts the
+ * one the author wrote first first, and a tab chip is drawing it at 14
+ * pixels where the difference between a 32px and a 180px source is nothing.
+ */
+export interface FaviconEvent extends Event {
+  favicons: string[];
 }
 
 /**

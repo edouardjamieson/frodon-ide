@@ -17,6 +17,43 @@ architecture, write the ADR too and link them.
 
 ## The platform
 
+### `net.fetch` always uses the default session; only `ses.fetch` picks another
+`code` · 2026-10-18 · `src/main/browser/favicon.service.ts`
+
+Fetching a favicon has to happen on the browsing session —
+`persist:frodon-browser` — or an icon behind an intranet login comes back
+403 and every other request travels on the session holding the IDE's own
+cookies. `net.fetch(url, { session })` reads like the way to say that. It is
+not: `net.fetch` issues from the default session full stop, and the option
+does not exist. Electron's own typings say so, and the compiler is what
+caught it — `'session' does not exist in type 'RequestInit'`.
+
+A request on a given session is a method **on that session**:
+`session.fromPartition(part).fetch(url, init)`, same signature otherwise.
+The two read almost identically at the call site, which is why the wrong one
+would have survived review: it fails silently and only against hosts that
+care who is asking.
+
+### Servers lie about what a favicon is, so sniff the bytes
+`code` · 2026-10-18 · `src/main/browser/favicon.service.ts`
+
+Checking `content-type` before putting a fetched icon in an `<img>` is the
+obvious guard, and it rejects real icons. Five favicons were sampled from
+sites this IDE would actually be pointed at — GitHub, Google, MDN, Vite, HN
+— and one of the five is mislabelled: `developer.mozilla.org/favicon.ico` is
+a **PNG served as `image/x-icon`**. One in five, among sites that are as
+well run as the web gets.
+
+Reading the magic bytes instead is both more permissive and stricter — it
+accepts the mislabelled PNG and refuses an HTML error page that a server
+cheerfully called `image/png`. Five signatures cover the formats that matter
+(`00 00 01 00` ICO, `89 50 4E 47` PNG, `GIF`, `ÿØ` JPEG, `RIFF…WEBP`), and
+SVG has no magic number so it is matched on `<svg` after a BOM and
+whitespace.
+
+General form: a content type is the server's claim about a byte string, not
+a fact about it. Where the consequence of being wrong is rendering, sniff.
+
 ### A sandboxed preload cannot be ESM, and the failure points nowhere near the cause
 `code` · 2026-10-11 · `electron.vite.config.ts`, `src/preload/index.ts`
 

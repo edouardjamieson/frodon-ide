@@ -374,6 +374,26 @@ export interface IpcContract {
     res: FsResult;
   };
 
+  /**
+   * A page's own icon, as a `data:` URL, or null when there isn't a usable
+   * one.
+   *
+   * The renderer has the URL — the guest reports it on
+   * `page-favicon-updated` — and cannot do anything with it. The IDE's CSP is
+   * `img-src 'self' data:`, so the privileged renderer loads nothing from the
+   * network by design, and a favicon URL is a string the *page* chose.
+   *
+   * So main fetches it, on the guest's own session, and hands back bytes the
+   * CSP already allows. Null covers every way this fails — not an image, too
+   * big, server down, refused scheme — because they all leave the same
+   * generic globe on the tab.
+   *
+   * Answers are cached in main, hits and misses alike: four tabs on one site
+   * ask at the same moment, and a site with no favicon would otherwise be
+   * re-asked on every navigation.
+   */
+  'browser:favicon': { req: { url: string }; res: string | null };
+
   /** Host facts the renderer can't ask the DOM for. */
   'app:info': { req: void; res: AppInfo };
 }
@@ -542,6 +562,9 @@ export interface FrodonApi {
     create: (scope: BoardScope, name?: string) => Promise<Res<'board:create'>>;
     rename: (ref: BoardRef, name: string) => Promise<Res<'board:rename'>>;
     remove: (ref: BoardRef) => Promise<Res<'board:delete'>>;
+  };
+  browser: {
+    favicon: (url: string) => Promise<Res<'browser:favicon'>>;
   };
   bookmark: {
     list: () => Promise<Res<'bookmark:list'>>;

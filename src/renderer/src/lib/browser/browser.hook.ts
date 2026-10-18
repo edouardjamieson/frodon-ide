@@ -19,12 +19,18 @@ export const useBrowserTab = (id: string): BrowserTab | undefined =>
 /** What a tab chip shows: enough to label it, and no more. */
 export const useBrowserTabLabel = (
   id: string
-): { title: string; url: string; loading: boolean } => {
+): {
+  title: string;
+  url: string;
+  loading: boolean;
+  favicon: string | null;
+} => {
   const title = useBrowserStore((state) => state.tabs[id]?.title ?? '');
   const url = useBrowserStore((state) => state.tabs[id]?.url ?? '');
   const loading = useBrowserStore((state) => state.tabs[id]?.loading ?? false);
+  const favicon = useBrowserStore((state) => state.tabs[id]?.favicon ?? null);
 
-  return { title, url, loading };
+  return { title, url, loading, favicon };
 };
 
 /** The address bar, mid-edit. */

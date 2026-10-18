@@ -208,8 +208,10 @@ did not agree to.
 - Reordering within a group, which the file format already supports and no UI
   offers.
 - Importing from a real browser's bookmarks export.
-- A favicon on a row. It means fetching from the guest's session and caching
-  it somewhere, which is a second storage story for a decoration.
+- A favicon on a row. The machinery now exists — `browser:favicon` fetches
+  and caches one — but a bookmark has only a page URL, not an icon URL, so
+  this needs guessing at `/favicon.ico` or parsing the page. Browser tabs get
+  theirs for free because the guest reports it.
 
 ## See also
 

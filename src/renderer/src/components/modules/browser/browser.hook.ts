@@ -26,7 +26,9 @@ import {
   fitScale,
   normalizeUrl,
   useBrowserStore,
+  type BrowserReport,
   type FailLoadEvent,
+  type FaviconEvent,
   type NavigateEvent,
   type TitleEvent,
   type Viewport,
@@ -128,12 +130,50 @@ export function useWebview({ tabId, onFocus }: UseWebviewOptions) {
       });
     const onNavigate = (event: Event) => {
       const { url } = event as NavigateEvent;
-      report(tabId, {
+      const patch: BrowserReport = {
         url,
         canGoBack: view.canGoBack(),
         canGoForward: view.canGoForward(),
         error: null,
-      });
+      };
+
+      // The icon is dropped on a real navigation: it belongs to the page
+      // that reported it, the next page may never report one, and leaving it
+      // would put the last site's mark on this one — the single thing a
+      // favicon must never do. `did-navigate-in-page` shares this handler
+      // and keeps it, which is right: a route change inside a single-page
+      // app is the same document.
+      //
+      // The key is left *off* rather than set to undefined. `report` spreads
+      // the patch over the tab, so a present-but-undefined field is a field
+      // erased, not a field skipped.
+      if (event.type === 'did-navigate') patch.favicon = null;
+
+      report(tabId, patch);
+    };
+
+    /**
+     * The guest found an icon.
+     *
+     * The URL is useless to the renderer on its own — `img-src 'self' data:`
+     * — so main fetches it on the guest's session and answers with bytes.
+     * The url at request time is captured and checked against the tab when
+     * the answer lands: a slow icon for a page you have already left must
+     * not overwrite the icon of the page you are on.
+     */
+    const onFavicon = (event: Event) => {
+      const [icon] = (event as FaviconEvent).favicons ?? [];
+      if (!icon) return;
+
+      const at = view.getURL();
+      void window.frodon.browser
+        .favicon(icon)
+        .then((resolved) => {
+          if (!resolved) return;
+          if (useBrowserStore.getState().tabs[tabId]?.url !== at) return;
+          report(tabId, { favicon: resolved });
+        })
+        .catch(() => undefined);
     };
     const onTitle = (event: Event) =>
       report(tabId, { title: (event as TitleEvent).title });
@@ -157,6 +197,7 @@ export function useWebview({ tabId, onFocus }: UseWebviewOptions) {
     view.addEventListener('did-navigate', onNavigate);
     view.addEventListener('did-navigate-in-page', onNavigate);
     view.addEventListener('page-title-updated', onTitle);
+    view.addEventListener('page-favicon-updated', onFavicon);
     view.addEventListener('did-fail-load', onFail);
     view.addEventListener('render-process-gone', onGone);
     view.addEventListener('focus', onGuestFocus);
@@ -167,6 +208,7 @@ export function useWebview({ tabId, onFocus }: UseWebviewOptions) {
       view.removeEventListener('did-navigate', onNavigate);
       view.removeEventListener('did-navigate-in-page', onNavigate);
       view.removeEventListener('page-title-updated', onTitle);
+      view.removeEventListener('page-favicon-updated', onFavicon);
       view.removeEventListener('did-fail-load', onFail);
       view.removeEventListener('render-process-gone', onGone);
       view.removeEventListener('focus', onGuestFocus);

@@ -18,7 +18,58 @@ their reasoning is the reasoning recorded at the time, not reconstructed.
 
 ---
 
-### ADR-0028 — Bookmarks are two scoped files, and the browser's only channel
+### ADR-0029 — Main fetches remote content for the renderer; the CSP stays shut
+
+**When** 2026-10-18 · **Status** active · **Touches** browser, bookmarks
+
+**What.** The renderer's CSP stays `img-src 'self' data:` and is not widened.
+When something from the open web has to be drawn in the IDE's own chrome,
+main fetches it **on the guest's session** and hands back a `data:` URL.
+Favicons are the first case and the channel is `browser:favicon`.
+
+This restates the browser module's channel rule as a test rather than a
+count, superseding the count in [ADR-0028](#adr-0028--bookmarks-are-two-scoped-files-in-the-browsers-first-channel):
+a channel exists for what the renderer **cannot reach** — the disk, or the
+network — and never for what it can already draw.
+
+**Why.** A favicon URL is a string the page chose, and the renderer is the
+process holding the preload bridge. `img-src https:` would have been one line
+in `index.html`; it would also have handed every string that reaches an
+`<img>` there a way out to the network, which is the exact thing the header's
+comment says it exists to prevent. The second cost is quieter and worse: that
+request would go out on the IDE's **default** session, so a site would learn
+the IDE had visited it, with the IDE's cookies rather than the browsing
+session's.
+
+Fetching in main keeps the privileged renderer off the network entirely and
+puts the request where the page already is.
+
+**How.** `main/browser/favicon.service.ts`. `session.fromPartition(…).fetch`
+rather than `net.fetch`, because `net.fetch` always issues from the default
+session and the session's own method is the only way to pick another. The
+response is bounded at `MAX_FAVICON_BYTES`, and its type comes from
+`sniffImageType` reading the magic bytes rather than from the server's
+header — more permissive, because servers mislabel `favicon.ico` (one in a
+five-site sample, MDN's, is a PNG called `image/x-icon`), and stricter,
+because a lying server cannot get a non-image labelled as one.
+`file:` is refused as a favicon scheme although it is a valid page scheme: a
+page must not choose which local file main reads. Answers are cached in main,
+misses included.
+
+**Cost.** Four.
+
+An icon now costs an IPC round trip and a base64 string across the boundary,
+where a `<img src="https://…">` would have cost nothing in our code. Main
+holds a cache with a memory ceiling to reason about. The sniffer is a list of
+magic numbers that will not recognise the next image format the web adopts,
+and the failure mode is a generic globe rather than an error. And the pattern
+generalises in a direction worth watching: every future "just show this image
+from the web" becomes a channel, which is more friction than relaxing a
+header — deliberately, because the friction is the point.
+
+---
+
+### ADR-0028 — Bookmarks are two scoped files, in the browser's first channel
 
 **When** 2026-10-18 · **Status** active · **Touches** bookmarks, browser, boards
 
@@ -26,8 +77,9 @@ their reasoning is the reasoning recorded at the time, not reconstructed.
 `~/.frodon/bookmarks.json` — the project/local split boards and the config
 files already make. A bookmark is `{ id, url, title, group? }`; a *group* is
 that free string and nothing else, with no table of groups anywhere. Two
-channels, `bookmark:list` and `bookmark:save`, which are the first and only
-IPC the browser module has.
+channels, `bookmark:list` and `bookmark:save`, which are the first IPC the
+browser module has. (A third followed — see ADR-0029 — which is why the rule
+below is stated as a test rather than a count.)
 
 **Why.** Three choices, each with a rejected alternative.
 

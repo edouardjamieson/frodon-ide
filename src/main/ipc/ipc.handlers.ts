@@ -49,6 +49,7 @@ import {
   writeBoard,
 } from '@main/board';
 import { listBookmarks, writeBookmarks } from '@main/bookmark';
+import { readFavicon } from '@main/browser';
 import {
   createDirectory,
   createFile,
@@ -294,6 +295,11 @@ export function registerIpcHandlers(): void {
   handle('bookmark:save', ({ scope, bookmarks }) =>
     writeBookmarks(scope, bookmarks)
   );
+
+  // The browser's third channel, and the only one that reaches the network.
+  // The renderer cannot fetch an icon itself — `img-src 'self' data:` — and
+  // should not: the request belongs on the guest's session, not the IDE's.
+  handle('browser:favicon', ({ url }) => readFavicon(url));
 
   handle('app:info', () => ({
     platform: process.platform as Platform,

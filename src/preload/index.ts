@@ -132,6 +132,9 @@ const api: FrodonApi = {
     // named around it reads worse than one named plainly.
     remove: (ref: BoardRef) => ipcRenderer.invoke('board:delete', ref),
   },
+  browser: {
+    favicon: (url: string) => ipcRenderer.invoke('browser:favicon', { url }),
+  },
   bookmark: {
     list: () => ipcRenderer.invoke('bookmark:list'),
     save: (scope: BookmarkScope, bookmarks: Bookmark[]) =>

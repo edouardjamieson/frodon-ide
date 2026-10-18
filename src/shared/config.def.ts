@@ -90,7 +90,48 @@ export interface ProjectConfig {
 export interface UserConfig {
   /** Name of the active theme. An unknown name resolves to the default. */
   theme?: string;
+  /**
+   * Which icon the app wears in the Dock. Absent: `auto`.
+   *
+   * A *user* setting and not a project one, which is the whole of the scope
+   * argument in one line: the icon you like is a fact about your machine, and
+   * putting it in `<root>/.frodon/config.json` would mean it turned up in a
+   * pull request for everyone who clones the repository.
+   */
+  appIcon?: AppIcon;
 }
+
+/**
+ * The icons that exist, as keys rather than paths.
+ *
+ * The renderer names one of these and main maps it to a file. That indirection
+ * is the point: a path chosen in the renderer would be a path main then reads,
+ * which is the thing `ipc.def.ts` spends its length refusing to allow. A key
+ * from a closed set needs no `join`, no containment check and no trust —
+ * an unknown one is simply not in the table.
+ *
+ * `auto` is not a file. It is the icon main generates from the open project's
+ * hue, and the reason this list is a union rather than a directory listing.
+ *
+ * These strings end up written into `~/.frodon/config.json`, so they are names
+ * and not frame numbers: renaming one later breaks every config that chose it.
+ */
+export const APP_ICONS = [
+  'auto',
+  'silk',
+  'ember',
+  'holo',
+  'acid',
+  'dune',
+  'mint',
+  'matrix',
+  'orchid',
+] as const;
+
+export type AppIcon = (typeof APP_ICONS)[number];
+
+/** What the absent field means, written down once. */
+export const DEFAULT_APP_ICON: AppIcon = 'auto';
 
 /* -------------------------------------------------------------------------
  * Validation
@@ -162,6 +203,13 @@ export function isValidProjectIcon(value: string): boolean {
   return graphemeCount(icon) <= limit;
 }
 
+export function isValidAppIcon(value: unknown): value is AppIcon {
+  return (
+    typeof value === 'string' &&
+    (APP_ICONS as readonly string[]).includes(value)
+  );
+}
+
 export function isValidThemeName(value: string): boolean {
   return (
     /^[A-Za-z0-9._-]+$/.test(value) && value.length <= MAX_THEME_NAME_LENGTH
@@ -216,6 +264,8 @@ export function sanitizeUserConfig(value: unknown): UserConfig {
   if (typeof raw.theme === 'string' && isValidThemeName(raw.theme)) {
     config.theme = raw.theme;
   }
+
+  if (isValidAppIcon(raw.appIcon)) config.appIcon = raw.appIcon;
 
   return config;
 }

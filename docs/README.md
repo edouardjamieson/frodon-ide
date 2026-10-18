@@ -75,6 +75,7 @@ rules, and what is missing.
 | [browser](features/browser.md) | web pages in a tile, and the lockdown around them |
 | [bookmarks](features/bookmarks.md) | pages worth keeping, grouped, in two scopes |
 | [settings](features/settings.md) | two config files, and "absent means derived" |
+| [app icon](features/app-icon.md) | nine Dock icons, one of them painted from the project's hue |
 | [keybindings](features/keybindings.md) | one capture-phase listener, named commands |
 
 ### Logs

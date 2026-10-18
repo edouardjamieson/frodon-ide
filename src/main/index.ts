@@ -13,6 +13,7 @@ import { disposeProject } from '@main/project';
 import { disposeWatchedFiles } from '@main/watch';
 import { disposeGit } from '@main/git';
 import { disposeTerminals } from '@main/terminal';
+import { refreshAppIcon } from '@main/icon';
 import { createLogger } from '@main/logger';
 
 const log = createLogger('main');
@@ -35,6 +36,11 @@ void app.whenReady().then(() => {
   // Before the window, so the first one opens under the menu it will keep —
   // and so Cmd+W is already the renderer's to handle. See `menu.service.ts`.
   createMenu();
+  // Also before the window, and deliberately not awaited. `setIcon` is
+  // process state rather than anything stored in the bundle, so the chosen
+  // icon has to be put back on every launch — but it is a tile in the Dock,
+  // and nothing about the first window should wait on it.
+  void refreshAppIcon();
   createWindow();
 
   // macOS keeps the app alive with no windows; clicking the dock icon is

@@ -4,6 +4,7 @@ import { Check } from 'lucide-react';
 import { useThemePreference } from '~/lib/config';
 import { resolveTheme, type Theme } from '~/lib/theme';
 import { FieldGroup } from './settings-field.component';
+import { AppIconField } from './settings-app-icon.component';
 
 /**
  * Picking a theme.
@@ -30,25 +31,31 @@ export default function SettingsAppearance() {
   );
 
   return (
-    <FieldGroup>
-      <div className="flex flex-col gap-2">
-        {resolved.map((candidate) => (
-          <ThemeRow
-            key={candidate.name}
-            theme={candidate}
-            selected={candidate.name === theme.name}
-            onSelect={() => select(candidate.name)}
-          />
-        ))}
-      </div>
+    <div className="flex flex-col gap-7">
+      <FieldGroup>
+        <div className="flex flex-col gap-2">
+          {resolved.map((candidate) => (
+            <ThemeRow
+              key={candidate.name}
+              theme={candidate}
+              selected={candidate.name === theme.name}
+              onSelect={() => select(candidate.name)}
+            />
+          ))}
+        </div>
 
-      <p className="text-[11px] text-fg-subtle">
-        Themes reach the whole app as CSS variables — the editor, the terminal
-        and the diff colors all come from the one you pick here. A project's own
-        color is the exception: it has a hue of its own, and borrows this
-        theme's lightness.
-      </p>
-    </FieldGroup>
+        <p className="text-[11px] text-fg-subtle">
+          Themes reach the whole app as CSS variables — the editor, the terminal
+          and the diff colors all come from the one you pick here. A project's
+          own color is the exception: it has a hue of its own, and borrows this
+          theme's lightness.
+        </p>
+      </FieldGroup>
+
+      <FieldGroup>
+        <AppIconField />
+      </FieldGroup>
+    </div>
   );
 }
 

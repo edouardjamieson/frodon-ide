@@ -13,9 +13,23 @@
  * absent means derived, present means chosen — and it lives here rather than
  * in `lib/config` so that the launcher, the header and the settings dialog
  * cannot each answer it differently.
+ *
+ * Four of them no longer live here. `projectName`, `projectHue` and the two
+ * resolvers that build on them moved to `@shared/project.def` when main began
+ * generating the Dock icon from the open project's hue — main has to reach
+ * the same number, and one copy is the only way it stays the same number.
+ * They are re-exported below so this file is still the one place the UI asks.
  */
 import { accentColor } from '~/lib/theme';
 import type { ProjectConfig } from '@shared/config.def';
+import { projectHue, resolveProjectHue } from '@shared/project.def';
+
+export {
+  projectName,
+  projectHue,
+  resolveProjectName,
+  resolveProjectHue,
+} from '@shared/project.def';
 
 /**
  * `/Users/eddy/dev/frodon` -> `~/dev/frodon`.
@@ -37,37 +51,6 @@ export function shortenPath(path: string, home: string): string {
 }
 
 /**
- * `/Users/eddy/dev/frodon` -> `frodon`.
- *
- * The name a project is known by everywhere in the UI, and — through
- * `projectColor` — the thing its color is derived from. A folder's last
- * segment, with no filesystem call behind it, because the renderer has no
- * filesystem and does not need one to read the end of a string.
- */
-export function projectName(path: string): string {
-  return path.split('/').filter(Boolean).pop() ?? path;
-}
-
-/**
- * FNV-1a, 32 bits.
- *
- * Wanted here for the one property a cryptographic hash would also give but
- * far more slowly: names one character apart — `frodon` and `frodon-tui` —
- * land nowhere near each other, so two sibling checkouts never read as the
- * same project.
- */
-function hashString(value: string): number {
-  let hash = 0x811c9dc5;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    // `Math.imul` keeps the multiply in 32-bit integer space; a plain `*`
-    // would overflow into a float and quietly lose the low bits that matter.
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return hash >>> 0;
-}
-
-/**
  * A color at a given hue, in the theme's own register.
  *
  * Thin on purpose: the numbers behind this — how light, how saturated, and
@@ -81,14 +64,12 @@ function hashString(value: string): number {
  * perceptual, so one pair of numbers holds across all 360 hues. In HSL,
  * `hsl(60 70% 60%)` and `hsl(240 70% 60%)` claim the same lightness and are
  * nowhere near it — the yellow glares and the blue disappears.
+ *
+ * This is the half that did *not* move to `shared/`: it needs a theme's ramp,
+ * and main's icon has no theme to ask.
  */
 export function projectColorFromHue(hue: number, dark: boolean): string {
   return accentColor(hue, dark);
-}
-
-/** The hue a name hashes to. Deterministic, and the default nobody chose. */
-export function projectHue(name: string): number {
-  return hashString(name) % 360;
 }
 
 /**
@@ -108,29 +89,10 @@ export function projectColor(name: string, dark: boolean): string {
  * the derivation. They take a config rather than reaching for the store so
  * they stay pure — the launcher resolves five projects that are not open,
  * with five configs main handed it, through these same functions.
- * ---------------------------------------------------------------------- */
-
-/** The project's name: the one it chose, or its folder's. */
-export function resolveProjectName(
-  path: string,
-  config: ProjectConfig
-): string {
-  return config.name?.trim() || projectName(path);
-}
-
-/**
- * The hue the project's color is built from — the one it chose, or the one
- * its name hashes to.
  *
- * The most load-bearing number in the UI, since it is also the app's accent
- * while this project is open. Note which name is hashed: the *resolved* one.
- * A project renamed in the settings dialog changes color as you type, which
- * is the behaviour to want — the color is a property of the name, and the
- * swatch beside the field has to show the color the project is about to have.
- */
-export function resolveProjectHue(name: string, config: ProjectConfig): number {
-  return config.hue ?? projectHue(name);
-}
+ * Two of the three are re-exported from `shared/` at the top of this file;
+ * only the two that need a theme are written out here.
+ * ---------------------------------------------------------------------- */
 
 /** That hue, as a color this theme can show. */
 export function resolveProjectColor(

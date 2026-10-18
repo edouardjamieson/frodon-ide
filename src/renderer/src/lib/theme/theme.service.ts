@@ -7,6 +7,7 @@
  * reason to lose the session: bad values are logged and replaced with the
  * default theme's, one key at a time.
  */
+import { oklchToHex } from '@shared/color.def';
 import {
   ACCENT_RAMP,
   BUILT_IN_THEMES,
@@ -45,73 +46,11 @@ export function isHexColor(value: unknown): value is string {
  * styles, and the board canvas hands them to a 2D context. An `oklch()` string
  * would be at the mercy of four different parsers; a hex string is understood
  * by all of them.
- * ---------------------------------------------------------------------- */
-
-/** sRGB's transfer function, applied to one linear-light channel. */
-function gamma(channel: number): number {
-  return channel <= 0.0031308
-    ? 12.92 * channel
-    : 1.055 * Math.pow(channel, 1 / 2.4) - 0.055;
-}
-
-/** OKLCH to linear-light sRGB, which may land outside the cube. */
-function oklchToLinearRgb(
-  lightness: number,
-  chroma: number,
-  hue: number
-): [number, number, number] {
-  const radians = (hue * Math.PI) / 180;
-  const a = chroma * Math.cos(radians);
-  const b = chroma * Math.sin(radians);
-
-  // OKLab's cube-rooted cone responses, undone.
-  const l = (lightness + 0.3963377774 * a + 0.2158037573 * b) ** 3;
-  const m = (lightness - 0.1055613458 * a - 0.0638541728 * b) ** 3;
-  const s = (lightness - 0.0894841775 * a - 1.291485548 * b) ** 3;
-
-  return [
-    4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
-    -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
-    -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s,
-  ];
-}
-
-function inGamut([r, g, b]: [number, number, number]): boolean {
-  // A hair of tolerance, so a channel that misses by a rounding error is not
-  // worth desaturating the whole color over.
-  const epsilon = 0.0001;
-  return [r, g, b].every(
-    (channel) => channel >= -epsilon && channel <= 1 + epsilon
-  );
-}
-
-/**
- * An OKLCH triple as `#rrggbb`.
  *
- * A hue that is out of sRGB at the chroma asked for — a saturated blue at the
- * lightness a dark theme's accent wants, say — has its **chroma reduced until
- * it fits**, keeping the lightness and the hue. Clipping each channel into
- * range instead would be one line shorter and would hand back a different
- * hue, which is the one property of this color that was chosen on purpose.
- */
-export function oklchToHex(
-  lightness: number,
-  chroma: number,
-  hue: number
-): string {
-  let rgb = oklchToLinearRgb(lightness, chroma, hue);
-
-  for (let c = chroma; !inGamut(rgb) && c > 0; c -= 0.002) {
-    rgb = oklchToLinearRgb(lightness, Math.max(c, 0), hue);
-  }
-
-  return `#${rgb
-    .map((channel) => {
-      const byte = Math.round(Math.min(1, Math.max(0, gamma(channel))) * 255);
-      return byte.toString(16).padStart(2, '0');
-    })
-    .join('')}`;
-}
+ * The conversion itself lives in `@shared/color.def` rather than here, because
+ * main generates the Dock icon from the same hue and the two have to agree —
+ * see the note at the top of that file.
+ * ---------------------------------------------------------------------- */
 
 /**
  * One accent color at a given hue, for a given background.

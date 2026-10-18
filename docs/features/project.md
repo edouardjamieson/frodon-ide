@@ -57,13 +57,19 @@ Nothing derived is ever written to the file. Renaming a folder still renames
 the project, and clearing a field in the settings dialog goes back to deriving
 rather than storing an empty string.
 
-The three resolvers live in `project.service.ts` and are **pure functions of a
-config** rather than readers of the store — which is what lets the launcher
-resolve five projects that are not open, with five configs main handed it,
-through the same functions. One hook returns all three, because they are one
-answer: the color is hashed from the name and the icon is its first letter, so
-resolving them separately could draw a badge whose letter and hue came from two
-different names for half a frame.
+The three resolvers are **pure functions of a config** rather than readers of
+the store — which is what lets the launcher resolve five projects that are not
+open, with five configs main handed it, through the same functions. Two of them
+— `resolveProjectName` and `resolveProjectHue`, with `projectName` and
+`projectHue` under them — live in `@shared/project.def` and are re-exported by
+`project.service.ts`, because main paints the Dock icon from the same hue and
+has to reach the same number. The two that need a theme's ramp to turn a hue
+into a color stay in the renderer.
+
+One hook returns all three, because they are one answer: the color is hashed
+from the name and the icon is its first letter, so resolving them separately
+could draw a badge whose letter and hue came from two different names for half
+a frame.
 
 The hash is FNV-1a, wanted for one property: names one character apart —
 `frodon` and `frodon-tui` — land nowhere near each other, so two sibling

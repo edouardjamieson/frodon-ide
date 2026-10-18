@@ -17,6 +17,55 @@ architecture, write the ADR too and link them.
 
 ## The platform
 
+### An absolute `/assets/…` path is a production-only 404 under `file://`
+`code` · 2026-10-18 · `src/renderer/src/components/modules/settings/settings-app-icon.component.tsx`
+
+Files in `src/renderer/public/` are copied beside the bundle and served at the
+root in development, so `/assets/icons/silk.png` works all through `pnpm dev`.
+The production renderer is opened with `loadFile`, where the document's origin
+is the filesystem: the same path then resolves against `/`, finds nothing, and
+the images are blank in the packaged build and nowhere else.
+
+Vite rewrites the paths it processes — anything `import`ed — but `public/` is
+by definition the directory it does not touch. A `./` prefix resolves against
+the document in both, which is the fix. The general form: anything written as
+an absolute URL in the renderer is a bet that the origin is a server, and
+after `loadFile` it is not.
+
+### macOS does not round an app icon — whatever is in the `.icns` is what the Dock draws
+`code` · 2026-10-18 · `scripts/build-icons.mjs`
+
+iOS masks an app icon to its superellipse, so artwork can be handed over
+full-bleed and square. macOS does not: the `.icns` is drawn as given. Eight
+icons exported from Figma as 1024×1024 squares would have sat in the Dock as
+square tiles among rounded ones — conspicuous in exactly the way a designed
+icon should not be.
+
+Apple's grid is a 1024 canvas with the art inside an 824 square and a corner
+of 22.5%, which leaves 100 of transparent padding on every side. The padding
+is not waste; it is the room the Dock's shadow and the drag image need.
+`build-icons.mjs` applies the shape with a canvas `roundRect` clip, which also
+gets the antialiased edge for free. macOS 26's Icon Composer *does* mask
+full-bleed art — but that is Xcode's pipeline, and electron-builder's `.icns`
+path never sees it.
+
+### A top-level `await app.whenReady()` in an ESM main deadlocks
+`code` · 2026-10-18 · `scripts/build-icons.mjs`
+
+Electron awaits the evaluation of an ESM entrypoint **before** it emits
+`ready`. A main script that sits on `await app.whenReady()` at the top level
+therefore never finishes evaluating, `ready` never fires, and the promise it
+is waiting on is the one that would have let it finish. The symptom is a
+process that prints its first line and then nothing at all — no error, no
+exit, no timeout.
+
+Two wrong diagnoses came first: that it needed a window server, and that it
+was the `data:` navigation below. Neither survived running it on a desktop.
+The fix is the shape `src/main/index.ts` has always used —
+`app.whenReady().then(…)`, with the work in a function — which is not a style
+preference over there either. The general form: with an ESM entrypoint,
+nothing may block module evaluation on anything Electron does after it.
+
 ### `net.fetch` always uses the default session; only `ses.fetch` picks another
 `code` · 2026-10-18 · `src/main/browser/favicon.service.ts`
 
@@ -266,6 +315,41 @@ Before porting a table, check whether the new ecosystem already maintains it.
 ---
 
 ## Measurements and performance
+
+### A mark baked into flattened artwork cannot be resized over itself
+`code` · 2026-10-18 · `scripts/build-icons.mjs`
+
+Eight icons arrived from Figma as flattened PNGs with the mark already painted
+in. Making the mark bigger by drawing an enlarged copy over the top looks like
+it should work — the new shape contains the old one — and the arithmetic says
+it does, by under one percent. It does not survive contact: the mark's frame
+is white at 60%, so the old outline shows as a doubled seam just inside the
+new one, obvious on `dune` at a glance and invisible in the margin
+calculation.
+
+The fix was to stop compositing over flattened art: the mark is six elements
+at the end of each source SVG, so removing them leaves a clean background to
+draw any size of mark onto. That costs the grain, which Chromium's filter
+renders coarser than Figma's. The general form — a guard written from
+arithmetic about shapes is worth less than looking at the output, and the
+"contains" relation between two antialiased translucent shapes is not the one
+the arithmetic describes.
+
+### A colour table indexed by `x + y` bands unless the steps are interpolated
+`code` · 2026-10-18 · `src/main/icon/icon.service.ts`
+
+The generated app icon sweeps corner to corner across a 1024 tile, so the
+index runs over 2046 diagonals. Pushed through a 256-entry lookup table by
+rounding, that is an eight-pixel band of flat colour per step — and eight
+pixels is wide enough to read as diagonal stripes across the finished icon.
+The ±5 grain already in the paint did nothing for it: dither only hides a
+step it is larger than.
+
+Interpolating between the two neighbouring entries costs three multiplies a
+pixel and removes it outright, which is cheaper than the four-thousand-entry
+table that would also have worked. Whole icon: 22ms. The general form — a LUT
+indexed by a sum of coordinates bands along the diagonal, and the fix is a
+lerp, not a bigger table.
 
 ### `Text.eq` is 35µs where `toString()` would be per-character
 `code` · 2026-10-14 · `src/renderer/.../editor/editor.hook.ts`

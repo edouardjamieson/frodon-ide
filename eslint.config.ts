@@ -40,14 +40,26 @@ export default tseslint.config(
     rules: { 'no-console': 'off' },
   },
 
-  // Install-time scripts: plain Node ESM run from `postinstall`, never
-  // bundled and never type-checked with the rest. They are the only files
-  // here that need Node's globals spelled out, so they are spelled out rather
-  // than pulling in the `globals` package for two names.
+  // Build-time scripts: plain Node ESM run from `postinstall` or by hand,
+  // never bundled and never type-checked with the rest. They are the only
+  // files here that need Node's globals spelled out, so they are spelled out
+  // rather than pulling in the `globals` package for a handful of names.
+  //
+  // The browser four are for `build-icons.mjs`, which stringifies one function
+  // and evaluates it in Chromium. That function is the only code in this
+  // repository that is written in one runtime and runs in another, so the
+  // globals of both have to be in scope for it to lint at all.
   {
     files: ['scripts/**/*.mjs'],
     languageOptions: {
-      globals: { console: 'readonly', process: 'readonly' },
+      globals: {
+        console: 'readonly',
+        process: 'readonly',
+        Buffer: 'readonly',
+        setTimeout: 'readonly',
+        document: 'readonly',
+        Image: 'readonly',
+      },
     },
   },
 

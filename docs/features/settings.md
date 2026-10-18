@@ -42,6 +42,7 @@ Every field is optional, and that is the model rather than an omission.
 | `hue` | 0–359 | hashed from the name |
 | `icon` | one emoji, or 1–2 letters | the first letter of `name` |
 | `theme` (user) | a theme name | `frodon-dark` |
+| `appIcon` (user) | a key from `APP_ICONS` | `auto`, painted from the project's hue |
 
 Clearing a field in the dialog **removes the key** rather than writing an empty
 string. Writing a derivation into the file would freeze it at the moment
@@ -88,7 +89,7 @@ the hand edit. The watcher that would fix this is not worth its chattiness yet.
 | Section | Scope | What is on it |
 | --- | --- | --- |
 | `project.general` | `.frodon/config.json` | name, hue, icon — the three fields that end up in a commit |
-| `user.appearance` | `~/.frodon/config.json` | the theme |
+| `user.appearance` | `~/.frodon/config.json` | the theme, and the app icon |
 | `user.shortcuts` | — | the chord table, read-only until the config layer lands |
 | `user.feedback` | — | something broken, something missing |
 
@@ -157,4 +158,5 @@ will still be editing afterwards.
 ## See also
 
 [project.md](project.md) · [theme.md](../theme.md) ·
-[keybindings.md](keybindings.md) · [boards.md](boards.md)
+[app-icon.md](app-icon.md) · [keybindings.md](keybindings.md) ·
+[boards.md](boards.md)

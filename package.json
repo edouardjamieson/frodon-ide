@@ -17,7 +17,8 @@
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
     "lint": "eslint .",
     "format": "prettier --write src",
-    "format:check": "prettier --check src"
+    "format:check": "prettier --check src",
+    "icons": "electron scripts/build-icons.mjs"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",

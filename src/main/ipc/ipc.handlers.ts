@@ -11,6 +11,7 @@ import { homedir } from 'node:os';
 import { dialog, BrowserWindow, type IpcMainInvokeEvent } from 'electron';
 import { handle } from './ipc.service';
 import { getRoot, openProject } from '@main/project';
+import { refreshAppIcon } from '@main/icon';
 import {
   forgetRecentProject,
   listRecentProjects,
@@ -182,6 +183,10 @@ export function registerIpcHandlers(): void {
     openRepo(root);
     await recordRecentProject(root);
     growToWorkbench(event);
+    // The Dock follows the project, when the generated icon is the one
+    // chosen. Not awaited: the tree is what the renderer is waiting on, and
+    // painting a tile has no business holding it up.
+    void refreshAppIcon();
     return files;
   });
 
@@ -205,13 +210,24 @@ export function registerIpcHandlers(): void {
   // write a file into.
   handle('config:project', () => readProjectConfig());
 
-  handle('config:save-project', ({ config }) => writeProjectConfig(config));
+  // Both writes refresh the icon, for the two different reasons it can go
+  // stale: a project's `hue` is what the generated one is painted from, and a
+  // user's `appIcon` is which of the nine is showing at all.
+  handle('config:save-project', async ({ config }) => {
+    const result = await writeProjectConfig(config);
+    void refreshAppIcon();
+    return result;
+  });
 
   // The one config channel that answers before a project is open: the
   // launcher is a screen too, and it is already wearing the theme.
   handle('config:user', () => readUserConfig());
 
-  handle('config:save-user', ({ config }) => writeUserConfig(config));
+  handle('config:save-user', async ({ config }) => {
+    const result = await writeUserConfig(config);
+    void refreshAppIcon();
+    return result;
+  });
 
   handle('file:read', ({ path }) => readFileText(path));
 

@@ -22,7 +22,7 @@ import { oklchToRgb } from '@shared/color.def';
 import { resolveProjectHue, resolveProjectName } from '@shared/project.def';
 import { DEFAULT_APP_ICON } from '@shared/config.def';
 import { readProjectConfig, readUserConfig } from '@main/config';
-import { getRoot } from '@main/project';
+import { rootOf } from '@main/session';
 import { createLogger } from '@main/logger';
 import {
   ICON_GRADIENT_BASE,
@@ -303,28 +303,51 @@ function show(image: NativeImage): void {
 /**
  * The hue the generated icon should use right now.
  *
- * Null when no project is open — the launcher state, where the accent is grey
- * by design. Inventing a hue to stand in for one would be choosing a brand
- * colour by the back door, which is the thing the theme layer refuses to do.
+ * Null when the window being asked about has no project open — the launcher
+ * state, where the accent is grey by design. Inventing a hue to stand in for
+ * one would be choosing a brand colour by the back door, which is the thing
+ * the theme layer refuses to do.
  */
-async function currentHue(): Promise<number | null> {
-  const root = getRoot();
+async function currentHue(root: string | null): Promise<number | null> {
   if (!root) return null;
 
-  const config = await readProjectConfig();
+  const config = await readProjectConfig(root);
   return resolveProjectHue(resolveProjectName(root, config), config);
+}
+
+/**
+ * The project the Dock should be wearing: the focused window's.
+ *
+ * macOS has one Dock tile per *app*, not per window, so with two projects
+ * open there is no arrangement under which both are on it at once. The honest
+ * answer is the window you are looking at — see ADR-0033.
+ *
+ * Null when nothing is focused, which paints the grey launcher tile. That is
+ * right for the last window closing and wrong for the moment between one
+ * window closing and the next taking focus, so the close path deliberately
+ * does not call through here unless it was the last one.
+ */
+function focusedRoot(): string | null {
+  const window = BrowserWindow.getFocusedWindow();
+  return window ? rootOf(window.webContents) : null;
 }
 
 /**
  * Re-reads the choice and the hue, and sets the icon if either moved.
  *
- * Called at startup, when a project opens, and after any config write. Cheap
- * when nothing changed, which is most of the time.
+ * Called at startup, when a project opens, after any config write, and on
+ * every window focus. Cheap when nothing changed, which is most of the time —
+ * and "most of the time" now includes alt-tabbing between two windows on the
+ * same project, which is the whole reason the comparison is worth keeping.
+ *
+ * Takes the root to paint for, defaulting to whichever window has focus.
  */
-export async function refreshAppIcon(): Promise<void> {
+export async function refreshAppIcon(
+  root: string | null = focusedRoot()
+): Promise<void> {
   try {
     const { appIcon = DEFAULT_APP_ICON } = await readUserConfig();
-    const hue = appIcon === 'auto' ? await currentHue() : null;
+    const hue = appIcon === 'auto' ? await currentHue(root) : null;
 
     const key = `${appIcon}:${hue ?? 'grey'}`;
     if (key === applied) return;

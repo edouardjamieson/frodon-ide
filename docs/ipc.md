@@ -78,6 +78,23 @@ Apply the same discipline to git polling and to anything per-keystroke.
 **Never expose a channel the UI does not use.** The exposed surface is the
 security boundary.
 
+**A channel does not take a project root; it resolves one from the sender.**
+`git:*`, `config:project`, `board:*`, `bookmark:*`, `search:*` and the `file:*`
+channels that join a parent and a name all answer for whichever project the
+*asking window* has open — `askingRoot(event)` and `askingRepo(event)` in
+`ipc.handlers.ts`, over the registry in `main/session/`. A directory named by
+the renderer is a directory main then reads and writes files in; the invoke
+event's sender is something the page cannot forge. The one exception is
+`window:open`, which reads and writes nothing: the root it takes is handed to
+a new window, which opens it through `project:tree` like any other open.
+
+A handler whose window has no project answers the empty value — `[]`, `{}`,
+`emptyGitStatus()` — rather than throwing. It is the same forgiveness the
+layout, recents and config readers show, and it keeps a stale window from
+turning into an unhandled rejection in the renderer. The cost is that a
+channel added without a session resolver fails silently instead of loudly;
+see [decisions.md](decisions.md) ADR-0032.
+
 **Streams don't fit this model.** A PTY emits thousands of small writes a
 second and one `invoke` round-trip per write would be absurd. `terminal:data`
 is how that is handled: a one-way event channel, with main pooling output for

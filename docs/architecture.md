@@ -115,6 +115,31 @@ main's side of that line. Anything that is purely about presentation — which
 directories are expanded, which pane has focus, the active theme — lives in a
 renderer store and never crosses.
 
+### Which project, for which window
+
+Main holds **several** projects at once, one per open OS window, and
+`main/session/` is the registry that knows which is which. It answers two
+questions and owns the lifetime of everything hanging off them:
+
+- **Which project is this window on?** `rootOf(event.sender)`. Every channel
+  that takes no root resolves against this — `git:*`, `config:project`,
+  `board:*`, `bookmark:*`, `search:*`, and the `file:*` ones that join a parent
+  and a name. The renderer still never names a directory main then reads or
+  writes files in; main derives it from which window asked, which the invoke
+  event carries and the page cannot forge.
+- **Which windows are on this project?** So a tree or a git snapshot reaches
+  the windows showing that project and no others.
+
+**Keyed by root, ref-counted by window.** Two windows on one project share one
+filesystem watcher and one git poller, and both are released when the *last* of
+those windows goes. Per-window services would have been simpler and would have
+broken the rule that nine windows onto one project do not run `git status` nine
+times.
+
+`project/` and `git/` therefore know nothing about windows at all: each is a
+handle — `ProjectWatch`, `GitRepo` — created with an `onChange` the session
+routes. See [ADR-0032](decisions.md).
+
 Three patterns fall out of it, and they recur in every feature:
 
 - **Compare before you push.** A poll or rescan that found nothing new must
@@ -154,6 +179,12 @@ story — the three texts an editor compares, and why the event carries no
 contents — is in [features/editor.md](features/editor.md).
 
 ## The workbench, in one paragraph
+
+**`window` means two things in this codebase, and the distinction is load-
+bearing.** In the renderer it is a tile in the workbench grid
+(`lib/window/`, `window.splitRight`); in main it is an OS window
+(`main/app/window.service.ts`, `app.newWindow`). Where both are in play, this
+documentation says *tile* and *OS window*.
 
 Next to the sidebar is a grid of tiles, each holding one module: an editor with
 its own tabs, a terminal with its own shells, a view of the repository, a

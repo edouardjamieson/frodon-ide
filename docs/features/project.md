@@ -5,15 +5,18 @@ name, color, icon — that every other surface draws the project with.
 
 ## Goal
 
-Open a folder and have the whole app become *that project*: its tree, its
+Open a folder and have the whole window become *that project*: its tree, its
 repository, its boards, its layout, and a color that tells it apart from the
-sibling checkout next to it at a glance.
+sibling checkout next to it at a glance. More than one window, so more than one
+project can be open at a time.
 
 ## Where it lives
 
 | Path | What it holds |
 | --- | --- |
-| `main/project/project.service.ts` | the open root, the scan, the watcher, the broadcast |
+| `main/project/project.service.ts` | one project's scan and watcher, as a `ProjectWatch` handle |
+| `main/session/session.service.ts` | which window is on which project, and the services each project runs |
+| `main/app/window.service.ts` | creating OS windows, and what a closing one releases |
 | `main/recents/recents.service.ts` | `~/.frodon/recents.json`, pruned and decorated |
 | `main/fs/`, `main/ignore/` | the scan itself, and what it skips |
 | `renderer/src/lib/project/project.store.ts` | root, files, recents, expansion, selection, draft |
@@ -33,11 +36,19 @@ project:layout  +  config:project     in parallel, both answered for *that* proj
 setProject · applyProjectLayout · applyProjectConfig     one tick, in this order
 ```
 
-The order is not incidental. `project:tree` is the call that establishes the
-open project, so the layout — whose board tabs are pruned against *that*
-project's boards — and the config — read out of *that* project's `.frodon/` —
-can only be asked for afterwards. Neither takes a root for the same reason: a
-path from the renderer would be a path main then reads and writes files in.
+The order is not incidental. `project:tree` is the call that attaches *this
+window* to that project, and `config:project` is read out of whichever project
+the asking window is attached to — so it can only be asked afterwards. It takes
+no root for the reason none of them do: a path from the renderer would be a
+path main then reads and writes files in, so main derives it from which window
+asked instead. See
+[ADR-0032](../decisions.md).
+
+`project:layout` is the one that does carry a root, because the layouts file is
+keyed by root and `prune` has to know which project's boards it is pruning
+against — a second window restoring its own layout must not be pruned against
+the first window's boards. It is kept in the same tick anyway, so the three
+stores commit together.
 
 All three stores are committed in one tick so React batches them into a single
 render. The workbench never flashes a default arrangement on its way to the
@@ -134,13 +145,39 @@ tied it to a renderer origin rather than to the user.
 
 ### Switching
 
-Open a different folder and the whole sequence runs again. There is one open
-project per app, and main holds it.
+Open a different folder and the whole sequence runs again in that window. The
+window detaches from the project it was on, which releases that project's
+watcher and poller if no other window was looking at it.
+
+### Working on two projects at once
+
+1. New Window opens a second OS window on the launcher. Three ways in, for
+   three different situations: `mod+shift+n` when a window already has focus,
+   Window > New Window in the menu bar, and **right-click on the Dock tile**
+   when the app is in the background and there is no window to press a chord
+   in. The last one raises the app as well as the window — a Dock context
+   menu does not activate an app the way clicking the tile does.
+2. It opens a project like any other, and from then on the two windows are
+   independent: their own trees, their own repositories, their own tabs,
+   shells and accent colors.
+3. The Dock wears whichever one has focus. See
+   [app-icon.md](app-icon.md).
+4. Closing one ends its shells and releases its watcher and poller. The other
+   notices nothing.
+
+**A second window on the *same* project works too**, and is the cheap case:
+both windows register against one session, so there is still one watcher and
+one `git status` every three seconds, and both get every push. The one thing
+they do not share is the saved layout — see **Not there yet**.
 
 ## Rules
 
-- **No channel after `project:tree` takes a root.** Main knows which project is
-  open. See [ipc.md](../ipc.md).
+- **No channel after `project:tree` takes a root.** Main resolves it from
+  `event.sender` — which window asked — rather than from anything the renderer
+  names. See [ipc.md](../ipc.md) and
+  [ADR-0032](../decisions.md). The one exception is `window:open`,
+  which reads and writes nothing: the root it takes is handed to the new
+  window, which opens it through `project:tree` like any other open.
 - **No derivation crosses the boundary.** The launcher gets each project's
   config, not its resolved name — sending the fallback would be shipping a
   derivation across a process boundary so the other side could agree with
@@ -152,10 +189,14 @@ project per app, and main holds it.
 
 ## Not there yet
 
-- More than one project open at once. Main holds one root; the model would
-  have to change everywhere.
-- Opening a project in a second OS window.
-- Workspaces — several roots under one project.
+- Workspaces — several roots under one *project*. Several projects in several
+  windows is not the same feature: each window still has exactly one root.
+- Opening a project into a new window from the launcher. The only way to a
+  second window today is New Window (`mod+shift+n`), which lands on the
+  launcher, and then opening something from it.
+- **Two windows on one project share one layout entry.** `layouts.json` is
+  keyed by root, so the last arrangement to settle overwrites the other's.
+  See [ADR-0032](../decisions.md).
 
 ## See also
 

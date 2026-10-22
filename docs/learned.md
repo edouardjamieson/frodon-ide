@@ -17,6 +17,47 @@ architecture, write the ADR too and link them.
 
 ## The platform
 
+### The single-instance lock makes a second `pnpm dev` exit after a clean build
+`code` · 2026-10-22 · `src/main/index.ts`
+
+`app.requestSingleInstanceLock()` is right for a shipped app and surprising
+during development: with Frodon already open, `pnpm dev` builds all three
+bundles, prints `starting electron app...`, and then the Electron process
+quits with code 1 before `ready on darwin` ever appears. From the terminal it
+reads as a build that failed. What actually happened is the lock working —
+the running instance got a `second-instance` event and raised a window, which
+is the correct outcome and is happening in a different app than the one you
+are watching the log of.
+
+Worse while editing: the running instance is the one electron-vite rebuilds
+and restarts, so a syntax or reference error introduced in `main/` crashes
+*that* app, not the one you just started. Quit the running Frodon before
+`pnpm dev`, or accept that the window you are testing belongs to the older
+dev server.
+
+The general form: a lock that is about the user's machine is also about the
+developer's, and the symptom it produces there looks nothing like its cause.
+
+### `win.focus()` does not activate a background app on macOS
+`code` · 2026-10-22 · `src/main/app/window.service.ts`
+
+`BrowserWindow.focus()` focuses a window *within* the application. If the app
+itself is not the active one, the window is raised behind whatever you are
+actually looking at and the Dock tile bounces nothing — you asked for a window
+and apparently got none. `app.focus({ steal: true })` is what makes the app
+active; without `steal` it is a request the window server can decline.
+
+Found through the Dock tile's context menu, which is the one entry point where
+this is guaranteed to happen: right-clicking a Dock tile shows the menu
+*without* activating the app, so every path out of that menu starts from the
+background. The chord and the menu-bar item both run from an already-active
+app and hid the problem.
+
+The general form: on macOS, "focus this window" and "bring this app forward"
+are two different acts, and anything a person can ask for while looking at a
+different app needs both. `steal: true` is right exactly there and rude
+anywhere else.
+
 ### An absolute `/assets/…` path is a production-only 404 under `file://`
 `code` · 2026-10-18 · `src/renderer/src/components/modules/settings/settings-app-icon.component.tsx`
 

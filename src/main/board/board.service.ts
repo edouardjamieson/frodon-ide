@@ -19,7 +19,6 @@ import fsp from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { createLogger } from '@main/logger';
-import { getRoot } from '@main/project';
 import {
   BOARD_EXTENSION,
   BOARDS_DIRNAME,
@@ -47,12 +46,14 @@ const log = createLogger('board');
  * which the UI prevents but a stale window could still ask for. The home
  * directory always exists.
  */
-function boardsDirectory(scope: BoardScope): string | null {
+function boardsDirectory(
+  root: string | null,
+  scope: BoardScope
+): string | null {
   if (scope === 'local') {
     return path.join(homedir(), FRODON_DIRNAME, BOARDS_DIRNAME);
   }
 
-  const root = getRoot();
   if (!root) return null;
   return path.join(root, FRODON_DIRNAME, BOARDS_DIRNAME);
 }
@@ -65,6 +66,7 @@ function boardsDirectory(scope: BoardScope): string | null {
  * field, not an exception to lose in the void between the processes.
  */
 function resolveBoardPath(
+  root: string | null,
   ref: BoardRef
 ): { ok: true; path: string; dir: string } | { ok: false; error: string } {
   if (!isValidBoardName(ref.name)) {
@@ -75,7 +77,7 @@ function resolveBoardPath(
     };
   }
 
-  const dir = boardsDirectory(ref.scope);
+  const dir = boardsDirectory(root, ref.scope);
   if (!dir) {
     return { ok: false, error: 'No project is open, so it has no boards.' };
   }
@@ -95,8 +97,11 @@ function resolveBoardPath(
 }
 
 /** Lists one scope's boards. A missing directory is an empty list, not an error. */
-async function listScope(scope: BoardScope): Promise<BoardSummary[]> {
-  const dir = boardsDirectory(scope);
+async function listScope(
+  root: string | null,
+  scope: BoardScope
+): Promise<BoardSummary[]> {
+  const dir = boardsDirectory(root, scope);
   if (!dir) return [];
 
   let entries: string[];
@@ -138,10 +143,10 @@ async function listScope(scope: BoardScope): Promise<BoardSummary[]> {
  * once, and two round trips to fill one panel is two chances to render it
  * half-populated.
  */
-export async function listBoards(): Promise<BoardSummary[]> {
+export async function listBoards(root: string | null): Promise<BoardSummary[]> {
   const [project, local] = await Promise.all([
-    listScope('project'),
-    listScope('local'),
+    listScope(root, 'project'),
+    listScope(root, 'local'),
   ]);
 
   return [...project, ...local].sort((a, b) => b.updatedAt - a.updatedAt);
@@ -181,8 +186,11 @@ function parseDocument(raw: string): BoardDocument {
 }
 
 /** Reads a board. A board that isn't there reads as an empty one. */
-export async function readBoard(ref: BoardRef): Promise<BoardDocument> {
-  const resolved = resolveBoardPath(ref);
+export async function readBoard(
+  root: string | null,
+  ref: BoardRef
+): Promise<BoardDocument> {
+  const resolved = resolveBoardPath(root, ref);
   if (!resolved.ok) throw new Error(resolved.error);
 
   let raw: string;
@@ -215,10 +223,11 @@ export async function readBoard(ref: BoardRef): Promise<BoardDocument> {
  * percent after compression and is worth every byte.
  */
 export async function writeBoard(
+  root: string | null,
   ref: BoardRef,
   document: BoardDocument
 ): Promise<FsResult> {
-  const resolved = resolveBoardPath(ref);
+  const resolved = resolveBoardPath(root, ref);
   if (!resolved.ok) return { ok: false, error: resolved.error };
 
   try {
@@ -243,10 +252,13 @@ export async function writeBoard(
  * "Untitled board 2" existing is the common path rather than the edge case.
  */
 async function availableName(
+  root: string | null,
   scope: BoardScope,
   wanted: string
 ): Promise<string> {
-  const taken = new Set((await listScope(scope)).map((board) => board.name));
+  const taken = new Set(
+    (await listScope(root, scope)).map((board) => board.name)
+  );
   if (!taken.has(wanted)) return wanted;
 
   for (let suffix = 2; suffix < 1000; suffix++) {
@@ -258,6 +270,7 @@ async function availableName(
 }
 
 export async function createBoard(
+  root: string | null,
   scope: BoardScope,
   name?: string
 ): Promise<BoardResult> {
@@ -270,12 +283,15 @@ export async function createBoard(
     };
   }
 
-  const ref: BoardRef = { scope, name: await availableName(scope, wanted) };
+  const ref: BoardRef = {
+    scope,
+    name: await availableName(root, scope, wanted),
+  };
 
   // Written immediately rather than left as an unsaved window: a board that
   // exists on disk is one the sidebar can list, rename and delete, and the
   // alternative is a second kind of board that only some operations work on.
-  const written = await writeBoard(ref, emptyBoardDocument());
+  const written = await writeBoard(root, ref, emptyBoardDocument());
   if (!written.ok) return { ok: false, error: written.error };
 
   log.info(`created board ${scope}:${ref.name}`);
@@ -283,16 +299,17 @@ export async function createBoard(
 }
 
 export async function renameBoard(
+  root: string | null,
   ref: BoardRef,
   name: string
 ): Promise<BoardResult> {
   const wanted = name.trim();
   if (wanted === ref.name) return { ok: true, ref };
 
-  const from = resolveBoardPath(ref);
+  const from = resolveBoardPath(root, ref);
   if (!from.ok) return { ok: false, error: from.error };
 
-  const to = resolveBoardPath({ scope: ref.scope, name: wanted });
+  const to = resolveBoardPath(root, { scope: ref.scope, name: wanted });
   if (!to.ok) return { ok: false, error: to.error };
 
   try {
@@ -313,8 +330,11 @@ export async function renameBoard(
   }
 }
 
-export async function deleteBoard(ref: BoardRef): Promise<FsResult> {
-  const resolved = resolveBoardPath(ref);
+export async function deleteBoard(
+  root: string | null,
+  ref: BoardRef
+): Promise<FsResult> {
+  const resolved = resolveBoardPath(root, ref);
   if (!resolved.ok) return { ok: false, error: resolved.error };
 
   try {

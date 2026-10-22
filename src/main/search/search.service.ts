@@ -25,7 +25,9 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { createLogger } from '@main/logger';
 import { flattenFiles, writeFileText } from '@main/fs';
-import { getFiles, getRoot } from '@main/project';
+import type { WebContents } from 'electron';
+import { getFiles } from '@main/project';
+import { sessionOf, type ProjectSession } from '@main/session';
 import { toRelativePath } from '@main/ignore';
 import { emptySearchResult } from '@shared/search.def';
 import type {
@@ -50,12 +52,6 @@ import {
 } from './search.constant';
 
 const log = createLogger('search');
-
-/**
- * The query generation. Incremented when one starts; a walk whose token is no
- * longer this one has been superseded and gives up at its next checkpoint.
- */
-let generation = 0;
 
 /** Characters that mean something to a regular expression and must not. */
 const REGEX_SPECIAL = /[.*+?^${}()|[\]\\]/g;
@@ -229,19 +225,43 @@ async function pooled<T>(
   );
 }
 
-/** The project's files, flattened, or an empty list when none is open. */
-function projectFiles(): File[] {
-  return flattenFiles(getFiles());
+/**
+ * The project's files, flattened, or an empty list when none is open.
+ *
+ * The tree main already holds for that project, not a fresh walk: search and
+ * the explorer must agree about what is in the project, exclusions included.
+ */
+function projectFiles(session: ProjectSession): File[] {
+  return flattenFiles(getFiles(session.watch));
+}
+
+/**
+ * The next query token for one window.
+ *
+ * Per window rather than per project, because two windows on the same project
+ * each have their own search panel: typing in one must not make the other's
+ * walk give up at its next checkpoint.
+ */
+function nextGeneration(
+  session: ProjectSession,
+  contents: WebContents
+): number {
+  const token = (session.searchGenerations.get(contents) ?? 0) + 1;
+  session.searchGenerations.set(contents, token);
+  return token;
 }
 
 export async function searchProject(
+  contents: WebContents,
   request: SearchRequest
 ): Promise<SearchResult> {
-  const token = (generation += 1);
-  const superseded = () => token !== generation;
+  const session = sessionOf(contents);
+  if (!session || !request.query) return emptySearchResult();
 
-  const root = getRoot();
-  if (!root || !request.query) return emptySearchResult();
+  const token = nextGeneration(session, contents);
+  const superseded = () => token !== session.searchGenerations.get(contents);
+
+  const root = session.root;
 
   let pattern: RegExp;
   try {
@@ -250,7 +270,7 @@ export async function searchProject(
     return { ...emptySearchResult(), error: patternError(error) };
   }
 
-  const files = projectFiles();
+  const files = projectFiles(session);
   // Indexed rather than appended: workers finish out of order, and a result
   // list that reshuffles itself between keystrokes is unusable.
   const found = new Array<SearchFileResult | null>(files.length).fill(null);
@@ -375,10 +395,11 @@ function replaceInText(
  * project.
  */
 export async function replaceInProject(
+  contents: WebContents,
   request: ReplaceRequest
 ): Promise<ReplaceResult> {
-  const root = getRoot();
-  if (!root || !request.query) {
+  const session = sessionOf(contents);
+  if (!session || !request.query) {
     return { ok: false, filesChanged: 0, matchesReplaced: 0 };
   }
 
@@ -395,7 +416,7 @@ export async function replaceInProject(
   }
 
   const only = new Set(request.paths);
-  const files = projectFiles().filter(
+  const files = projectFiles(session).filter(
     (file) => only.size === 0 || only.has(file.path)
   );
 

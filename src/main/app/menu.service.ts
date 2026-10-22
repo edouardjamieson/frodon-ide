@@ -1,5 +1,5 @@
 /**
- * The application menu.
+ * The application menu, and the Dock's.
  *
  * It exists for one reason, and it is not the menu: **Electron's default menu
  * owns Cmd+W**. A menu accelerator is handled before the key ever reaches the
@@ -18,7 +18,8 @@
  * accelerators, not browser behaviour, and text fields stop working without
  * them.
  */
-import { Menu, type MenuItemConstructorOptions } from 'electron';
+import { app, Menu, type MenuItemConstructorOptions } from 'electron';
+import { openProjectWindow } from './window.service';
 
 export function createMenu(): void {
   const isMac = process.platform === 'darwin';
@@ -42,6 +43,16 @@ export function createMenu(): void {
     {
       label: 'Window',
       submenu: [
+        // No accelerator, deliberately. A menu accelerator is handled before
+        // the page sees the key, so putting one here would take the chord
+        // away from `lib/keybinding/` — which is the trap this whole file
+        // exists because of. The chord lives in `DEFAULT_KEYBINDINGS` with
+        // every other one; this is the same command with a menu in front.
+        {
+          label: 'New Window',
+          click: () => openProjectWindow(),
+        },
+        { type: 'separator' },
         { role: 'minimize' },
         { role: 'zoom' },
         // No `close`. That is the whole point of this file.
@@ -51,4 +62,37 @@ export function createMenu(): void {
   ];
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+/**
+ * The Dock tile's context menu. macOS only.
+ *
+ * Right-clicking the tile is how you ask an app on this platform for another
+ * window without first bringing one to the front — which is exactly the case
+ * this is for: the app is in the background, or every window is on a space
+ * you are not looking at, and `mod+shift+n` would mean finding a window to
+ * press it in first.
+ *
+ * macOS adds its own items below whatever is set here — Options, Show All
+ * Windows, Quit — so this contributes the one item it has and does not
+ * rebuild the rest.
+ *
+ * Static, and set once. The item does not name a project: New Window opens
+ * the launcher, and a Dock menu that listed projects would be a second
+ * recents list to keep current, in a surface that cannot show a hue or an
+ * icon anyway.
+ *
+ * `app.dock` is undefined off macOS, which is also the platform test — there
+ * is no Dock to put a menu on.
+ */
+export function createDockMenu(): void {
+  if (process.platform !== 'darwin') return;
+
+  app.dock?.setMenu(
+    Menu.buildFromTemplate([
+      // No accelerator, for the reason nothing in this file has one: it would
+      // be handled before the page saw the key. See `createMenu` above.
+      { label: 'New Window', click: () => openProjectWindow() },
+    ])
+  );
 }

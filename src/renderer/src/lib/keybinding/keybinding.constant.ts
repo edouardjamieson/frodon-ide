@@ -44,6 +44,10 @@ export const DEFAULT_KEYBINDINGS: Keybinding[] = [
   // or on a row of its own below it.
   { chord: 'mod+shift+right', command: 'window.splitRight' },
   { chord: 'mod+shift+down', command: 'window.splitDown' },
+  // A second OS window, on the launcher. The menu has the same command
+  // without an accelerator on it, so that this table stays the only place a
+  // chord is written down.
+  { chord: 'mod+shift+n', command: 'app.newWindow' },
 ];
 
 /**
@@ -67,4 +71,5 @@ export const COMMAND_LABELS: Record<CommandId, string> = {
   'settings.open': 'Settings',
   'window.splitRight': 'Split to the right',
   'window.splitDown': 'Split downwards',
+  'app.newWindow': 'New window',
 };

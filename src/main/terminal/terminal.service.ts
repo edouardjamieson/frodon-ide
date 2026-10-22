@@ -185,6 +185,26 @@ export function killSession(id: string, walkTree = true): void {
 }
 
 /**
+ * Ends every session belonging to one window.
+ *
+ * Closing a window is not quitting. Its shells — and the dev servers,
+ * watchers and agents they started — have to go, and every other window's
+ * have to survive, which is why this exists beside `disposeTerminals` rather
+ * than as a flag on it. SIGTERM rather than SIGKILL for the same reason
+ * `killSession` uses it: a window closing is an orderly end, and a shell that
+ * wants to save its history should get the chance.
+ */
+export function killSessionsOf(senderId: number): void {
+  const owned = [...sessions.values()].filter(
+    (session) => session.senderId === senderId
+  );
+  if (owned.length === 0) return;
+
+  log.info(`window ${senderId} closed — ending ${owned.length} session(s)`);
+  for (const session of owned) killSession(session.id);
+}
+
+/**
  * Tears every shell down. SIGKILL, because quitting cannot wait out a shell
  * that ignores SIGTERM.
  *

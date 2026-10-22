@@ -75,6 +75,20 @@ them.
 
 **Binding any other chord the menu already owns means doing the same there.**
 
+The New Window item is the worked example of the rule pointing the other way.
+It is in the menu — it is exactly the kind of thing a Window menu should carry
+— and it deliberately has **no accelerator on it**, because an accelerator
+there would take `mod+shift+n` away from the registry. It is in the Dock
+tile's context menu too, for the case the chord cannot cover at all: the app
+in the background, with no window to press a key in. Three entry points, one
+command, and `DEFAULT_KEYBINDINGS` stays the only file where a chord is
+written down.
+
+**`window.*` means a tile; `app.*` means an OS window.** `window.splitRight`
+splits the workbench; `app.newWindow` opens a second copy of the whole app
+window. The prefixes carry that distinction because the word does not — see
+[ADR-0032](../decisions.md).
+
 Nothing is listened for in main. A global shortcut registered there fires while
 the app is in the background, which is right for a media key and wrong for
 "close tab".
@@ -95,6 +109,7 @@ the app is in the background, which is right for a media key and wrong for
 | `mod+,` | `settings.open` | no menu claims it |
 | `mod+shift+right` | `window.splitRight` | the arrow points where it appears |
 | `mod+shift+down` | `window.splitDown` | |
+| `mod+shift+n` | `app.newWindow` | an OS window, not a tile |
 
 The three sidebar chords **show** rather than toggle. `mod+b` is how the panel
 goes away, and a key with two meanings is a key you have to look at the screen

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useProjectStore } from './project.store';
 import {
   resolveProjectColor,
@@ -7,7 +7,7 @@ import {
   resolveProjectName,
   shortenPath,
 } from './project.service';
-import { useHome } from '~/lib/app';
+import { useAppInfo, useHome } from '~/lib/app';
 import { applyProjectLayout, fetchProjectLayout } from '~/lib/layout';
 import {
   applyProjectConfig,
@@ -233,4 +233,38 @@ export const useProjectSync = (): void => {
   const setFiles = useProjectStore((state) => state.setFiles);
 
   useEffect(() => window.frodon.project.onChanged(setFiles), [setFiles]);
+};
+
+/**
+ * Opens the project this window was created for, if it was created for one.
+ * Mount this ONCE near the app root.
+ *
+ * A window opened by `window:open` — from the New Window menu item, or later
+ * from a worktree — is a whole second renderer with its own stores, and it
+ * boots on the launcher like any other. `AppInfo.initialRoot` is how it finds
+ * out it is not meant to stay there.
+ *
+ * It rides on the `app:info` call the renderer already makes first rather
+ * than arriving as an event, which is what keeps it free of a race: there is
+ * no gap between the page loading and a push landing for it to be missed in.
+ *
+ * Guarded by a ref rather than by the store's `root`, and the difference
+ * matters: someone who opens a worktree window and then switches it to a
+ * different project must not have it yanked back the next time this effect
+ * re-runs. It is a fact about how the window *started*, acted on once.
+ */
+export const useInitialProjectEffect = (): void => {
+  const info = useAppInfo();
+  const { openPath } = useProject();
+  const opened = useRef(false);
+
+  useEffect(() => {
+    const root = info?.initialRoot;
+    if (!root || opened.current) return;
+
+    opened.current = true;
+    void openPath(root).catch((error: unknown) =>
+      console.error(`project: could not open ${root}`, error)
+    );
+  }, [info, openPath]);
 };

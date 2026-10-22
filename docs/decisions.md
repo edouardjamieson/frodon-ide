@@ -18,6 +18,113 @@ their reasoning is the reasoning recorded at the time, not reconstructed.
 
 ---
 
+### ADR-0033 — The Dock icon follows the focused window
+
+**When** 2026-10-22 · **Status** active · **Touches** app icon, project, session
+
+**What.** With several windows open on several projects, the Dock tile shows
+the project of the **focused** window. `refreshAppIcon` takes a root and
+defaults to the focused window's; `browser-window-focus` repaints.
+
+**Why.** [ADR-0031](#adr-0031--the-app-icon-is-a-user-setting-and-the-default-is-generated-from-the-projects-hue)
+made the generated icon the color of the open project, which was unambiguous
+while there was one. `app.dock.setIcon` is app-wide on macOS and there is no
+per-window equivalent — `setRepresentedFilename` puts a proxy icon in a title
+bar, not a tile — so with two projects open there is no arrangement that shows
+both. Three answers were possible: the first window's project, which makes the
+tile a fact about history; a neutral icon whenever more than one is open, which
+throws the feature away exactly when there is most to tell apart; or the window
+you are looking at. The third is the only one that is ever *useful*, because
+the question the tile answers is "which project am I in", and the answer is the
+one in front of you.
+
+**How.** `focusedRoot()` in `main/icon/icon.service.ts` resolves
+`BrowserWindow.getFocusedWindow()` through `rootOf` in `main/session/`.
+`app.on('browser-window-focus')` in `main/index.ts` repaints. The `applied`
+comparison that was already there is what makes alt-tabbing free: two windows
+on the same project produce the same key and paint nothing. A window closing
+deliberately does *not* repaint unless it was the last one — for the moment
+between one window closing and the next taking focus nothing is focused, and
+repainting then would flash the tile grey.
+
+**Cost.** The icon is now a fact about focus rather than about the app, so it
+moves while you work rather than only when you open something. Two windows on
+two projects repaint the tile on every switch between them — cheap, because of
+the comparison, but it is a million pixels on the first switch each way. And
+the setting's promise got narrower: "the app is the color of your project" is
+now "the app is the color of the project you are looking at".
+
+---
+
+### ADR-0032 — Main is keyed by root and ref-counted by window; the no-root channels resolve from the sender
+
+**When** 2026-10-22 · **Status** active · **Touches** project, git, search, boards, bookmarks, settings, terminal, workbench
+
+**What.** Main holds several projects at once. `main/session/` maps each
+window's `WebContents` to a project and each project to one filesystem watcher
+and one git poller, shared by every window on it and released when the last of
+them goes. The channels that take no root — `git:*`, `config:project`,
+`board:*`, `bookmark:*`, `search:*`, `file:create|rename|delete` — resolve it
+from `event.sender` instead of from a module global.
+
+**Why.** `project.service.ts` and `git.service.ts` each held a `let root` and
+broadcast to every open window, so opening a second project meant closing the
+first. That blocks two things worth having on their own — a second window on a
+second project, and a second window on the *same* project — and it is the hard
+blocker under worktrees, where the entire point is two branches of one
+repository on screen at once.
+
+Several OS **processes** was the other way to get there and is the wrong one:
+two Dock tiles, two pollers against the same object store, two watchers, and
+two writers racing on `recents.json` and `layouts.json` — a race
+[ADR-0023](#adr-0023--everything-that-outlives-a-window-lives-under-frodon-owned-by-main)
+already names as a cost. `app.requestSingleInstanceLock()` now refuses it
+outright.
+
+Keyed by **root** rather than by window because of
+[ADR-0011](#adr-0011--git-is-polled-once-in-main-with-porcelain-v2-and-never-fetches-on-its-own):
+nine windows onto one project must not run `git status` nine times. Per-window
+services would have been simpler to write and would have broken that rule the
+first time anyone split a project across two windows.
+
+Resolving from `event.sender` is strictly *more* of what
+[ADR-0015](#adr-0015--a-name-typed-by-a-person-never-crosses-as-a-path) is
+about, not a weakening of it. The renderer still never names a directory main
+then reads or writes files in; main derives it from which window asked, which
+the invoke event carries and the page cannot forge. `window:open` is the one
+channel that takes a root and is not `project:tree`, and it reads and writes
+nothing — the root is handed to the new window, which opens it through
+`project:tree` like any other open.
+
+**How.** `attachWindow` / `detachWindow` / `rootOf` / `sessionOf` in
+`main/session/session.service.ts`. `project.service.ts` and `git.service.ts`
+lost their module state for a handle passed as the first argument —
+`ProjectWatch` and `GitRepo` — created with an `onChange` the session routes,
+so neither module knows which windows exist any more. Both take
+`handle | null`, because "this window has no project" is an ordinary answer and
+that keeps the guards beside the comments explaining them rather than in the
+handlers. A closure factory wrapping each file was the alternative and was
+rejected on diff alone: `git.service.ts` is 900 lines and re-indenting all of
+them would have made the change unreviewable.
+
+Three things that were app-wide and had to stop being: `killSessionsOf` in
+`main/terminal/` ends one window's shells on close, where `disposeTerminals`
+ends every shell and is for quitting; the search generation moved onto the
+session, keyed by window, so two panels do not cancel each other; and
+`prune` in `main/layout/` takes the root it is pruning for rather than reading
+whatever is open.
+
+**Cost.** Every handler that was a one-liner now resolves a session first, and
+a channel added without one silently answers for no project. A bug in the
+ref-count either leaks a poller or kills a live one, and neither is visible on
+screen. Two windows on one project share a layout entry, so the last to settle
+wins — the arrangement of the second window overwrites the first's. And
+`window` now means two things in this codebase: a tile in the workbench
+(`renderer/src/lib/window/`) and an OS window (`main/app/window.service.ts`),
+which is why the new command is `app.newWindow` and not `window.new`.
+
+---
+
 ### ADR-0031 — The app icon is a user setting, and the default is generated from the project's hue
 
 **When** 2026-10-18 · **Status** active · **Touches** settings, project, theme

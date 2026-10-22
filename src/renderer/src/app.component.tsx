@@ -1,6 +1,7 @@
 import { useThemeEffect } from '~/lib/theme';
 import { useAppInfoEffect } from '~/lib/app';
 import {
+  useInitialProjectEffect,
   useProject,
   useProjectColorEffect,
   useProjectSync,
@@ -44,6 +45,7 @@ export default function App() {
   useThemeEffect();
   useAppInfoEffect();
   useProjectSync();
+  useInitialProjectEffect();
   useGitSync();
   useFileWatchSync();
   useProjectColorEffect();

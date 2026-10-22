@@ -124,6 +124,20 @@ Presentation state — expanded directories, focused pane, active theme — live
 in a renderer store and never crosses the boundary. The one exception is the
 workbench arrangement, and it follows the rule by putting the *file* in main.
 
+**Main holds one project per open window, not one per app.** `main/session/`
+maps each window's `WebContents` to a project, and each project to one watcher
+and one git poller — shared by every window on that project and released when
+the last of them closes. Every channel that takes no root resolves it from
+`event.sender`, which is *more* of the rule below rather than less: the
+renderer still never names a directory main then reads or writes files in.
+Nothing in `project/` or `git/` knows which windows exist; each is a handle
+(`ProjectWatch`, `GitRepo`) with an `onChange` the session routes. ADR-0032.
+
+**`window` means two things here.** A tile in the workbench
+(`renderer/src/lib/window/`, `window.splitRight`) and an OS window
+(`main/app/window.service.ts`, `app.newWindow`). The prefixes carry the
+distinction because the word does not.
+
 Three patterns fall out of this and recur everywhere:
 
 - **Filter before you descend.** Exclusions are applied as the tree is built,
@@ -317,7 +331,9 @@ ranks the whole project as you type · boards, saved into the project or
 privately · a browser with tabs that can be pinned to a device size,
 and bookmarks in groups saved with the project or kept privately · a
 launcher offering the last five projects · a workbench that reopens onto the
-tiles it was left on · a settings dialog on `mod+,` · switching themes.
+tiles it was left on · several windows at once, each on its own project, with
+the Dock wearing the one you are looking at · a settings dialog on `mod+,` ·
+switching themes.
 
 Everything else — the rest of the config layering, the command palette, LSP,
 and the dialog that should ask before a tab with unsaved work is closed — is

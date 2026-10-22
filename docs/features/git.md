@@ -24,10 +24,13 @@ leaving the window.
 
 ## How it works
 
-**Main polls once for the whole app and pushes a snapshot.** The TUI polled
-from a hook, so every component that wanted repository state had its own
-interval and its own subprocesses. Opening nine windows onto one project does
-not run `git status` nine times.
+**Main polls once per repository and pushes a snapshot.** The TUI polled from
+a hook, so every component that wanted repository state had its own interval
+and its own subprocesses. Opening nine windows onto one project does not run
+`git status` nine times — the nine share one `GitRepo` handle, held by that
+project's session and released when the last of them closes. Two windows on
+two *different* projects do get two pollers, which is the point: they are two
+repositories. See [ADR-0032](../decisions.md).
 
 **Compare before you push.** `sameStatus` runs in main, in front of the push
 rather than in front of a `set`. An idle repo costs one `git status` every

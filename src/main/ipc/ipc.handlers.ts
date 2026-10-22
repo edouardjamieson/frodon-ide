@@ -10,7 +10,9 @@ import { basename } from 'node:path';
 import { homedir } from 'node:os';
 import { dialog, BrowserWindow, type IpcMainInvokeEvent } from 'electron';
 import { handle } from './ipc.service';
-import { getRoot, openProject } from '@main/project';
+import { getFiles } from '@main/project';
+import { attachWindow, rootOf, sessionOf } from '@main/session';
+import { initialRootOf, openProjectWindow } from '@main/app';
 import { refreshAppIcon } from '@main/icon';
 import {
   forgetRecentProject,
@@ -24,6 +26,7 @@ import {
   writeProjectConfig,
   writeUserConfig,
 } from '@main/config';
+import type { GitRepo } from '@main/git';
 import {
   checkout,
   commit,
@@ -33,7 +36,6 @@ import {
   fetchRemote,
   getStatus,
   listBranches,
-  openRepo,
   pull,
   push,
   readBranches,
@@ -158,9 +160,34 @@ function growToWorkbench(event: IpcMainInvokeEvent): void {
   window.setResizable(true);
 }
 
+/* -------------------------------------------------------------------------
+ * Which project is asking
+ *
+ * The channels below take no root, and that is the security property rather
+ * than a convenience: a directory named by the renderer is a directory main
+ * then reads and writes files in. Main derives it instead — from *which
+ * window asked*, which the invoke event carries and the page cannot forge.
+ *
+ * This used to be one module-level root, which answered the same question as
+ * long as the app held one project. These two helpers are what that became.
+ * ---------------------------------------------------------------------- */
+
+/** The project the asking window has open, or null if it is on the launcher. */
+function askingRoot(event: IpcMainInvokeEvent): string | null {
+  return rootOf(event.sender);
+}
+
+/** That project's repository, for the git channels. */
+function askingRepo(event: IpcMainInvokeEvent): GitRepo | null {
+  return sessionOf(event.sender)?.repo ?? null;
+}
+
 export function registerIpcHandlers(): void {
-  handle('project:pick', async () => {
-    const win = BrowserWindow.getFocusedWindow();
+  handle('project:pick', async (_req, event) => {
+    // The window that asked, not the focused one: with several windows open
+    // those can differ, and a sheet belongs to the window whose button was
+    // clicked.
+    const win = BrowserWindow.fromWebContents(event.sender);
     const result = win
       ? await dialog.showOpenDialog(win, { properties: ['openDirectory'] })
       : await dialog.showOpenDialog({ properties: ['openDirectory'] });
@@ -174,20 +201,28 @@ export function registerIpcHandlers(): void {
   // root by the renderer — it follows the project, which main already knows
   // about.
   //
+  // `attachWindow` is where all of that now happens, and it is also what makes
+  // this the moment a window *becomes* a window on a project: every no-root
+  // channel below resolves against the answer it records. A window opening a
+  // second project detaches from the first here, which releases the first
+  // project's watcher and poller if nothing else was looking at it.
+  //
   // The window grows here too, rather than in `project:pick` where it used to
   // live. Picking a folder and opening a project stopped being the same event
   // the moment the launcher could open one from its own list, and the window
   // belongs to the second of them.
   handle('project:tree', async ({ root }, event) => {
-    const files = openProject(root);
-    openRepo(root);
+    const session = attachWindow(event.sender, root);
     await recordRecentProject(root);
     growToWorkbench(event);
     // The Dock follows the project, when the generated icon is the one
-    // chosen. Not awaited: the tree is what the renderer is waiting on, and
-    // painting a tile has no business holding it up.
+    // chosen — and only for the window you are actually looking at, since
+    // macOS has one tile for the whole app. A project opening in a background
+    // window leaves the tile alone. Not awaited: the tree is what the
+    // renderer is waiting on, and painting a tile has no business holding it
+    // up.
     void refreshAppIcon();
-    return files;
+    return getFiles(session.watch);
   });
 
   // Read right after `project:tree`, never beside it: pruning a layout's
@@ -203,18 +238,26 @@ export function registerIpcHandlers(): void {
 
   handle('project:forget-recent', ({ path }) => forgetRecentProject(path));
 
+  // Nothing is read or written here, so unlike every other channel that could
+  // name a directory this one is allowed to take one: the root is handed to
+  // the new window, which opens it through `project:tree` like any other
+  // open. See the channel's own note.
+  handle('window:open', ({ root }) => openProjectWindow(root));
+
   // Read right after `project:tree` for the same reason the layout is: this
-  // answers for whichever project main has open, and `openProject` above is
-  // what decides which one that is. The pair of writes take no root either —
-  // a renderer-supplied directory is a directory a renderer could have main
-  // write a file into.
-  handle('config:project', () => readProjectConfig());
+  // answers for whichever project the asking window has open, and
+  // `attachWindow` above is what decides which one that is. The pair of
+  // writes take no root either — a renderer-supplied directory is a directory
+  // a renderer could have main write a file into.
+  handle('config:project', (_req, event) =>
+    readProjectConfig(askingRoot(event))
+  );
 
   // Both writes refresh the icon, for the two different reasons it can go
   // stale: a project's `hue` is what the generated one is painted from, and a
   // user's `appIcon` is which of the nine is showing at all.
-  handle('config:save-project', async ({ config }) => {
-    const result = await writeProjectConfig(config);
+  handle('config:save-project', async ({ config }, event) => {
+    const result = await writeProjectConfig(askingRoot(event), config);
     void refreshAppIcon();
     return result;
   });
@@ -236,15 +279,17 @@ export function registerIpcHandlers(): void {
   // The project root is handed over here rather than read inside `fs/`, which
   // would have to import the module that imports it. Main owns the root; the
   // renderer names a parent and a name, and never a path these two then make.
-  handle('file:create', ({ parent, name }) =>
-    createFile(getRoot(), parent, name)
+  handle('file:create', ({ parent, name }, event) =>
+    createFile(askingRoot(event), parent, name)
   );
 
-  handle('file:create-dir', ({ parent, name }) =>
-    createDirectory(getRoot(), parent, name)
+  handle('file:create-dir', ({ parent, name }, event) =>
+    createDirectory(askingRoot(event), parent, name)
   );
 
-  handle('file:rename', ({ path, name }) => renameEntry(getRoot(), path, name));
+  handle('file:rename', ({ path, name }, event) =>
+    renameEntry(askingRoot(event), path, name)
+  );
 
   // The one handler that asks before it acts, and the only reason the dialog
   // is here rather than in `fs/`: `project:pick` already established that a
@@ -255,7 +300,7 @@ export function registerIpcHandlers(): void {
       return { ok: true, deleted: false };
     }
 
-    const result = await deleteEntry(getRoot(), path);
+    const result = await deleteEntry(askingRoot(event), path);
 
     // Reported here too, because the renderer has nowhere to put it: the row
     // is gone from the menu by now, and a delete that quietly did nothing is
@@ -275,36 +320,46 @@ export function registerIpcHandlers(): void {
   // Reads the snapshot main already holds; the poller is what keeps it
   // current. Returning a stale-by-at-most-one-tick answer instantly is worth
   // more here than a fresh one that costs a subprocess per window.
-  handle('git:status', () => getStatus());
+  handle('git:status', (_req, event) => getStatus(askingRepo(event)));
 
-  handle('git:branches', () => listBranches());
+  handle('git:branches', (_req, event) => listBranches(askingRepo(event)));
 
-  handle('git:fetch', () => fetchRemote());
+  handle('git:fetch', (_req, event) => fetchRemote(askingRepo(event)));
 
-  handle('git:pull', () => pull());
+  handle('git:pull', (_req, event) => pull(askingRepo(event)));
 
-  handle('git:push', () => push());
+  handle('git:push', (_req, event) => push(askingRepo(event)));
 
-  handle('git:checkout', ({ branch }) => checkout(branch));
+  handle('git:checkout', ({ branch }, event) =>
+    checkout(askingRepo(event), branch)
+  );
 
-  handle('git:create-branch', ({ branch }) => createBranch(branch));
+  handle('git:create-branch', ({ branch }, event) =>
+    createBranch(askingRepo(event), branch)
+  );
 
   // The git window's three tabs. None of them is polled: main pushes
   // `git:changed` when the repository moves and the window re-reads what it
   // is showing, so a history nobody has open costs nothing.
-  handle('git:branch-details', () => readBranches());
+  handle('git:branch-details', (_req, event) =>
+    readBranches(askingRepo(event))
+  );
 
-  handle('git:log', (request) => readLog(request));
+  handle('git:log', (request, event) => readLog(askingRepo(event), request));
 
   // Read on a click rather than on a tick, which is the whole shape of it: a
   // commit cannot change, so nothing here is ever re-read for staleness.
-  handle('git:commit-detail', ({ sha }) => readCommitDetail(sha));
+  handle('git:commit-detail', ({ sha }, event) =>
+    readCommitDetail(askingRepo(event), sha)
+  );
 
-  handle('git:diff', (request) => readDiff(request));
+  handle('git:diff', (request, event) => readDiff(askingRepo(event), request));
 
-  handle('git:stage', ({ paths }) => stage(paths));
+  handle('git:stage', ({ paths }, event) => stage(askingRepo(event), paths));
 
-  handle('git:unstage', ({ paths }) => unstage(paths));
+  handle('git:unstage', ({ paths }, event) =>
+    unstage(askingRepo(event), paths)
+  );
 
   // The second handler that asks before it acts, and the harsher of the two:
   // `file:delete` fills the Trash, this throws away an edit that nothing
@@ -312,27 +367,33 @@ export function registerIpcHandlers(): void {
   // wording — the service works it out again before acting, so the sentence
   // and the act cannot disagree.
   handle('git:discard', async ({ path }, event) => {
-    const kind = discardKind(path);
+    const repo = askingRepo(event);
+    const kind = discardKind(repo, path);
     // Already clean, or conflicted — which this deliberately does not
     // handle. Nothing to ask about and nothing to do.
     if (!kind) return { ok: true };
 
     if (!(await confirmDiscard(path, kind, event))) return { ok: true };
 
-    return discardChange(path);
+    return discardChange(repo, path);
   });
 
-  handle('git:commit', (request) => commit(request));
+  handle('git:commit', (request, event) => commit(askingRepo(event), request));
 
-  // Both of these walk the tree main already holds, so neither takes a root.
-  // A query that is superseded while it runs comes back saying so rather than
-  // empty — see `searchProject`.
-  handle('search:query', (request) => searchProject(request));
+  // Both of these walk the tree main already holds for the asking window's
+  // project, so neither takes a root. A query that is superseded while it
+  // runs comes back saying so rather than empty — see `searchProject`.
+  handle('search:query', (request, event) =>
+    searchProject(event.sender, request)
+  );
 
-  handle('search:replace', (request) => replaceInProject(request));
+  handle('search:replace', (request, event) =>
+    replaceInProject(event.sender, request)
+  );
 
   // The sender is what ties a shell to a window: its output is sent back to
-  // the window that asked for it and to no other.
+  // the window that asked for it and to no other, and its process tree dies
+  // when that window closes rather than when the app quits.
   handle('terminal:create', (options, event) =>
     createSession(options, event.sender.id)
   );
@@ -349,26 +410,32 @@ export function registerIpcHandlers(): void {
   // renderer rather than a path main produced itself, which is why the
   // service validates every one of them before it builds a path — see
   // `resolveBoardPath`.
-  handle('board:list', () => listBoards());
+  handle('board:list', (_req, event) => listBoards(askingRoot(event)));
 
-  handle('board:read', (ref) => readBoard(ref));
+  handle('board:read', (ref, event) => readBoard(askingRoot(event), ref));
 
-  handle('board:write', ({ ref, document }) => writeBoard(ref, document));
+  handle('board:write', ({ ref, document }, event) =>
+    writeBoard(askingRoot(event), ref, document)
+  );
 
-  handle('board:create', ({ scope, name }) => createBoard(scope, name));
+  handle('board:create', ({ scope, name }, event) =>
+    createBoard(askingRoot(event), scope, name)
+  );
 
-  handle('board:rename', ({ ref, name }) => renameBoard(ref, name));
+  handle('board:rename', ({ ref, name }, event) =>
+    renameBoard(askingRoot(event), ref, name)
+  );
 
-  handle('board:delete', (ref) => deleteBoard(ref));
+  handle('board:delete', (ref, event) => deleteBoard(askingRoot(event), ref));
 
   // Bookmarks. The browser's only channels, and the only ones it needs: a
   // `<webview>` is a DOM element, so navigation never crosses — but a page
   // saved last week has to come back from a file. Neither takes a path or a
   // name, so unlike the board channels there is nothing here to resolve.
-  handle('bookmark:list', () => listBookmarks());
+  handle('bookmark:list', (_req, event) => listBookmarks(askingRoot(event)));
 
-  handle('bookmark:save', ({ scope, bookmarks }) =>
-    writeBookmarks(scope, bookmarks)
+  handle('bookmark:save', ({ scope, bookmarks }, event) =>
+    writeBookmarks(askingRoot(event), scope, bookmarks)
   );
 
   // The browser's third channel, and the only one that reaches the network.
@@ -376,9 +443,13 @@ export function registerIpcHandlers(): void {
   // should not: the request belongs on the guest's session, not the IDE's.
   handle('browser:favicon', ({ url }) => readFavicon(url));
 
-  handle('app:info', () => ({
+  // `initialRoot` is the one per-window field here, and the reason this
+  // handler takes the event: it is how a window opened by `window:open`
+  // learns which project it was opened for.
+  handle('app:info', (_req, event) => ({
     platform: process.platform as Platform,
     home: homedir(),
+    initialRoot: initialRootOf(event.sender),
     versions: {
       electron: process.versions.electron ?? '',
       chrome: process.versions.chrome ?? '',

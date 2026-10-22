@@ -167,7 +167,10 @@ that changes the focus ring.
 - **Never write `auto` into the config.** Clearing the field is how you go
   back to the default; a default written out is one that can never change.
 - **Compare before painting.** `refreshAppIcon` is called on every project
-  open and every config write, and most of them change nothing.
+  open, every config write and every window focus, and most of them change
+  nothing. The focus case is why it matters now rather than merely being
+  tidy: alt-tabbing between two windows on one project must not rebuild a
+  million pixels twice a second.
 - **The two gradient stops live in `shared/`.** The picker promises a sweep
   and main has to paint that sweep.
 
@@ -175,11 +178,21 @@ that changes the focus ring.
 
 - **The bundle icon is a build-time pick, and `silk` is it.** There is no way
   to offer the generated icon in Finder, and there will not be one.
-- **No per-window icon.** One app process holds one project, so the question
-  has not come up; if that ever changes, `setIcon` is app-wide on macOS and
-  the design would need rethinking.
-- **Windows and Linux are untested.** The code falls back to `win.setIcon` on
-  every open window, but nothing has been packaged for either.
+- **No per-window icon, and there cannot be one.** `app.dock.setIcon` is
+  app-wide on macOS and nothing is per-window — `setRepresentedFilename` puts
+  a proxy icon in a title bar, not a tile. With several projects open the Dock
+  shows the **focused** window's, which is the only answer that is ever
+  useful; see [ADR-0033](../decisions.md). Windows has `setOverlayIcon` if it
+  ever matters there.
+- **Windows and Linux are untested, and one thing about them is known to be
+  wrong.** The fallback is `win.setIcon` on every open window, so with two
+  windows open on two projects both wear the focused one's color rather than
+  their own — the one platform where a per-window icon is possible is the one
+  where this paints them all the same. `createWindow` at least calls
+  `resetAppIcon` before refreshing, so a window created after the icon was
+  chosen gets one at all; before that it kept the bundle's, because the loop
+  at startup runs when no window exists yet. Nothing has been packaged for
+  either platform.
 - **The grain is Chromium's, not Figma's.** Visibly coarser than the PNG
   exports at full size, and the reason is in the pipeline note above. It
   matters least where the icon is actually seen; if it ever matters enough,

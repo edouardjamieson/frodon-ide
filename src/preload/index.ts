@@ -141,6 +141,9 @@ const api: FrodonApi = {
     save: (scope: BookmarkScope, bookmarks: Bookmark[]) =>
       ipcRenderer.invoke('bookmark:save', { scope, bookmarks }),
   },
+  window: {
+    open: (root) => ipcRenderer.invoke('window:open', { root }),
+  },
   app: {
     info: () => ipcRenderer.invoke('app:info'),
   },

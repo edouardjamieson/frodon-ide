@@ -106,6 +106,9 @@ export function useCommands(): Record<CommandId, () => void> {
       // own answer and not something a shortcut should second-guess.
       'window.splitRight': () => split(focusedId, 'right'),
       'window.splitDown': () => split(focusedId, 'down'),
+      // Main makes the window; there is nothing in a store to update, because
+      // the new window is a whole second renderer with stores of its own.
+      'app.newWindow': () => void window.frodon.window.open(),
     }),
     [
       save,

@@ -113,6 +113,23 @@ export interface IpcContract {
   };
 
   /**
+   * Opens another OS window, on a project or on the launcher.
+   *
+   * The one channel that takes a root and is not `project:tree`, and it is
+   * not an exception to the rule that the renderer never names a directory
+   * main reads files in: nothing is read or written here. The root is handed
+   * back to the new window as `AppInfo.initialRoot`, which calls
+   * `project:tree` with it like any other open — so it goes through the same
+   * scan, the same recents entry and the same ordering, and a path that is
+   * not a project fails there rather than here.
+   *
+   * A root that already has a window focuses that window instead of opening a
+   * second. Clicking the same project twice is not a request for two copies
+   * of it.
+   */
+  'window:open': { req: { root?: string }; res: void };
+
+  /**
    * The open project's own settings — its name, its color, its icon.
    *
    * Takes no root, for the reason `git:status` and the board channels take
@@ -478,6 +495,20 @@ export interface AppInfo {
    */
   home: string;
   versions: { electron: string; chrome: string; node: string };
+  /**
+   * The project this window was opened for, or null for a launcher window.
+   *
+   * How a window spawned by `window:open` learns what it is for. It rides on
+   * the call the renderer already makes first rather than arriving as an
+   * event, which is what keeps it free of a race: there is no window between
+   * the page loading and a push landing for it to be missed in.
+   *
+   * Read once and acted on once. It is what main *opened* the window with,
+   * not what the window has open now — a window that has since switched
+   * projects still reports the root it started on, and nothing reads it
+   * again.
+   */
+  initialRoot: string | null;
 }
 
 export type Channel = keyof IpcContract;
@@ -593,6 +624,10 @@ export interface FrodonApi {
       scope: BookmarkScope,
       bookmarks: Bookmark[]
     ) => Promise<Res<'bookmark:save'>>;
+  };
+  window: {
+    /** Opens another OS window. No root means the launcher. */
+    open: (root?: string) => Promise<Res<'window:open'>>;
   };
   app: {
     info: () => Promise<Res<'app:info'>>;

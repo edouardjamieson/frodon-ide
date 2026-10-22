@@ -31,7 +31,6 @@ import { homedir } from 'node:os';
 import path from 'node:path';
 import { createLogger } from '@main/logger';
 import { FRODON_DIRNAME } from '@main/board';
-import { getRoot } from '@main/project';
 import { CONFIG_FILENAME } from './config.constant';
 import {
   sanitizeProjectConfig,
@@ -55,8 +54,7 @@ function userConfigFile(): string {
  * this one is written to. A renderer that could name the directory could name
  * any directory.
  */
-function projectConfigFile(): string | null {
-  const root = getRoot();
+function projectConfigFile(root: string | null): string | null {
   if (!root) return null;
   return path.join(root, FRODON_DIRNAME, CONFIG_FILENAME);
 }
@@ -113,17 +111,20 @@ async function writeJson(file: string, value: object): Promise<FsResult> {
  * field was refused — see the channel's own note on why those are one answer
  * and not four.
  */
-export async function readProjectConfig(): Promise<ProjectConfig> {
-  const file = projectConfigFile();
+export async function readProjectConfig(
+  root: string | null
+): Promise<ProjectConfig> {
+  const file = projectConfigFile(root);
   if (!file) return {};
 
   return sanitizeProjectConfig(await readJson(file));
 }
 
 export async function writeProjectConfig(
+  root: string | null,
   config: ProjectConfig
 ): Promise<FsResult> {
-  const file = projectConfigFile();
+  const file = projectConfigFile(root);
   if (!file) {
     return { ok: false, error: 'No project is open, so it has no settings.' };
   }

@@ -26,7 +26,6 @@ import { homedir } from 'node:os';
 import path from 'node:path';
 import { createLogger } from '@main/logger';
 import { FRODON_DIRNAME } from '@main/board';
-import { getRoot } from '@main/project';
 import { BOOKMARKS_FILENAME } from './bookmark.constant';
 import {
   BOOKMARK_FORMAT_VERSION,
@@ -47,19 +46,24 @@ const log = createLogger('bookmark');
  * inside a workbench, but a stale window could still ask. The home directory
  * always exists.
  */
-function bookmarksFile(scope: BookmarkScope): string | null {
+function bookmarksFile(
+  root: string | null,
+  scope: BookmarkScope
+): string | null {
   if (scope === 'local') {
     return path.join(homedir(), FRODON_DIRNAME, BOOKMARKS_FILENAME);
   }
 
-  const root = getRoot();
   if (!root) return null;
   return path.join(root, FRODON_DIRNAME, BOOKMARKS_FILENAME);
 }
 
 /** One scope's bookmarks, cleaned and tagged with where they came from. */
-async function readScope(scope: BookmarkScope): Promise<BookmarkEntry[]> {
-  const file = bookmarksFile(scope);
+async function readScope(
+  root: string | null,
+  scope: BookmarkScope
+): Promise<BookmarkEntry[]> {
+  const file = bookmarksFile(root, scope);
   if (!file) return [];
 
   let raw: string;
@@ -100,10 +104,12 @@ async function readScope(scope: BookmarkScope): Promise<BookmarkEntry[]> {
  * somebody put them in. Sorting by title in main would throw that away and
  * leave the renderer no way to get it back.
  */
-export async function listBookmarks(): Promise<BookmarkEntry[]> {
+export async function listBookmarks(
+  root: string | null
+): Promise<BookmarkEntry[]> {
   const [project, local] = await Promise.all([
-    readScope('project'),
-    readScope('local'),
+    readScope(root, 'project'),
+    readScope(root, 'local'),
   ]);
 
   return [...project, ...local];
@@ -129,10 +135,11 @@ export async function listBookmarks(): Promise<BookmarkEntry[]> {
  * diff that says nothing and a merge that cannot be resolved.
  */
 export async function writeBookmarks(
+  root: string | null,
   scope: BookmarkScope,
   bookmarks: Bookmark[]
 ): Promise<FsResult> {
-  const file = bookmarksFile(scope);
+  const file = bookmarksFile(root, scope);
   if (!file) {
     return { ok: false, error: 'No project is open, so it has no bookmarks.' };
   }

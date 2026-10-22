@@ -28,9 +28,17 @@ did, and the exclusion rules can only be configured in one place.
 
 **A query is abandoned, not queued.** `invoke` has no cancel, so there is
 nothing to thread an `AbortSignal` through. A new query increments a generation
-counter in main; the older walk checks its own token between files, gives up
-where it is, and answers `superseded`. The renderer drops that answer — the
-newer one is already coming. Two walks never run at once.
+counter; the older walk checks its own token between files, gives up where it
+is, and answers `superseded`. The renderer drops that answer — the newer one is
+already coming. Two walks never run at once in one panel.
+
+**The counter is per window, not per app.** It was a module-level `let` while
+there was one window, and that answer stops being right the moment two windows
+are open on the same project: typing in one panel would make the other's walk
+give up at its next checkpoint, and the other panel would silently show
+nothing. It lives on the session now, keyed by `WebContents` — see
+`searchGenerations` in `main/session/` and
+[ADR-0032](../decisions.md).
 
 **Everything is capped, and the panel says so.** Each match costs a line of
 text through structured clone, so the walk stops and the summary reads "More

@@ -4,8 +4,8 @@
  * This is the TUI's `useGit` hook, moved to the side of the boundary that can
  * actually spawn a process, and turned inside out in the move. There, every
  * component that wanted git state called a hook that polled; here main owns
- * one poller for the whole app and pushes a snapshot when — and only when —
- * something about the repository is different. Opening nine windows onto one
+ * one poller **per repository** and pushes a snapshot when — and only when —
+ * something about that repository is different. Opening nine windows onto one
  * project does not run `git status` nine times.
  *
  * Three things from the TUI version survive unchanged, because they were
@@ -23,10 +23,23 @@
  * the last `git fetch`, and a background fetch is a network call made on the
  * user's behalf, against a remote that may want credentials — so it stays an
  * explicit act, wired to a menu item.
+ *
+ * **Every function here takes the repository it acts on as its first
+ * argument.** The state used to be module-level, which was true as long as
+ * the app held one project; it holds several now, and two repositories
+ * polling must not share a `refreshing` flag or publish into each other's
+ * snapshot. The handle is created by `openRepo` and owned by
+ * `main/session/` — nothing here knows which windows exist, it just calls
+ * `onChange` and lets the session route it.
+ *
+ * `GitRepo | null` rather than `GitRepo` throughout, because "no project is
+ * open in this window" is an ordinary answer rather than an error: the
+ * handlers stay one-liners and the guards stay here, beside the comments
+ * that explain what each function does without a repository.
  */
 import { execFile } from 'node:child_process';
 import path from 'node:path';
-import { BrowserWindow, shell } from 'electron';
+import { shell } from 'electron';
 import { createLogger } from '@main/logger';
 import { emptyGitStatus } from '@shared/git.def';
 import type {
@@ -67,19 +80,30 @@ import {
 
 const log = createLogger('git');
 
-/** The open project's root — where git runs, not necessarily the repo root. */
-let root: string | null = null;
-/** The last snapshot published. The renderer's replica is a copy of this. */
-let status: GitStatus = emptyGitStatus();
-/** `rev-parse --show-toplevel`, resolved once per repository rather than per tick. */
-let repoRoot = '';
-let timer: NodeJS.Timeout | null = null;
-/** A tick is in flight. Ticks must not overlap — see `tick`. */
-let refreshing = false;
-/** A pull/push/checkout is in flight. Nothing else may run meanwhile. */
-let operating = false;
-/** The last failure logged, so a repeating one is logged once, not per tick. */
-let lastFailure = '';
+/**
+ * One repository, polled.
+ *
+ * Everything that used to be a module-level `let`. Created by `openRepo`,
+ * released by `closeRepo`, and never read by anything but the functions in
+ * this file — a caller holds it and hands it back.
+ */
+export interface GitRepo {
+  /** The project root — where git runs, not necessarily the repo root. */
+  readonly root: string;
+  /** The last snapshot published. The renderer's replica is a copy of this. */
+  status: GitStatus;
+  /** `rev-parse --show-toplevel`, resolved once per repository, not per tick. */
+  repoRoot: string;
+  timer: NodeJS.Timeout | null;
+  /** A tick is in flight. Ticks must not overlap — see `tick`. */
+  refreshing: boolean;
+  /** A pull/push/checkout is in flight. Nothing else may run meanwhile. */
+  operating: boolean;
+  /** The last failure logged, so a repeating one is logged once, not per tick. */
+  lastFailure: string;
+  /** Where a new snapshot goes. The session decides which windows that means. */
+  readonly onChange: (status: GitStatus) => void;
+}
 
 interface GitExec {
   code: number;
@@ -99,8 +123,12 @@ interface GitExec {
  * with no shell in between, so a branch or path containing a space, a quote
  * or a `;` is just a string.
  */
-function run(args: string[], timeout = READ_TIMEOUT_MS): Promise<GitExec> {
-  if (!root) {
+function run(
+  repo: GitRepo | null,
+  args: string[],
+  timeout = READ_TIMEOUT_MS
+): Promise<GitExec> {
+  if (!repo) {
     return Promise.resolve({
       code: 1,
       stdout: '',
@@ -108,7 +136,7 @@ function run(args: string[], timeout = READ_TIMEOUT_MS): Promise<GitExec> {
     });
   }
 
-  const cwd = root;
+  const cwd = repo.root;
 
   return new Promise((resolve) => {
     execFile(
@@ -171,19 +199,11 @@ function sameStatus(a: GitStatus, b: GitStatus): boolean {
   );
 }
 
-/** Pushes the current snapshot to every open window. */
-function broadcast(): void {
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (win.isDestroyed()) continue;
-    win.webContents.send('git:changed', status);
-  }
-}
-
-/** Stores a snapshot and tells every window, if it is actually different. */
-function publish(next: GitStatus): void {
-  if (sameStatus(status, next)) return;
-  status = next;
-  broadcast();
+/** Stores a snapshot and announces it, if it is actually different. */
+function publish(repo: GitRepo, next: GitStatus): void {
+  if (sameStatus(repo.status, next)) return;
+  repo.status = next;
+  repo.onChange(next);
 }
 
 /**
@@ -193,31 +213,30 @@ function publish(next: GitStatus): void {
  * oid, so comparing it against the one we hold turns this from a second
  * subprocess every tick into one per commit or checkout.
  */
-async function readHead(oid: string): Promise<GitCommit | null> {
+async function readHead(repo: GitRepo, oid: string): Promise<GitCommit | null> {
   if (!oid) return null;
-  if (status.head?.sha === oid) return status.head;
+  if (repo.status.head?.sha === oid) return repo.status.head;
 
-  const { code, stdout } = await run(['log', '-1', `--format=${LOG_FORMAT}`]);
+  const { code, stdout } = await run(repo, [
+    'log',
+    '-1',
+    `--format=${LOG_FORMAT}`,
+  ]);
   if (code !== 0) return null;
 
   return parseCommit(stdout);
 }
 
 /** Logs a failure the first time it is seen, and not again until it changes. */
-function noteFailure(message: string): void {
-  if (message === lastFailure) return;
-  lastFailure = message;
+function noteFailure(repo: GitRepo, message: string): void {
+  if (message === repo.lastFailure) return;
+  repo.lastFailure = message;
   if (message) log.warn(message);
 }
 
 /** One observation of the repository, published if it differs from the last. */
-async function refresh(): Promise<void> {
-  if (!root) {
-    publish(emptyGitStatus());
-    return;
-  }
-
-  const result = await run(STATUS_ARGS);
+async function refresh(repo: GitRepo): Promise<void> {
+  const result = await run(repo, STATUS_ARGS);
 
   if (result.code !== 0) {
     const message = result.stderr.trim();
@@ -225,27 +244,27 @@ async function refresh(): Promise<void> {
     // folders, not a problem, and saying so every three seconds forever
     // would bury everything else in the log.
     if (!/not a git repository/i.test(message)) {
-      noteFailure(`status failed: ${message}`);
+      noteFailure(repo, `status failed: ${message}`);
     }
-    repoRoot = '';
-    publish(emptyGitStatus());
+    repo.repoRoot = '';
+    publish(repo, emptyGitStatus());
     return;
   }
 
-  lastFailure = '';
+  repo.lastFailure = '';
   const parsed = parseStatus(result.stdout);
 
   // Resolved once per repository. It only changes when the project does, or
   // when someone runs `git init` in a folder that wasn't one yet — and both
   // of those clear it first.
-  if (!repoRoot) {
-    const top = await run(['rev-parse', '--show-toplevel']);
-    if (top.code === 0) repoRoot = top.stdout.trim();
+  if (!repo.repoRoot) {
+    const top = await run(repo, ['rev-parse', '--show-toplevel']);
+    if (top.code === 0) repo.repoRoot = top.stdout.trim();
   }
 
-  publish({
+  publish(repo, {
     inRepo: true,
-    repoRoot,
+    repoRoot: repo.repoRoot,
     branch: parsed.branch,
     detached: parsed.detached,
     upstream: parsed.upstream,
@@ -255,7 +274,7 @@ async function refresh(): Promise<void> {
     unstaged: parsed.unstaged,
     untracked: parsed.untracked,
     conflicted: parsed.conflicted,
-    head: await readHead(parsed.oid),
+    head: await readHead(repo, parsed.oid),
   });
 }
 
@@ -267,54 +286,84 @@ async function refresh(): Promise<void> {
  * An operation in flight is skipped for a different reason: a snapshot taken
  * halfway through a checkout describes a repository that is about to stop
  * existing, and the operation refreshes on its way out anyway.
+ *
+ * The flags live on the handle rather than on the module, which is what keeps
+ * two open projects from stalling each other: a slow `git status` in a huge
+ * repository must not skip the tick of the small one next to it.
  */
-async function tick(): Promise<void> {
-  if (refreshing || operating) return;
+async function tick(repo: GitRepo): Promise<void> {
+  if (repo.refreshing || repo.operating) return;
 
-  refreshing = true;
+  repo.refreshing = true;
   try {
-    await refresh();
+    await refresh(repo);
   } catch (error) {
     log.error('refresh threw', error);
   } finally {
-    refreshing = false;
+    repo.refreshing = false;
   }
 }
 
 /**
- * Points git at `path` and starts polling it.
+ * Points git at `root` and starts polling it.
  *
  * Called when a project is opened, because that is the same event: the
  * renderer never asks for this, and never tells main which repository it is
  * interested in. Main already knows.
+ *
+ * `onChange` rather than a broadcast of its own. This module used to send
+ * straight to every open window, which was the right shape while every window
+ * showed the same project; now a snapshot belongs to the windows on *this*
+ * root and the session is the thing that knows which those are.
  */
-export function openRepo(path: string): void {
-  disposeGit();
-  root = path;
+export function openRepo(
+  root: string,
+  onChange: (status: GitStatus) => void
+): GitRepo {
+  const repo: GitRepo = {
+    root,
+    status: emptyGitStatus(),
+    repoRoot: '',
+    timer: null,
+    refreshing: false,
+    operating: false,
+    lastFailure: '',
+    onChange,
+  };
 
-  // Unconditionally, before the first tick: the window is still showing the
-  // last project's branch, and if the new folder turns out not to be a
-  // repository at all then `publish` — which compares — will never speak up
-  // to correct it.
-  broadcast();
+  // No initial `onChange`. There used to be one here, for the case `publish`
+  // cannot cover — a folder that is not a repository never differs from the
+  // empty snapshot, so the comparison means nobody is ever told. It is not
+  // this function's job any more: a window seeds itself by *calling*
+  // `git:status` when its root changes (`useGitSync`), which also covers the
+  // second window attaching to a repository that was already being polled and
+  // so was never going to see an open event at all.
+  void tick(repo);
+  repo.timer = setInterval(() => void tick(repo), POLL_MS);
+  log.info(`polling ${root} every ${POLL_MS}ms`);
 
-  void tick();
-  timer = setInterval(() => void tick(), POLL_MS);
-  log.info(`polling ${path} every ${POLL_MS}ms`);
+  return repo;
 }
 
 /** The snapshot main holds. What `git:status` hands back. */
-export function getStatus(): GitStatus {
-  return status;
+export function getStatus(repo: GitRepo | null): GitStatus {
+  return repo ? repo.status : emptyGitStatus();
 }
 
-export function disposeGit(): void {
-  if (timer) clearInterval(timer);
-  timer = null;
-  root = null;
-  repoRoot = '';
-  lastFailure = '';
-  status = emptyGitStatus();
+/**
+ * Stops polling.
+ *
+ * Called when the last window on this project closes, not when the app quits
+ * — a poller for a project nobody is looking at is a subprocess every three
+ * seconds for nothing.
+ */
+export function closeRepo(repo: GitRepo | null): void {
+  if (!repo) return;
+  if (repo.timer) clearInterval(repo.timer);
+  repo.timer = null;
+  repo.repoRoot = '';
+  repo.lastFailure = '';
+  repo.status = emptyGitStatus();
 }
 
 /**
@@ -324,8 +373,11 @@ export function disposeGit(): void {
  * branch and essentially never otherwise, so it is read when the menu that
  * shows it opens rather than every three seconds forever.
  */
-export async function listBranches(): Promise<string[]> {
-  const { code, stdout } = await run(['branch', '--format=%(refname:short)']);
+export async function listBranches(repo: GitRepo | null): Promise<string[]> {
+  const { code, stdout } = await run(repo, [
+    'branch',
+    '--format=%(refname:short)',
+  ]);
   if (code !== 0) return [];
 
   const branches = stdout
@@ -333,7 +385,7 @@ export async function listBranches(): Promise<string[]> {
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
 
-  const current = status.branch;
+  const current = repo?.status.branch;
   return branches.sort((a, b) => {
     if (a === current) return -1;
     if (b === current) return 1;
@@ -349,15 +401,22 @@ export async function listBranches(): Promise<string[]> {
  * button that re-enables itself on the result finds the new branch already in
  * the store rather than drawing the old one for a frame.
  */
-async function operate(args: string[]): Promise<GitResult> {
-  if (!root) return { ok: false, error: 'No project is open.' };
-  if (operating) {
+async function operate(
+  repo: GitRepo | null,
+  args: string[]
+): Promise<GitResult> {
+  if (!repo) return { ok: false, error: 'No project is open.' };
+  if (repo.operating) {
     return { ok: false, error: 'Another git operation is already running.' };
   }
 
-  operating = true;
+  repo.operating = true;
   try {
-    const { code, stdout, stderr } = await run(args, OPERATION_TIMEOUT_MS);
+    const { code, stdout, stderr } = await run(
+      repo,
+      args,
+      OPERATION_TIMEOUT_MS
+    );
     if (code !== 0) {
       const error =
         stderr.trim() || stdout.trim() || `git exited with code ${code}`;
@@ -367,8 +426,8 @@ async function operate(args: string[]): Promise<GitResult> {
     log.info(args.join(' '));
     return { ok: true };
   } finally {
-    operating = false;
-    await tick();
+    repo.operating = false;
+    await tick(repo);
   }
 }
 
@@ -388,12 +447,12 @@ function validateBranch(branch: string): string | null {
   return null;
 }
 
-export function fetchRemote(): Promise<GitResult> {
-  return operate(['fetch', '--prune']);
+export function fetchRemote(repo: GitRepo | null): Promise<GitResult> {
+  return operate(repo, ['fetch', '--prune']);
 }
 
-export function pull(): Promise<GitResult> {
-  return operate(['pull']);
+export function pull(repo: GitRepo | null): Promise<GitResult> {
+  return operate(repo, ['pull']);
 }
 
 /**
@@ -404,28 +463,35 @@ export function pull(): Promise<GitResult> {
  * the answer is always the same, this is the first push of a new branch
  * working rather than a wall of text.
  */
-export function push(): Promise<GitResult> {
-  const { branch, upstream } = status;
+export function push(repo: GitRepo | null): Promise<GitResult> {
+  const branch = repo?.status.branch;
+  const upstream = repo?.status.upstream;
   const args =
     upstream || !branch
       ? ['push']
       : ['push', '--set-upstream', 'origin', branch];
 
-  return operate(args);
+  return operate(repo, args);
 }
 
-export function checkout(branch: string): Promise<GitResult> {
+export function checkout(
+  repo: GitRepo | null,
+  branch: string
+): Promise<GitResult> {
   const invalid = validateBranch(branch);
   if (invalid) return Promise.resolve({ ok: false, error: invalid });
 
-  return operate(['checkout', branch.trim()]);
+  return operate(repo, ['checkout', branch.trim()]);
 }
 
-export function createBranch(branch: string): Promise<GitResult> {
+export function createBranch(
+  repo: GitRepo | null,
+  branch: string
+): Promise<GitResult> {
   const invalid = validateBranch(branch);
   if (invalid) return Promise.resolve({ ok: false, error: invalid });
 
-  return operate(['checkout', '-b', branch.trim()]);
+  return operate(repo, ['checkout', '-b', branch.trim()]);
 }
 
 /**
@@ -440,8 +506,8 @@ export function createBranch(branch: string): Promise<GitResult> {
  * Resolved per call rather than cached: `git fetch --prune` can create it,
  * and the branch view is opened rarely enough that one `rev-parse` is free.
  */
-async function resolveBase(): Promise<string> {
-  const remote = await run([
+async function resolveBase(repo: GitRepo): Promise<string> {
+  const remote = await run(repo, [
     'symbolic-ref',
     '--short',
     'refs/remotes/origin/HEAD',
@@ -452,12 +518,12 @@ async function resolveBase(): Promise<string> {
     // `origin/main` -> `main`: the comparison is against the local branch,
     // which is the one the user would check out.
     const local = name.replace(/^origin\//, '');
-    const exists = await run(['rev-parse', '--verify', '--quiet', local]);
+    const exists = await run(repo, ['rev-parse', '--verify', '--quiet', local]);
     if (exists.code === 0 && exists.stdout.trim()) return local;
   }
 
   for (const candidate of BASE_CANDIDATES) {
-    const { code, stdout } = await run([
+    const { code, stdout } = await run(repo, [
       'rev-parse',
       '--verify',
       '--quiet',
@@ -482,8 +548,11 @@ async function resolveBase(): Promise<string> {
  * answer, and walking every branch in a repository with a hundred of them
  * would bury it.
  */
-export async function readLog(request: GitLogRequest): Promise<GitLogCommit[]> {
-  if (!root) return [];
+export async function readLog(
+  repo: GitRepo | null,
+  request: GitLogRequest
+): Promise<GitLogCommit[]> {
+  if (!repo) return [];
 
   const limit = Math.max(1, Math.min(request.limit || LOG_LIMIT, LOG_LIMIT));
   const scope: string[] = [];
@@ -492,13 +561,13 @@ export async function readLog(request: GitLogRequest): Promise<GitLogCommit[]> {
     scope.push('--branches', '--remotes');
   } else {
     scope.push('HEAD');
-    const base = await resolveBase();
+    const base = await resolveBase(repo);
     // Not when HEAD *is* the base: naming it twice is harmless to git but
     // makes the intent of the args unreadable.
-    if (base && base !== status.branch) scope.push(base);
+    if (base && base !== repo.status.branch) scope.push(base);
   }
 
-  const { code, stdout, stderr } = await run([
+  const { code, stdout, stderr } = await run(repo, [
     'log',
     `--max-count=${limit}`,
     '--topo-order',
@@ -530,23 +599,27 @@ export async function readLog(request: GitLogRequest): Promise<GitLogCommit[]> {
  * list the user glances at. The atom needs git 2.41, so a failure retries
  * without it and the base columns come back as zeros rather than nothing.
  */
-export async function readBranches(): Promise<GitBranches> {
-  if (!root) return { base: '', branches: [] };
+export async function readBranches(repo: GitRepo | null): Promise<GitBranches> {
+  if (!repo) return { base: '', branches: [] };
 
-  const base = await resolveBase();
+  const base = await resolveBase(repo);
   const fields = BRANCH_FIELDS.join('%00');
   const withBase = base
     ? `${fields}%00%(ahead-behind:refs/heads/${base})%00`
     : `${fields}%00`;
 
-  let result = await run([
+  let result = await run(repo, [
     'for-each-ref',
     `--format=${withBase}`,
     'refs/heads',
   ]);
 
   if (result.code !== 0 && base) {
-    result = await run(['for-each-ref', `--format=${fields}%00`, 'refs/heads']);
+    result = await run(repo, [
+      'for-each-ref',
+      `--format=${fields}%00`,
+      'refs/heads',
+    ]);
   }
 
   if (result.code !== 0) {
@@ -590,7 +663,10 @@ function pathspec(path: string): string {
  * a patch of every line added. It exits 1 when the files differ, which here
  * is the normal case rather than a failure.
  */
-export async function readDiff(request: GitDiffRequest): Promise<GitDiff> {
+export async function readDiff(
+  repo: GitRepo | null,
+  request: GitDiffRequest
+): Promise<GitDiff> {
   const commit =
     request.commit && isCommitish(request.commit) ? request.commit : undefined;
 
@@ -604,7 +680,7 @@ export async function readDiff(request: GitDiffRequest): Promise<GitDiff> {
     removed: 0,
   };
 
-  if (!root || !request.path) return empty;
+  if (!repo || !request.path) return empty;
 
   const spec = pathspec(request.path);
 
@@ -634,7 +710,7 @@ export async function readDiff(request: GitDiffRequest): Promise<GitDiff> {
       ? ['diff', '--no-color', '--cached', '--', spec]
       : ['diff', '--no-color', '--', spec];
 
-  const tracked = await run(args);
+  const tracked = await run(repo, args);
 
   // `git diff` exits 1 when it found differences, which is the normal answer
   // here rather than a failure. Anything else is one.
@@ -652,13 +728,13 @@ export async function readDiff(request: GitDiffRequest): Promise<GitDiff> {
   if (!stdout && !commit && !request.staged) {
     // `--no-index` compares two files on disk rather than two trees, so this
     // is the one place that wants a filesystem path and not a pathspec.
-    const untracked = await run([
+    const untracked = await run(repo, [
       'diff',
       '--no-color',
       '--no-index',
       '--',
       '/dev/null',
-      repoRoot ? `${repoRoot}/${request.path}` : request.path,
+      repo.repoRoot ? `${repo.repoRoot}/${request.path}` : request.path,
     ]);
     if (untracked.code === 0 || untracked.code === 1) stdout = untracked.stdout;
   }
@@ -692,13 +768,22 @@ function isCommitish(sha: string): boolean {
  * They run in parallel because neither needs the other, and because a commit
  * opening is the one git read in the app with somebody waiting on it.
  */
-export async function readCommitDetail(sha: string): Promise<GitCommitDetail> {
+export async function readCommitDetail(
+  repo: GitRepo | null,
+  sha: string
+): Promise<GitCommitDetail> {
   const empty: GitCommitDetail = { sha, body: '', files: [], merge: false };
-  if (!root || !isCommitish(sha)) return empty;
+  if (!repo || !isCommitish(sha)) return empty;
 
   const [message, names] = await Promise.all([
-    run(['show', '-s', '--no-color', `--format=${COMMIT_DETAIL_FORMAT}`, sha]),
-    run([
+    run(repo, [
+      'show',
+      '-s',
+      '--no-color',
+      `--format=${COMMIT_DETAIL_FORMAT}`,
+      sha,
+    ]),
+    run(repo, [
       'show',
       '--no-color',
       '--name-status',
@@ -734,11 +819,15 @@ export async function readCommitDetail(sha: string): Promise<GitCommitDetail> {
  * `--` before the paths, always: a file called `-f` is a legal file name and
  * an illegal argument, and the renderer sends whatever git reported.
  */
-export function stage(paths: string[]): Promise<GitResult> {
+export function stage(
+  repo: GitRepo | null,
+  paths: string[]
+): Promise<GitResult> {
   const files = paths.filter(Boolean);
   // `add -A` with no pathspec has staged the whole working tree, not the
   // current directory, since git 2.0 — which is what "stage all" means here.
   return operate(
+    repo,
     files.length === 0 ? ['add', '-A'] : ['add', '--', ...files.map(pathspec)]
   );
 }
@@ -750,9 +839,12 @@ export function stage(paths: string[]): Promise<GitResult> {
  * now recommends, and unlike `reset` it cannot be talked into moving the
  * branch when the path list turns out to be empty.
  */
-export function unstage(paths: string[]): Promise<GitResult> {
+export function unstage(
+  repo: GitRepo | null,
+  paths: string[]
+): Promise<GitResult> {
   const files = paths.filter(Boolean);
-  return operate([
+  return operate(repo, [
     'restore',
     '--staged',
     '--',
@@ -798,9 +890,13 @@ export function unstage(paths: string[]): Promise<GitResult> {
  * A renderer that could say "this one is untracked" could get a tracked file
  * trashed instead of restored.
  */
-export function discardKind(target: string): 'restore' | 'trash' | null {
-  if (status.unstaged.includes(target)) return 'restore';
-  if (status.untracked.includes(target)) return 'trash';
+export function discardKind(
+  repo: GitRepo | null,
+  target: string
+): 'restore' | 'trash' | null {
+  if (!repo) return null;
+  if (repo.status.unstaged.includes(target)) return 'restore';
+  if (repo.status.untracked.includes(target)) return 'trash';
   return null;
 }
 
@@ -816,10 +912,13 @@ export function discardKind(target: string): 'restore' | 'trash' | null {
  * handler's use of `discardKind` for wording cannot drift from what actually
  * happens. The authority is this function.
  */
-export async function discardChange(target: string): Promise<GitResult> {
-  if (!root) return { ok: false, error: 'No project is open.' };
+export async function discardChange(
+  repo: GitRepo | null,
+  target: string
+): Promise<GitResult> {
+  if (!repo) return { ok: false, error: 'No project is open.' };
 
-  const kind = discardKind(target);
+  const kind = discardKind(repo, target);
   if (!kind) {
     // Either it stopped being changed between the click and the answer —
     // another process committed it, or a watcher tick beat us — or it is a
@@ -831,10 +930,10 @@ export async function discardChange(target: string): Promise<GitResult> {
     // Worktree only. Without `--staged` this restores from the index, so a
     // partially staged file keeps what was staged — adding `--staged` here
     // would quietly turn a discard into a discard *and* an unstage.
-    return operate(['restore', '--', pathspec(target)]);
+    return operate(repo, ['restore', '--', pathspec(target)]);
   }
 
-  return trashUntracked(target);
+  return trashUntracked(repo, target);
 }
 
 /**
@@ -852,12 +951,17 @@ export async function discardChange(target: string): Promise<GitResult> {
  * has just built: a traversal should take two independent mistakes rather
  * than one, and the cost here is a `startsWith`.
  */
-async function trashUntracked(target: string): Promise<GitResult> {
+async function trashUntracked(
+  repo: GitRepo,
+  target: string
+): Promise<GitResult> {
   // Always set by the time this runs: a path can only be `untracked` if a
   // `git status` reported it, and that is the same run that sets `repoRoot`.
-  if (!status.repoRoot) return { ok: false, error: 'No repository is open.' };
+  if (!repo.status.repoRoot) {
+    return { ok: false, error: 'No repository is open.' };
+  }
 
-  const repoRoot = path.resolve(status.repoRoot);
+  const repoRoot = path.resolve(repo.status.repoRoot);
   const entry = path.resolve(repoRoot, target);
 
   if (entry === repoRoot || !entry.startsWith(repoRoot + path.sep)) {
@@ -876,7 +980,7 @@ async function trashUntracked(target: string): Promise<GitResult> {
   // `operate` is what normally refreshes the snapshot after a git command,
   // and this one ran no git command — so the tick is taken by hand. Without
   // it the row stays on screen until the next poll.
-  await tick();
+  await tick(repo);
   return { ok: true };
 }
 
@@ -887,7 +991,10 @@ async function trashUntracked(target: string): Promise<GitResult> {
  * failing hook comes back as git's own stderr — which is what the author
  * needs to read — rather than as a swallowed non-zero exit.
  */
-export function commit(request: GitCommitRequest): Promise<GitResult> {
+export function commit(
+  repo: GitRepo | null,
+  request: GitCommitRequest
+): Promise<GitResult> {
   const message = request.message.trim();
   if (!message) {
     return Promise.resolve({ ok: false, error: 'A commit needs a message.' });
@@ -896,5 +1003,5 @@ export function commit(request: GitCommitRequest): Promise<GitResult> {
   const args = ['commit', '-m', message];
   if (request.amend) args.push('--amend');
 
-  return operate(args);
+  return operate(repo, args);
 }

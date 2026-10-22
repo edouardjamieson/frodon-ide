@@ -38,7 +38,8 @@ from the split:
 Four rules you will hit within an hour:
 
 1. **Main owns facts; the renderer owns views of facts.** Compare before you
-   push, send the fact rather than the payload, derive lookups once.
+   push, send the fact rather than the payload, derive lookups once. Main holds
+   one project per open window; `main/session/` is which is which.
 2. **Everything that crosses goes through `src/shared/ipc.def.ts`**, which is
    also the only place a channel string is written.
 3. **Never hardcode a color.** Components write utility classes; adding a color
@@ -151,8 +152,9 @@ area with diffs · project-wide search with find and replace · a file picker
 that ranks the whole project as you type · boards, in the project or in your
 home directory · a browser with tabs pinnable to a device size, and bookmarks
 in groups saved with the project or privately · a launcher
-with the last five projects · a workbench that reopens where you left it · a
-settings dialog · themes.
+with the last five projects · a workbench that reopens where you left it ·
+several windows, each on its own project, with the Dock wearing whichever one
+you are looking at · a settings dialog · themes.
 
 What is next — the rest of the config layering, the command palette, the
 unsaved-changes dialog, and LSP — is in [migration.md](migration.md), roughly

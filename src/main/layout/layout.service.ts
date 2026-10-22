@@ -234,9 +234,10 @@ async function presentFiles(paths: string[]): Promise<string[]> {
  * they are stat'd. Board keys are checked against the listing rather than by
  * stat, because a key is a scope and a name and main is the only side that
  * knows where either scope lives — see `resolveBoardPath`; that listing
- * covers the open project's boards, which is why this must run *after*
- * `project:tree` has told main which project is open, and the handler
- * sequences the two. A browser tab's url cannot "go" at all — a page being
+ * covers the boards of the project this layout belongs to, which is why the
+ * root is threaded down here rather than read from whatever is open — a
+ * second window restoring its own layout must not be pruned against the
+ * first window's boards. A browser tab's url cannot "go" at all — a page being
  * down is not a reason to forget it — so the only question asked of one is
  * whether it is a scheme a tab may be pointed at.
  *
@@ -244,12 +245,15 @@ async function presentFiles(paths: string[]): Promise<string[]> {
  * kind. The tile is the part worth restoring; the tabs were only ever the
  * bonus.
  */
-async function prune(snapshot: LayoutSnapshot): Promise<LayoutSnapshot> {
+async function prune(
+  root: string,
+  snapshot: LayoutSnapshot
+): Promise<LayoutSnapshot> {
   const needsBoards = snapshot.windows.some(
     (window) => window.type === 'board' && window.boards.length > 0
   );
   const known = needsBoards
-    ? new Set((await listBoards()).map(boardKey))
+    ? new Set((await listBoards(root)).map(boardKey))
     : new Set<string>();
 
   const windows = await Promise.all(
@@ -326,7 +330,7 @@ export async function readProjectLayout(
   const entry = (await read())[root];
   if (!entry || entry.windows.length === 0) return null;
 
-  const { windows, focused } = await prune(entry);
+  const { windows, focused } = await prune(root, entry);
 
   return { windows, focused };
 }

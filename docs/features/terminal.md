@@ -79,6 +79,15 @@ Electron's `will-quit` does not fire for a signal, so `SIGINT`/`SIGTERM`/
 `SIGHUP` handlers are installed on the first spawn. Each of these leaked a
 process until it was fixed.
 
+**A closing window takes its own shells and nobody else's.** `disposeTerminals`
+kills every shell in the process, which is right for quitting and wrong the
+moment there are two windows. `killSessionsOf(senderId)` is the per-window
+version, called from the window's `closed` handler — the registry already
+carries `senderId` on each session for routing output, so the owner was
+already known. SIGTERM rather than SIGKILL: a window closing is an orderly
+end, and a shell that wants to write its history should get the chance.
+See [ADR-0032](../decisions.md).
+
 ## User flows
 
 ### Opening a shell
@@ -88,6 +97,13 @@ process until it was fixed.
 2. The renderer mints the id, sizes the emulator, and calls `terminal:create`
    with the project root as `cwd`.
 3. Main spawns the shell and answers with the pid and the program.
+
+### Closing the window
+
+1. Every session whose `senderId` is that window's is killed; every other
+   window's keep running.
+2. The dev server in the window you closed stops. The one in the window you
+   did not keeps serving.
 
 ### Closing one
 

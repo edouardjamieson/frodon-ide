@@ -20,7 +20,11 @@ export type CommandId =
   | 'git.open'
   | 'settings.open'
   | 'window.splitRight'
-  | 'window.splitDown';
+  | 'window.splitDown'
+  // `window.*` above means a tile in the workbench. This one means an OS
+  // window, which is a different thing entirely and gets a prefix that says
+  // so — see ADR-0032.
+  | 'app.newWindow';
 
 /**
  * A chord with the modifiers resolved.

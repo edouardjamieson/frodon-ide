@@ -4,9 +4,6 @@ import {
   DialogContent,
   DialogDescription,
   DialogTitle,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
 } from '~/components/ui';
 import { useConfigSaveError } from '~/lib/config';
 import { useProjectStore } from '~/lib/project';
@@ -21,7 +18,6 @@ import SettingsAppearance from './settings-appearance.component';
 import SettingsFeedback from './settings-feedback.component';
 import SettingsProject from './settings-project.component';
 import SettingsShortcuts from './settings-shortcuts.component';
-import { InfoIcon } from 'lucide-react';
 
 /**
  * The settings dialog: scope down the side, category under it, one page at a
@@ -82,12 +78,6 @@ export default function Settings() {
                   <p className="text-[11px] font-semibold tracking-wide text-fg">
                     {scope.label}
                   </p>
-                  <Tooltip>
-                    <TooltipTrigger className="ml-auto">
-                      <InfoIcon className="size-3 text-neutral-500" />
-                    </TooltipTrigger>
-                    <TooltipContent>{scope.file}</TooltipContent>
-                  </Tooltip>
                 </div>
 
                 {items.map((category) => (

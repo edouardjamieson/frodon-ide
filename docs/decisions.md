@@ -76,7 +76,7 @@ explanation.
 **What.** Working on two branches at once means `git worktree add`, not a copy
 of the folder. Afterwards Frodon copies every path `git ls-files --ignored`
 reports into the new checkout, using copy-on-write where the filesystem has
-it. Worktrees live at `~/frodon/worktrees/<project>/<branch-slug>`.
+it. Worktrees live at `~/.frodon/worktrees/<project>/<branch-slug>`.
 
 **Why.** A linked worktree shares the original's object store, which buys three
 things a copy cannot. Creating one is a checkout rather than a clone — 0.1
@@ -100,10 +100,24 @@ ignored is only reasonable because of copy-on-write: measured here, 626MB of
 are preserved rather than followed, without which a pnpm `node_modules` would
 drag in the whole store.
 
-`~/frodon/worktrees` rather than `~/.frodon/worktrees` because
+`~/.frodon/worktrees`, beside the recents, the layouts and the local boards,
+through the same `FRODON_DIRNAME` they all import.
+
+This was `~/frodon/worktrees` first, on the argument that
 [ADR-0023](#adr-0023--everything-that-outlives-a-window-lives-under-frodon-owned-by-main)
-is about app state and this is source code: a hidden directory is hostile to
-Finder, Spotlight, backups and every `cd` typed by hand.
+is about app state while a worktree is source code. The distinction is real
+and the conclusion was still wrong: the *files* are source, but the
+**directory** is not. Frodon creates it, Frodon deletes it, and recreating it
+costs a checkout and a clone of the ignored files — which is a cache, and
+squarely what ADR-0023 covers. Against that, two directories named after the
+app in one home directory, one hidden and one not, is worse than either alone,
+and ADR-0023 says in as many words that one is enough.
+
+Three of the four reasons originally given for the visible directory do not
+survive inspection. Time Machine backs up dot-directories without complaint;
+Finder shows them on `Cmd+Shift+.`; `cd` completes them once the dot is typed.
+Only Spotlight was true, and it is the cost this decision now carries rather
+than the argument it was used as.
 
 **How.** `main/worktree/`, over `runGit`/`operateGit`/`validateBranch` exported
 from `main/git/` so there is one way to spawn git rather than two. The listing
@@ -114,11 +128,15 @@ macOS, `cp --reflink=auto` on Linux, `fsp.cp` when neither works. Removal
 never passes `--force`, refuses a worktree open in a window, refuses anything
 Frodon did not create, and asks in main first.
 
-**Cost.** A worktree dies with its parent repository — the shared object store
-is the whole point and also the dependency. The fast carry is tied to APFS and
-btrfs/XFS; elsewhere it is a real byte copy with no way to opt out yet, so a
-project with a large ignored data directory will feel it. Creating one blocks
-with no progress, because one recursive copy has no granularity to report.
+**Cost.** Spotlight does not index inside a dot-directory, so a worktree's
+contents will not appear in a system-wide search; the project search in the
+app is unaffected, because it walks the tree main already holds rather than
+asking macOS. A worktree dies with its parent repository — the shared object
+store is the whole point and also the dependency. The fast carry is tied to
+APFS and btrfs/XFS; elsewhere it is a real byte copy with no way to opt out
+yet, so a project with a large ignored data directory will feel it. Creating
+one blocks with no progress, because one recursive copy has no granularity to
+report.
 And both windows wear the same accent, since `.frodon/config.json` is tracked
 and resolves the same hue in both checkouts.
 

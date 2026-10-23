@@ -35,7 +35,7 @@ export interface Worktree {
    * directory in it.
    *
    * Always the first block git prints, never removable, and the only one that
-   * is not under `~/frodon/worktrees`. It is in the list because it is one of
+   * is not under `~/.frodon/worktrees`. It is in the list because it is one of
    * the checkouts, and leaving it out would make the panel claim the project
    * you are looking at is not a worktree of itself.
    */
@@ -89,7 +89,7 @@ export interface WorktreeResult {
  * separator in it, so the slug flattens it. The result is *not* authoritative
  * and nothing ever maps back from it: `git worktree list` reports which branch
  * is at which path, so the directory name only has to be unique, stable and
- * readable by a person looking at `~/frodon/worktrees`.
+ * readable by a person looking at `~/.frodon/worktrees`.
  *
  * Shared rather than main-only because the create dialog shows the path it is
  * about to make, and a preview that disagreed with the directory would be

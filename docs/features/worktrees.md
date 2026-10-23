@@ -93,10 +93,16 @@ state, which is exactly what a new checkout is missing.
 
 ### Where they go
 
-`~/frodon/worktrees/<project>/<branch-slug>`. Deliberately **not**
-`~/.frodon/`, which ADR-0023 reserves for app state: this is source code
-someone opens, edits and builds in, and a hidden directory is hostile to
-Finder, Spotlight, Time Machine and every `cd` typed by hand.
+`~/.frodon/worktrees/<project>/<branch-slug>` — beside the recents, the saved
+layouts and the local boards, through the `FRODON_DIRNAME` they all share.
+One directory per app, as ADR-0023 asks for.
+
+The files in a worktree are source code, which argues for somewhere visible,
+but the directory holding them is not: Frodon makes it, Frodon removes it, and
+remaking it costs a checkout and a clone. That is a cache, and it belongs with
+the rest of what this app keeps for itself. The cost is Spotlight, which does
+not look inside a dot-directory — the project search in the app is unaffected,
+since it walks the tree main holds rather than asking macOS.
 
 The slug flattens `/` and anything path-unsafe, with a numeric suffix when the
 directory is taken. It is not authoritative and nothing maps back from it —

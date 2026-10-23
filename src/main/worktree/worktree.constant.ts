@@ -3,21 +3,35 @@
  */
 import { homedir } from 'node:os';
 import path from 'node:path';
+import { FRODON_DIRNAME } from '@main/board';
+
+export const WORKTREES_DIRNAME = 'worktrees';
 
 /**
  * The directory every worktree Frodon makes lands under.
  *
- * `~/frodon/worktrees`, and deliberately **not** `~/.frodon/`. ADR-0023 put
- * everything that outlives a window in that dotfile directory, and this is
- * the one thing that does not belong there: a worktree is source code someone
- * opens, edits and runs a build in, and a hidden directory is hostile to
- * Finder, Spotlight, Time Machine and every `cd` a person types by hand.
+ * `~/.frodon/worktrees`, beside the recents, the layouts and the local
+ * boards, through the same `FRODON_DIRNAME` they all import — ADR-0023 is
+ * explicit that one directory per app is enough, and two of them in a home
+ * directory, one hidden and one not, is worse than either.
+ *
+ * This was `~/frodon/worktrees` first, on the argument that a worktree is
+ * source code rather than app state and so does not belong in a dotfile
+ * directory. The files are source; the **directory** is not. Frodon makes it,
+ * Frodon deletes it, and recreating it costs a checkout and a clone of the
+ * ignored files — which puts it much closer to a cache than to the project it
+ * was made from, and squarely inside what ADR-0023 covers.
+ *
+ * What it costs is Spotlight, which does not index inside a dot-directory. A
+ * worktree's contents will not turn up in a system-wide search; the project
+ * search in the app is unaffected, since it walks the tree main holds rather
+ * than asking macOS.
  *
  * Fixed rather than configurable, for now. A setting is cheap to add later
  * and impossible to remove once somebody's worktrees are behind it.
  */
 export function worktreesRoot(): string {
-  return path.join(homedir(), 'frodon', 'worktrees');
+  return path.join(homedir(), FRODON_DIRNAME, WORKTREES_DIRNAME);
 }
 
 /**

@@ -390,7 +390,7 @@ function CreateForm({
 
         {name !== '' ? (
           <p className="truncate font-mono text-[10px] text-fg-subtle">
-            ~/frodon/worktrees/…/{worktreeSlug(name)}
+            ~/.frodon/worktrees/…/{worktreeSlug(name)}
           </p>
         ) : null}
       </div>

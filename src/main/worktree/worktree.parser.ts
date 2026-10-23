@@ -9,7 +9,7 @@
  * HEAD 8217c9b38a02bc6e9ba290a6151c43da75d0a95e
  * branch refs/heads/main
  *
- * worktree /Users/you/frodon/worktrees/frodon/wt-test
+ * worktree /Users/you/.frodon/worktrees/frodon/wt-test
  * HEAD 8217c9b38a02bc6e9ba290a6151c43da75d0a95e
  * detached
  * prunable gitdir file points to non-existent location

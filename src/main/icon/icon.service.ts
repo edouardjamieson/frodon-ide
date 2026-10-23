@@ -22,7 +22,7 @@ import { oklchToRgb } from '@shared/color.def';
 import { resolveProjectHue, resolveProjectName } from '@shared/project.def';
 import { DEFAULT_APP_ICON } from '@shared/config.def';
 import { readProjectConfig, readUserConfig } from '@main/config';
-import { rootOf } from '@main/session';
+import { identityRootOf } from '@main/session';
 import { createLogger } from '@main/logger';
 import {
   ICON_GRADIENT_BASE,
@@ -329,7 +329,9 @@ async function currentHue(root: string | null): Promise<number | null> {
  */
 function focusedRoot(): string | null {
   const window = BrowserWindow.getFocusedWindow();
-  return window ? rootOf(window.webContents) : null;
+  // The identity root, not the project root: a worktree window wears the
+  // colour of the project, not of a directory named after a branch.
+  return window ? identityRootOf(window.webContents) : null;
 }
 
 /**

@@ -34,6 +34,16 @@ const log = createLogger('session');
 /** One open project, and every window looking at it. */
 export interface ProjectSession {
   readonly root: string;
+  /**
+   * The directory this project takes its name, hue and icon from.
+   *
+   * The root, except in a worktree, where it is the repository's own working
+   * tree — see `ProjectTree` in `@shared/project.def`. Resolved by
+   * `project:tree` rather than here, because answering it costs a `rev-parse`
+   * and `attachWindow` is synchronous; until then it is the root, which is
+   * the right answer for every project that is not a worktree.
+   */
+  identityRoot: string;
   readonly watch: ProjectWatch;
   readonly repo: GitRepo;
   readonly windows: Set<WebContents>;
@@ -87,6 +97,7 @@ function sendToProject<E extends EventChannel>(
 function createSession(root: string): ProjectSession {
   const session: ProjectSession = {
     root,
+    identityRoot: root,
     watch: openProject(root, (files) =>
       sendToProject(root, 'project:changed', files)
     ),
@@ -164,6 +175,24 @@ export function sessionOf(contents: WebContents): ProjectSession | null {
 export function rootOf(contents: WebContents | null): string | null {
   if (!contents) return null;
   return byWindow.get(contents)?.root ?? null;
+}
+
+/**
+ * The directory that project is named, coloured and iconed after.
+ *
+ * Separate from `rootOf` because a worktree is the same project as the
+ * repository it came from: the Dock tile for a worktree window has to be the
+ * colour of the project, not of a directory named after a branch.
+ */
+export function identityRootOf(contents: WebContents | null): string | null {
+  if (!contents) return null;
+  return byWindow.get(contents)?.identityRoot ?? null;
+}
+
+/** Records where a project's identity comes from, once `project:tree` knows. */
+export function setIdentityRoot(root: string, identityRoot: string): void {
+  const session = byRoot.get(root);
+  if (session) session.identityRoot = identityRoot;
 }
 
 /** The window showing `root`, if one already is. */

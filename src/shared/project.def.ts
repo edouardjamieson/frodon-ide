@@ -1,3 +1,4 @@
+import type { File } from './fs.def';
 import type { ProjectConfig } from './config.def';
 
 /**
@@ -88,6 +89,33 @@ function hashString(value: string): number {
 /** The hue a name hashes to. Deterministic, and the default nobody chose. */
 export function projectHue(name: string): number {
   return hashString(name) % 360;
+}
+
+/**
+ * What `project:tree` answers with.
+ *
+ * Two facts, not one, because a worktree is the same project as the
+ * repository it was cut from and has to look like it. Everything path-shaped
+ * — the files, the layout key, where a new file lands — belongs to *this*
+ * checkout; the name, the colour and the icon belong to the project, and a
+ * worktree directory is named after a branch.
+ */
+export interface ProjectTree {
+  files: File[];
+  /**
+   * The directory this project takes its identity from.
+   *
+   * The root itself, except in a linked worktree, where it is the
+   * repository's own working tree. `~/.frodon/worktrees/frodon/web-browser`
+   * would otherwise be a project called "web-browser", with a hue hashed from
+   * that and an icon reading "W" — three different answers from the one the
+   * window next to it is giving for the same project.
+   *
+   * A path rather than a resolved name, because **no derivation crosses the
+   * boundary** — see the rule in `docs/features/project.md`. Main says which
+   * directory to ask about; the renderer still does the asking.
+   */
+  identityRoot: string;
 }
 
 /** The project's name: the one it chose, or its folder's. */

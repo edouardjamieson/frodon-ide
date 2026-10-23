@@ -11,7 +11,13 @@ import { homedir } from 'node:os';
 import { dialog, BrowserWindow, type IpcMainInvokeEvent } from 'electron';
 import { handle } from './ipc.service';
 import { getFiles } from '@main/project';
-import { attachWindow, rootOf, sessionOf, windowForRoot } from '@main/session';
+import {
+  attachWindow,
+  rootOf,
+  sessionOf,
+  setIdentityRoot,
+  windowForRoot,
+} from '@main/session';
 import { initialRootOf, openProjectWindow } from '@main/app';
 import { refreshAppIcon } from '@main/icon';
 import {
@@ -66,8 +72,8 @@ import {
 import { replaceInProject, searchProject } from '@main/search';
 import {
   createWorktree,
-  isLinkedWorktree,
   listWorktrees,
+  primaryWorktree,
   removeWorktree,
 } from '@main/worktree';
 import { watchFiles } from '@main/watch';
@@ -263,16 +269,24 @@ export function registerIpcHandlers(): void {
     const session = attachWindow(event.sender, root);
     growToWorkbench(event);
 
+    // One question answering two: whether this checkout is a worktree, and
+    // which checkout owns it. Neither can be read off the git snapshot,
+    // because this runs before the poller's first tick — the session was
+    // created microseconds ago and has observed nothing.
+    const owner = await primaryWorktree(session.repo);
+
+    // A worktree is the same project as the repository it was cut from, and
+    // has to look like it. Its directory is named after a branch, so deriving
+    // an identity from it gives a project called "web-browser" beside a window
+    // calling the same project "frodon" — with a hue hashed from the wrong
+    // string and an icon to match.
+    if (owner) setIdentityRoot(root, owner);
+
     // A worktree is not a project you opened — it is a second view of one you
     // already have, and the Worktrees panel is how you get back to it.
     // Spending one of the launcher's five slots on a checkout that is a click
     // away from its parent would push out a project nothing else can reach.
-    //
-    // Asked directly rather than read off the snapshot: this runs before the
-    // poller's first tick, so the snapshot does not know yet.
-    if (!(await isLinkedWorktree(session.repo))) {
-      await recordRecentProject(root);
-    }
+    if (!owner) await recordRecentProject(root);
 
     // The Dock follows the project, when the generated icon is the one
     // chosen — and only for the window you are actually looking at, since
@@ -281,7 +295,7 @@ export function registerIpcHandlers(): void {
     // renderer is waiting on, and painting a tile has no business holding it
     // up.
     void refreshAppIcon();
-    return getFiles(session.watch);
+    return { files: getFiles(session.watch), identityRoot: owner ?? root };
   });
 
   // Read right after `project:tree`, never beside it: pruning a layout's

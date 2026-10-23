@@ -39,7 +39,7 @@ export const useProject = () => {
     async (path: string) => {
       setOpening(true);
       try {
-        const tree = await window.frodon.project.tree(path);
+        const { files, identityRoot } = await window.frodon.project.tree(path);
         // After the tree and never beside it: `project:tree` is what tells
         // main which project is open, and both of these are answered for
         // whichever project that is — the layout has its board tabs pruned
@@ -56,7 +56,7 @@ export const useProject = () => {
         // never shows a folder name on its way to the chosen one — and both
         // save subscriptions read the root to decide what they are writing
         // for, so the root has to be the new one before either is seeded.
-        setProject(path, tree);
+        setProject(path, identityRoot, files);
         applyProjectLayout(path, layout);
         applyProjectConfig(path, config);
       } finally {
@@ -100,7 +100,12 @@ export const useProject = () => {
  * two different names for half a frame.
  */
 export const useProjectIdentity = () => {
-  const root = useProjectStore((state) => state.root);
+  // The identity root, not the project root. In a worktree those differ, and
+  // every field below would otherwise be derived from a directory named after
+  // a branch: a project called `web-browser`, a hue hashed from that string,
+  // and an icon reading "W" — three wrong answers beside a window giving the
+  // right ones for the same project.
+  const root = useProjectStore((state) => state.identityRoot);
   const config = useConfigStore((state) => state.project);
   const dark = useTheme().dark;
 

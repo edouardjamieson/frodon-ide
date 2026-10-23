@@ -220,36 +220,41 @@ async function carryIgnored(
  * ---------------------------------------------------------------------- */
 
 /**
- * Whether this checkout is a linked worktree rather than the repository's own
- * working tree.
+ * The repository's own working tree, when this checkout is a worktree of it.
  *
- * The poller answers the same question and publishes it on the snapshot, but
- * only from its first tick onwards — and the caller that needs this is
- * `project:tree`, which runs before any tick has happened. So it asks
- * directly, and the comparison itself stays in one place.
+ * Null when this *is* the repository, or is not one at all — both meaning
+ * "nothing to look elsewhere for". `--git-common-dir` points at the shared
+ * `.git`, so its parent is the checkout that owns it.
  *
- * One `rev-parse`, which is noise beside the recursive scan `project:tree` is
- * already doing.
+ * Derived from the same `rev-parse` that answers whether this is a worktree,
+ * rather than from `git worktree list`, because this runs on every project
+ * open and the listing is a second subprocess for a path one of them already
+ * holds.
  */
-export async function isLinkedWorktree(repo: GitRepo | null): Promise<boolean> {
-  if (!repo) return false;
-  // Already resolved by a poll, which is the common case for everything
-  // except the open that happens before the first one.
-  if (repo.linked) return true;
+export async function primaryWorktree(
+  repo: GitRepo | null
+): Promise<string | null> {
+  if (!repo) return null;
 
   const { code, stdout } = await runGit(repo, [
     'rev-parse',
     '--absolute-git-dir',
     '--git-common-dir',
   ]);
-  if (code !== 0) return false;
+  if (code !== 0) return null;
 
   const [gitDir = '', commonDir = ''] = stdout
     .trim()
     .split('\n')
     .map((line) => line.trim());
 
-  return isLinkedGitDir(repo.root, gitDir, commonDir);
+  if (!isLinkedGitDir(repo.root, gitDir, commonDir)) return null;
+
+  const owner = path.dirname(path.resolve(repo.root, commonDir));
+  // A bare repository has no working tree to be named after, and a `.git`
+  // somewhere exotic would give a parent that is not a checkout. Either way
+  // the honest answer is "nothing better than the root you already have".
+  return owner && owner !== path.sep ? owner : null;
 }
 
 /**

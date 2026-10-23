@@ -138,6 +138,35 @@ tree — it moves remote-tracking refs in the object store both checkouts share
 `behind` count that nothing else refreshes. Dropping the menu wholesale would
 have left a worktree window permanently unable to learn it was behind.
 
+### A worktree wears the project's identity, not the directory's
+
+A worktree directory is named after a branch, so everything "absent means
+derived" derives would be wrong in one: `~/.frodon/worktrees/frodon/web-browser`
+is a project called **web-browser**, with a hue hashed from that string and an
+icon reading **W** — three wrong answers sitting beside a window giving the
+right ones for the same project.
+
+So `project:tree` answers with two paths rather than one. The **root** is this
+checkout and everything path-shaped uses it: the tree, the layout key, where a
+new file lands, what the explorer walks. The **identity root** is the
+repository's own working tree, and only `useProjectIdentity` reads it — the
+name, the hue and the icon. In anything that is not a worktree the two are the
+same path.
+
+It is a path and not a resolved name, because **no derivation crosses the
+boundary** — the rule in [project.md](project.md). Main says which directory
+to ask about; the renderer still does the asking, through the same three
+resolvers the launcher uses on projects that are not open.
+
+Main keeps it too, on the session, because the Dock tile is painted there: a
+worktree window must put the project's colour on the Dock, not the colour of a
+directory named after a branch.
+
+**Both windows therefore look identical**, which is the point and also the
+cost. Two checkouts of one project are one project, and the thing that differs
+is the branch — which the header names, and which the branch control in a
+worktree exists to show.
+
 ### A worktree is not a recent project
 
 Opening one goes through `project:tree` like any other project, and that is
@@ -213,6 +242,9 @@ pruned.
 
 ## Rules
 
+- **A worktree's identity is the repository's.** Name, hue and icon come from
+  the repository's own working tree, never from the worktree directory, which
+  is named after a branch.
 - **A window in a worktree never switches branch.** Hidden in the UI, refused
   in main. Letting it would move the branch the window exists to hold still,
   which is the whole feature.
@@ -246,10 +278,6 @@ pruned.
 - **No progress while copying.** The panel names the branch and waits. The
   thing it would report progress on is one recursive copy with no granularity
   to report.
-- **A worktree wears its parent's color.** `.frodon/config.json` is tracked,
-  so both windows resolve the same hue. Correct — it *is* the same project,
-  and the branch is what differs and what the header names — but it does mean
-  two windows on one repository are not told apart by their accent.
 - **No "open this branch in a worktree" from the git window.** The branch list
   there and the worktree panel do not know about each other yet.
 - **`BranchMenu` does not use `BranchSelect`.** The header's switcher predates

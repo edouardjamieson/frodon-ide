@@ -48,7 +48,7 @@ import type {
   GitStatus,
 } from './git.def';
 import type { LayoutSnapshot } from './layout.def';
-import type { RecentProject } from './project.def';
+import type { ProjectTree, RecentProject } from './project.def';
 import type {
   ReplaceRequest,
   ReplaceResult,
@@ -74,8 +74,16 @@ import type {
 export interface IpcContract {
   /** Native folder picker. Resolves to null when the user cancels. */
   'project:pick': { req: void; res: string | null };
-  /** Recursive scan of a project root into a nested tree, respecting excludes. */
-  'project:tree': { req: { root: string }; res: File[] };
+  /**
+   * Recursive scan of a project root into a nested tree, respecting excludes.
+   *
+   * Answers with the tree **and** the directory this project takes its
+   * identity from, which differ only in a worktree — see `ProjectTree`. Both
+   * come back from the one call because they are one answer about one project,
+   * and a second round trip for the identity would let the header draw a
+   * branch slug for a frame before correcting itself.
+   */
+  'project:tree': { req: { root: string }; res: ProjectTree };
   /**
    * The projects opened before, newest first and at most five.
    *

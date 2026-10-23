@@ -18,6 +18,19 @@ export interface ProjectDraft {
 export interface ProjectStore {
   /** Absolute path of the open project root, or '' when none is open. */
   root: string;
+  /**
+   * The directory this project is named, coloured and iconed after.
+   *
+   * The root, except in a worktree, where it is the repository's own working
+   * tree — a worktree is the same project and has to look like it, and its
+   * directory is named after a branch. Main resolves it and sends it with the
+   * tree; see `ProjectTree` in `@shared/project.def`.
+   *
+   * Only `useProjectIdentity` reads it. Everything path-shaped — where a file
+   * lands, which layout is saved, what the explorer walks — uses `root`,
+   * because those are about this checkout rather than about the project.
+   */
+  identityRoot: string;
   files: File[];
 
   // No name here, deliberately. What a project is called is the folder's
@@ -25,7 +38,7 @@ export interface ProjectStore {
   // beside the root would be storing a derivation that goes stale the moment
   // the other half changes. `useProjectIdentity` resolves the two together.
 
-  setProject: (root: string, files: File[]) => void;
+  setProject: (root: string, identityRoot: string, files: File[]) => void;
   setFiles: (files: File[]) => void;
 
   /**

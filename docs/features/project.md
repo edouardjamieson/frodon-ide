@@ -68,6 +68,12 @@ Nothing derived is ever written to the file. Renaming a folder still renames
 the project, and clearing a field in the settings dialog goes back to deriving
 rather than storing an empty string.
 
+They resolve against the project's **identity root**, which is the project
+root for everything except a worktree — there it is the repository's own
+working tree, because a worktree is the same project and its directory is
+named after a branch. `project:tree` answers with both paths; see
+[worktrees.md](worktrees.md).
+
 The three resolvers are **pure functions of a config** rather than readers of
 the store — which is what lets the launcher resolve five projects that are not
 open, with five configs main handed it, through the same functions. Two of them

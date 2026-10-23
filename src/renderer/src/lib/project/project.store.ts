@@ -18,6 +18,7 @@ function directoryPaths(files: File[]): string[] {
 
 export const useProjectStore = create<ProjectStore>((set, get) => ({
   root: '',
+  identityRoot: '',
   files: [],
   recents: [],
   expanded: new Set<string>(),
@@ -25,9 +26,10 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   draft: null,
   renaming: null,
 
-  setProject: (root, files) =>
+  setProject: (root, identityRoot, files) =>
     set({
       root,
+      identityRoot,
       files,
       // A different project: nothing selected in it yet, and a half-typed name
       // from the last one has no directory to land in any more.

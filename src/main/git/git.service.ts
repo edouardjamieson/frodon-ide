@@ -190,6 +190,32 @@ export { run as runGit };
 export { operate as operateGit };
 export { validateBranch };
 
+/**
+ * Whether a pair of git-dir answers describes a *linked* worktree.
+ *
+ * `--absolute-git-dir` is `<repo>/.git/worktrees/<name>` in a linked worktree
+ * and `<repo>/.git` in the repository's own tree; `--git-common-dir` is
+ * `<repo>/.git` in both. Equal means the repository, different means a
+ * worktree, and it holds from a subdirectory of either — which the obvious
+ * alternative, comparing the project root against `--show-toplevel`, does
+ * not, because in a worktree the toplevel *is* the worktree.
+ *
+ * The trap is in the output rather than the idea, and it is why this exists
+ * as a function instead of being written twice: `--git-common-dir` answers
+ * **relatively** (`.git`) when git ran in the repository's own root and
+ * absolutely from a worktree, so comparing the raw strings reports
+ * "different" for every ordinary repository. Both are resolved against the
+ * directory git ran in first.
+ */
+export function isLinkedGitDir(
+  cwd: string,
+  gitDir: string,
+  commonDir: string
+): boolean {
+  if (gitDir === '' || commonDir === '') return false;
+  return path.resolve(cwd, gitDir) !== path.resolve(cwd, commonDir);
+}
+
 /** Whether two lists hold the same paths in the same order. */
 function sameList(a: string[], b: string[]): boolean {
   if (a === b) return true;
@@ -305,12 +331,7 @@ async function refresh(repo: GitRepo): Promise<void> {
         .map((line) => line.trim());
 
       repo.repoRoot = top;
-      // `--git-common-dir` answers relatively when it can, so both are
-      // resolved against the directory git ran in before they are compared.
-      repo.linked =
-        gitDir !== '' &&
-        commonDir !== '' &&
-        path.resolve(repo.root, gitDir) !== path.resolve(repo.root, commonDir);
+      repo.linked = isLinkedGitDir(repo.root, gitDir, commonDir);
     }
   }
 

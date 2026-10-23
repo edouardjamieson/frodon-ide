@@ -17,7 +17,13 @@ import { execFile } from 'node:child_process';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { createLogger } from '@main/logger';
-import { operateGit, runGit, validateBranch, type GitRepo } from '@main/git';
+import {
+  isLinkedGitDir,
+  operateGit,
+  runGit,
+  validateBranch,
+  type GitRepo,
+} from '@main/git';
 import { READ_TIMEOUT_MS } from '@main/git/git.constant';
 import { worktreeSlug } from '@shared/worktree.def';
 import type {
@@ -212,6 +218,39 @@ async function carryIgnored(
 /* -------------------------------------------------------------------------
  * The three operations
  * ---------------------------------------------------------------------- */
+
+/**
+ * Whether this checkout is a linked worktree rather than the repository's own
+ * working tree.
+ *
+ * The poller answers the same question and publishes it on the snapshot, but
+ * only from its first tick onwards — and the caller that needs this is
+ * `project:tree`, which runs before any tick has happened. So it asks
+ * directly, and the comparison itself stays in one place.
+ *
+ * One `rev-parse`, which is noise beside the recursive scan `project:tree` is
+ * already doing.
+ */
+export async function isLinkedWorktree(repo: GitRepo | null): Promise<boolean> {
+  if (!repo) return false;
+  // Already resolved by a poll, which is the common case for everything
+  // except the open that happens before the first one.
+  if (repo.linked) return true;
+
+  const { code, stdout } = await runGit(repo, [
+    'rev-parse',
+    '--absolute-git-dir',
+    '--git-common-dir',
+  ]);
+  if (code !== 0) return false;
+
+  const [gitDir = '', commonDir = ''] = stdout
+    .trim()
+    .split('\n')
+    .map((line) => line.trim());
+
+  return isLinkedGitDir(repo.root, gitDir, commonDir);
+}
 
 /**
  * Every checkout of this repository.

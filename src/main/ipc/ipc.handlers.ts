@@ -64,7 +64,12 @@ import {
   writeFileText,
 } from '@main/fs';
 import { replaceInProject, searchProject } from '@main/search';
-import { createWorktree, listWorktrees, removeWorktree } from '@main/worktree';
+import {
+  createWorktree,
+  isLinkedWorktree,
+  listWorktrees,
+  removeWorktree,
+} from '@main/worktree';
 import { watchFiles } from '@main/watch';
 import {
   createSession,
@@ -256,8 +261,19 @@ export function registerIpcHandlers(): void {
   // belongs to the second of them.
   handle('project:tree', async ({ root }, event) => {
     const session = attachWindow(event.sender, root);
-    await recordRecentProject(root);
     growToWorkbench(event);
+
+    // A worktree is not a project you opened — it is a second view of one you
+    // already have, and the Worktrees panel is how you get back to it.
+    // Spending one of the launcher's five slots on a checkout that is a click
+    // away from its parent would push out a project nothing else can reach.
+    //
+    // Asked directly rather than read off the snapshot: this runs before the
+    // poller's first tick, so the snapshot does not know yet.
+    if (!(await isLinkedWorktree(session.repo))) {
+      await recordRecentProject(root);
+    }
+
     // The Dock follows the project, when the generated icon is the one
     // chosen — and only for the window you are actually looking at, since
     // macOS has one tile for the whole app. A project opening in a background

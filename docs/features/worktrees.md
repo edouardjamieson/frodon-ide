@@ -138,6 +138,24 @@ tree — it moves remote-tracking refs in the object store both checkouts share
 `behind` count that nothing else refreshes. Dropping the menu wholesale would
 have left a worktree window permanently unable to learn it was behind.
 
+### A worktree is not a recent project
+
+Opening one goes through `project:tree` like any other project, and that is
+the channel which records a recent — so the recents list would fill with
+checkouts. It does not: `project:tree` asks `isLinkedWorktree` first and skips
+the recording.
+
+The launcher offers five projects. A worktree is already a click away from its
+parent in this panel, so a slot spent on one is a slot taken from a project
+with no other route back to it. The parent repository still records normally,
+which is what makes the panel reachable in the first place.
+
+The check is asked directly rather than read from `GitStatus.linkedWorktree`,
+because `project:tree` runs before the poller's first tick and the snapshot
+does not know yet. Both routes share `isLinkedGitDir` in `main/git/`, so the
+comparison — which has a trap in it, see [learned.md](../learned.md) — is
+written once.
+
 ### One checkout per window
 
 A worktree is a project like any other, so opening one is `window:open` with
@@ -214,6 +232,8 @@ pruned.
 - **Both ends of every carried path are containment-checked**, even though
   both came from git's own output. An escape should take two independent
   mistakes rather than one.
+- **A worktree never enters the recents list.** The panel is how you get back
+  to one; the launcher is for projects that have no other route.
 - **The list is fetched, never polled.** On mount and after each mutation. A
   worktree made in a terminal appears when the panel is reopened.
 

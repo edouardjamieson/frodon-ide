@@ -97,6 +97,7 @@ export function useCommands(): Record<CommandId, () => void> {
       'sidebar.explorer': () => showModule('EXPLORER'),
       'sidebar.search': () => showModule('SEARCH'),
       'sidebar.boards': () => showModule('BOARDS'),
+      'sidebar.worktrees': () => showModule('WORKTREES'),
       'git.open': () => openGit(),
       // No section named, so the dialog reopens on the page it was last left
       // on — the chord is for going back to settings, and the places that

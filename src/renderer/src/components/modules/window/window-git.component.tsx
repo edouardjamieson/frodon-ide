@@ -2,7 +2,7 @@ import { cn } from 'cn';
 import { GitCommitVertical, GitBranch, ListChecks } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useGitWindow, type GitTab, type GitWindow } from '~/lib/window';
-import { useChangeCount, useIsRepo } from '~/lib/git';
+import { useChangeCount, useIsRepo, useIsWorktree } from '~/lib/git';
 import { GitBranches, GitCommit, GitHistory } from '~/components/modules/git';
 
 /**
@@ -38,10 +38,20 @@ const TABS: { value: GitTab; label: string; icon: ReactNode }[] = [
 export function GitWindowHeader({ window: win }: { window: GitWindow }) {
   const { tab, setTab } = useGitWindow(win);
   const changes = useChangeCount();
+  const isWorktree = useIsWorktree();
+
+  // A worktree holds one branch and cannot switch, so the view whose entire
+  // purpose is switching is not shown in one. Hidden rather than disabled:
+  // the branch list is also where ahead/behind is read, and a tab that is
+  // present but inert invites the click it then refuses. See
+  // `docs/features/worktrees.md`.
+  const tabs = isWorktree
+    ? TABS.filter((entry) => entry.value !== 'branches')
+    : TABS;
 
   return (
     <div className="flex items-center gap-0.5 overflow-x-auto px-1.5 [scrollbar-width:none]">
-      {TABS.map((entry) => {
+      {tabs.map((entry) => {
         const isActive = entry.value === tab;
 
         return (
@@ -74,6 +84,7 @@ export function GitWindowHeader({ window: win }: { window: GitWindow }) {
 
 export function GitWindowBody({ window: win }: { window: GitWindow }) {
   const inRepo = useIsRepo();
+  const isWorktree = useIsWorktree();
 
   // A folder that isn't a repository has no branch, no history and nothing to
   // commit. Three empty views would be a worse answer than one sentence.
@@ -84,6 +95,12 @@ export function GitWindowBody({ window: win }: { window: GitWindow }) {
       </div>
     );
   }
+
+  // A window left on the branches tab, then reopened in a worktree — a saved
+  // layout restores the tab, and `linkedWorktree` is only known a tick later.
+  // Falls through to the history rather than rendering a view the header has
+  // no tab for.
+  if (win.tab === 'branches' && isWorktree) return <GitHistory />;
 
   switch (win.tab) {
     case 'branches':

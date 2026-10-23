@@ -206,7 +206,20 @@ handler, so git's own stderr comes back as a value.
 - Discarding a *staged* change, which would be an unstage and a discard in
   one. The Staged section still only unstages.
 
+## In a worktree
+
+The branch control stops being a switcher and the **Branches** tab is not
+drawn, because a worktree holds one branch — see
+[worktrees.md](worktrees.md). Both of the things that control did move that
+branch: a checkout obviously, and `New branch…`, which is `checkout -b` and so
+creates *and* switches. `checkout` in `main/git/` refuses it as well, since
+the rule belongs to the repository rather than to the buttons.
+
+Fetch stays in the menu. It touches no working tree, and it is the only route
+to the `behind` count the pull button reports.
+
 ## See also
 
-[explorer.md](explorer.md) · [workbench.md](workbench.md) ·
+[worktrees.md](worktrees.md) — the same repository, checked out more than once
+· [explorer.md](explorer.md) · [workbench.md](workbench.md) ·
 [ipc.md](../ipc.md) · [theme.md](../theme.md)

@@ -94,6 +94,8 @@ export interface GitRepo {
   status: GitStatus;
   /** `rev-parse --show-toplevel`, resolved once per repository, not per tick. */
   repoRoot: string;
+  /** Whether this checkout is a linked worktree. Resolved with `repoRoot`. */
+  linked: boolean;
   timer: NodeJS.Timeout | null;
   /** A tick is in flight. Ticks must not overlap — see `tick`. */
   refreshing: boolean;
@@ -126,7 +128,8 @@ interface GitExec {
 function run(
   repo: GitRepo | null,
   args: string[],
-  timeout = READ_TIMEOUT_MS
+  timeout = READ_TIMEOUT_MS,
+  overrideCwd?: string
 ): Promise<GitExec> {
   if (!repo) {
     return Promise.resolve({
@@ -136,7 +139,12 @@ function run(
     });
   }
 
-  const cwd = repo.root;
+  // The project root by default, which is where every read in this file wants
+  // to be. `overrideCwd` exists for the one caller that needs the *repository*
+  // root instead — listing a repository's ignored files from a project opened
+  // two directories inside it would list only that subtree. See
+  // `main/worktree/`.
+  const cwd = overrideCwd ?? repo.root;
 
   return new Promise((resolve) => {
     execFile(
@@ -165,6 +173,23 @@ function run(
   });
 }
 
+/**
+ * `run` and `operate`, for the one other module that spawns git.
+ *
+ * `main/worktree/` is a git feature living in its own folder, and the
+ * alternative to exporting these was a second `execFile` wrapper that would
+ * have to re-learn `GIT_ENV`, the buffer ceiling, the timeouts and the
+ * never-reject contract — four things that must not drift between two files.
+ *
+ * `operateGit` matters more than it looks: it is what serialises a
+ * `worktree add` against the poller and refreshes the snapshot afterwards, so
+ * the branch the worktree created appears in this repository's branch list
+ * without waiting for the next tick.
+ */
+export { run as runGit };
+export { operate as operateGit };
+export { validateBranch };
+
 /** Whether two lists hold the same paths in the same order. */
 function sameList(a: string[], b: string[]): boolean {
   if (a === b) return true;
@@ -186,6 +211,7 @@ function sameStatus(a: GitStatus, b: GitStatus): boolean {
   return (
     a.inRepo === b.inRepo &&
     a.repoRoot === b.repoRoot &&
+    a.linkedWorktree === b.linkedWorktree &&
     a.branch === b.branch &&
     a.detached === b.detached &&
     a.upstream === b.upstream &&
@@ -247,6 +273,7 @@ async function refresh(repo: GitRepo): Promise<void> {
       noteFailure(repo, `status failed: ${message}`);
     }
     repo.repoRoot = '';
+    repo.linked = false;
     publish(repo, emptyGitStatus());
     return;
   }
@@ -257,14 +284,40 @@ async function refresh(repo: GitRepo): Promise<void> {
   // Resolved once per repository. It only changes when the project does, or
   // when someone runs `git init` in a folder that wasn't one yet — and both
   // of those clear it first.
+  //
+  // Three answers from one `rev-parse`, because they are one question asked
+  // of the same repository and a second subprocess to learn where `.git` is
+  // would be a second subprocess for a path that cannot have moved. The two
+  // git directories are what tell a linked worktree from the repository's own
+  // tree: they are the same directory in the latter and differ in the former.
   if (!repo.repoRoot) {
-    const top = await run(repo, ['rev-parse', '--show-toplevel']);
-    if (top.code === 0) repo.repoRoot = top.stdout.trim();
+    const parsed = await run(repo, [
+      'rev-parse',
+      '--show-toplevel',
+      '--absolute-git-dir',
+      '--git-common-dir',
+    ]);
+
+    if (parsed.code === 0) {
+      const [top = '', gitDir = '', commonDir = ''] = parsed.stdout
+        .trim()
+        .split('\n')
+        .map((line) => line.trim());
+
+      repo.repoRoot = top;
+      // `--git-common-dir` answers relatively when it can, so both are
+      // resolved against the directory git ran in before they are compared.
+      repo.linked =
+        gitDir !== '' &&
+        commonDir !== '' &&
+        path.resolve(repo.root, gitDir) !== path.resolve(repo.root, commonDir);
+    }
   }
 
   publish(repo, {
     inRepo: true,
     repoRoot: repo.repoRoot,
+    linkedWorktree: repo.linked,
     branch: parsed.branch,
     detached: parsed.detached,
     upstream: parsed.upstream,
@@ -324,6 +377,7 @@ export function openRepo(
     root,
     status: emptyGitStatus(),
     repoRoot: '',
+    linked: false,
     timer: null,
     refreshing: false,
     operating: false,
@@ -362,6 +416,7 @@ export function closeRepo(repo: GitRepo | null): void {
   if (repo.timer) clearInterval(repo.timer);
   repo.timer = null;
   repo.repoRoot = '';
+  repo.linked = false;
   repo.lastFailure = '';
   repo.status = emptyGitStatus();
 }
@@ -474,10 +529,28 @@ export function push(repo: GitRepo | null): Promise<GitResult> {
   return operate(repo, args);
 }
 
+/**
+ * Switches branch — unless this checkout is a linked worktree.
+ *
+ * A worktree exists to hold one branch still while you work on another
+ * somewhere else, so a checkout inside one defeats the whole feature: at best
+ * it moves the branch the window was opened to hold, and at worst git refuses
+ * because the branch being asked for is checked out in the window you came
+ * from. The UI hides the control, and this refuses anyway — the rule is a
+ * fact about the repository, not about which buttons happen to be drawn.
+ */
 export function checkout(
   repo: GitRepo | null,
   branch: string
 ): Promise<GitResult> {
+  if (repo?.linked) {
+    return Promise.resolve({
+      ok: false,
+      error:
+        'This is a worktree, which holds one branch. Switch branches in the window the repository is open in, or make another worktree.',
+    });
+  }
+
   const invalid = validateBranch(branch);
   if (invalid) return Promise.resolve({ ok: false, error: invalid });
 

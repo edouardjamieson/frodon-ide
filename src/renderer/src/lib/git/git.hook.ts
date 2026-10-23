@@ -131,6 +131,18 @@ export const useGitStatus = (): GitStatus =>
   useGitStore((state) => state.status);
 
 /** Whether the open project is in a repository at all. Gates the whole UI. */
+/**
+ * Whether this window is in a *linked* worktree rather than the repository's
+ * own working tree.
+ *
+ * What gates switching branches. Read off the polled snapshot rather than
+ * derived from the worktree list, because the list is only loaded while the
+ * Worktrees panel is open and this has to be right in every window from the
+ * first tick — see `GitStatus.linkedWorktree`.
+ */
+export const useIsWorktree = (): boolean =>
+  useGitStore((state) => state.status.linkedWorktree);
+
 export const useIsRepo = (): boolean =>
   useGitStore((state) => state.status.inRepo);
 

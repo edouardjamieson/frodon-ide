@@ -105,13 +105,14 @@ the app is in the background, which is right for a media key and wrong for
 | `mod+shift+e` | `sidebar.explorer` | shows, never toggles |
 | `mod+shift+f` | `sidebar.search` | |
 | `mod+shift+b` | `sidebar.boards` | |
+| `mod+shift+w` | `sidebar.worktrees` | free: Close All Windows is `opt+cmd+w` |
 | `mod+shift+g` | `git.open` | |
 | `mod+,` | `settings.open` | no menu claims it |
 | `mod+shift+right` | `window.splitRight` | the arrow points where it appears |
 | `mod+shift+down` | `window.splitDown` | |
 | `mod+shift+n` | `app.newWindow` | an OS window, not a tile |
 
-The three sidebar chords **show** rather than toggle. `mod+b` is how the panel
+The four sidebar chords **show** rather than toggle. `mod+b` is how the panel
 goes away, and a key with two meanings is a key you have to look at the screen
 to use. The rail buttons do toggle — a click on the thing you are already
 looking at has nothing else it could mean.

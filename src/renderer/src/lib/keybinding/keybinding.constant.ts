@@ -35,6 +35,10 @@ export const DEFAULT_KEYBINDINGS: Keybinding[] = [
   { chord: 'mod+shift+e', command: 'sidebar.explorer' },
   { chord: 'mod+shift+f', command: 'sidebar.search' },
   { chord: 'mod+shift+b', command: 'sidebar.boards' },
+  // Free, and worth checking before reusing: macOS binds Close All Windows to
+  // `opt+cmd+w`, not `shift`, and the hand-built menu has no close item at
+  // all — so nothing above the page is listening for this one.
+  { chord: 'mod+shift+w', command: 'sidebar.worktrees' },
   { chord: 'mod+shift+g', command: 'git.open' },
   // The chord every app on the platform uses for this, and one no menu here
   // claims: the hand-built menu has no Preferences item, and Electron's
@@ -67,6 +71,7 @@ export const COMMAND_LABELS: Record<CommandId, string> = {
   'sidebar.explorer': 'Explorer',
   'sidebar.search': 'Search the project',
   'sidebar.boards': 'Boards',
+  'sidebar.worktrees': 'Worktrees',
   'git.open': 'Source control',
   'settings.open': 'Settings',
   'window.splitRight': 'Split to the right',

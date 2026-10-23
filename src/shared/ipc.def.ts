@@ -56,6 +56,11 @@ import type {
   SearchResult,
 } from './search.def';
 import type { TerminalData, TerminalExit, TerminalInfo } from './terminal.def';
+import type {
+  Worktree,
+  WorktreeCreateRequest,
+  WorktreeResult,
+} from './worktree.def';
 
 /**
  * Every request/response channel: renderer asks, main answers.
@@ -314,6 +319,47 @@ export interface IpcContract {
    * abandons a walk the moment a newer one starts rather than running two.
    * Takes no root: the project is already open on the other side.
    */
+  /**
+   * Every checkout of this repository, the repository's own first.
+   *
+   * Answered straight from `git worktree list`, which is why there is no
+   * worktree file anywhere under `~/.frodon/`: the repository already records
+   * which branch is checked out where, and a second copy of that could only
+   * ever be the one that is wrong.
+   *
+   * Takes no root, like every other git channel — the repository is the one
+   * the asking window has open.
+   */
+  'worktree:list': { req: void; res: Worktree[] };
+  /**
+   * Adds a worktree, carries the ignored files into it, and answers with its
+   * path so the caller can open a window on it.
+   *
+   * Slow by nature: the second half is copying a `node_modules`, which is
+   * near-instant on a filesystem with copy-on-write and minutes on one
+   * without. There is no progress event — the renderer shows a pending state
+   * and waits, because the thing it would report progress on is a single
+   * recursive copy with no granularity to report.
+   *
+   * Whether `branch` is new is decided in main by asking the repository, not
+   * by a flag sent from the renderer whose branch list is a render old.
+   */
+  'worktree:create': {
+    req: WorktreeCreateRequest;
+    res: WorktreeResult;
+  };
+  /**
+   * Removes one, after main has asked.
+   *
+   * The path came from `worktree:list`, so this is the round trip closing
+   * rather than the renderer naming a directory for main to delete — and main
+   * checks it against the listing again anyway before acting.
+   *
+   * Never forces. Git refuses a worktree holding uncommitted work and the
+   * refusal is reported as git wrote it.
+   */
+  'worktree:remove': { req: { path: string }; res: WorktreeResult };
+
   'search:query': { req: SearchRequest; res: SearchResult };
   /**
    * Rewrites every match, either across the project or in named files.
@@ -624,6 +670,13 @@ export interface FrodonApi {
       scope: BookmarkScope,
       bookmarks: Bookmark[]
     ) => Promise<Res<'bookmark:save'>>;
+  };
+  worktree: {
+    list: () => Promise<Res<'worktree:list'>>;
+    create: (
+      request: Req<'worktree:create'>
+    ) => Promise<Res<'worktree:create'>>;
+    remove: (path: string) => Promise<Res<'worktree:remove'>>;
   };
   window: {
     /** Opens another OS window. No root means the launcher. */

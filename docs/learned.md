@@ -17,6 +17,75 @@ architecture, write the ADR too and link them.
 
 ## The platform
 
+### `--git-common-dir` answers relatively from the repository and absolutely from a worktree
+`code` · 2026-10-23 · `src/main/git/git.service.ts`
+
+Telling a linked worktree from the repository's own working tree is a
+comparison of two git directories: `--absolute-git-dir` is
+`<repo>/.git/worktrees/<name>` in a worktree and `<repo>/.git` in the
+repository, and `--git-common-dir` is `<repo>/.git` in both. Equal means the
+repository; different means a worktree. It works from a subdirectory of
+either, which the obvious alternative — comparing the project root to
+`rev-parse --show-toplevel` — does not, because in a worktree the toplevel
+*is* the worktree.
+
+The trap is in the output rather than the idea. `--git-common-dir` prints a
+**relative** path (`.git`) when git runs in the repository's own root and an
+**absolute** one from a worktree, so comparing the two strings says
+"different" for every ordinary repository. Both have to be resolved against
+the directory git ran in before they are compared. All three answers come
+from one `rev-parse`, which also takes `--show-toplevel`.
+
+### `git worktree remove` ignores ignored files, and deletes them anyway
+`code` · 2026-10-23 · `src/main/worktree/worktree.service.ts`
+
+Two halves, and the second is the one that matters. `git worktree remove`
+refuses a worktree holding **modified or untracked** files — `use --force to
+delete it` — which is the safety net the remove button leans on. Ignored files
+are not untracked for that purpose, so a worktree whose only contents beyond
+the checkout are a carried `node_modules` and `.env` removes without
+complaint. It then deletes them along with everything else.
+
+Both halves had to be checked rather than assumed, and the plausible guess was
+wrong in both directions: that ignored files would block removal the way
+untracked ones do (they do not), and that git would leave them behind as not
+its business (it does not). The consequence is a sentence in the
+confirmation — removing a worktree costs you its dependencies and its `.env`,
+and nothing about clicking a row in a list says so.
+
+### A branch checked out in one worktree cannot be checked out in another
+`code` · 2026-10-23 · `src/main/worktree/worktree.service.ts`
+
+`git worktree add` refuses a branch that is already checked out anywhere,
+**including in the main repository's own working tree**, with
+`fatal: 'x' is already used by worktree at <path>`. That is the whole of the
+"opening a worktree must not move the checkout you were working in"
+requirement, enforced by git rather than by anything in this app — no
+bookkeeping, no check to forget, and it holds for worktrees made in a terminal
+too.
+
+Worth knowing because the obvious implementation is the defensive one: track
+which branch each window is on, refuse the collision yourself, and discover
+later that it only covers the windows you know about. The general form: when a
+tool already refuses the thing you are about to guard against, surface its
+refusal instead of writing a second one that can disagree with it.
+
+### Copy-on-write makes copying a 626MB `node_modules` free
+`code` · 2026-10-23 · `src/main/worktree/worktree.service.ts`
+
+`cp -c` on APFS does not copy bytes. It points the new file at the same
+extents and splits them only when one side is written to, so carrying this
+repository's `node_modules` into a new worktree took **2.6 seconds and changed
+free disk space by nothing measurable** — `du` reports 636MB in both places
+and `df` reports the same 801Gi free before and after.
+
+This is the measurement the whole carry design rests on. Copying every ignored
+file is an absurd thing to do without it and an obvious one with it, and the
+difference is one flag. `--reflink=auto` is the Linux equivalent; `fsp.cp` is
+the fallback and is a real byte copy. The symlinks have to be preserved rather
+than followed, or a pnpm `node_modules` — which is mostly relative links into
+`.pnpm/` — drags the entire store along with it.
+
 ### The single-instance lock makes a second `pnpm dev` exit after a clean build
 `code` · 2026-10-22 · `src/main/index.ts`
 

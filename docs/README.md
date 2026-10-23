@@ -70,6 +70,7 @@ rules, and what is missing.
 | [editor](features/editor.md) | CodeMirror, tabs, saving, syntax, find-in-file, external changes |
 | [terminal](features/terminal.md) | PTYs in main, batched output, killing a process tree |
 | [git](features/git.md) | the poller, the header, the history graph, staging, diffs |
+| [worktrees](features/worktrees.md) | one repository checked out in several places, each in its own window |
 | [search](features/search.md) | project-wide find and replace, walked in main |
 | [file picker](features/file-picker.md) | `mod+p`, and the ranking that matters for paths |
 | [boards](features/boards.md) | the drawing surface, in two scopes |
@@ -154,7 +155,8 @@ home directory · a browser with tabs pinnable to a device size, and bookmarks
 in groups saved with the project or privately · a launcher
 with the last five projects · a workbench that reopens where you left it ·
 several windows, each on its own project, with the Dock wearing whichever one
-you are looking at · a settings dialog · themes.
+you are looking at · worktrees, so two branches of one repository are open at
+once · a settings dialog · themes.
 
 What is next — the rest of the config layering, the command palette, the
 unsaved-changes dialog, and LSP — is in [migration.md](migration.md), roughly

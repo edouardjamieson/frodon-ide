@@ -12,4 +12,4 @@ export interface SidebarStore {
   setModule: (module: SidebarModule) => void;
 }
 
-export type SidebarModule = 'EXPLORER' | 'SEARCH' | 'BOARDS';
+export type SidebarModule = 'EXPLORER' | 'SEARCH' | 'BOARDS' | 'WORKTREES';

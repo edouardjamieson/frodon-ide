@@ -17,8 +17,11 @@ import {
   DropdownMenuTrigger,
   Input,
   Label,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
 } from '~/components/ui';
-import { useBranchLabel, useGit, useGitStore } from '~/lib/git';
+import { useBranchLabel, useGit, useGitStore, useIsWorktree } from '~/lib/git';
 
 /**
  * The branch, and the three things worth doing to it from a title bar:
@@ -47,6 +50,7 @@ export default function BranchMenu() {
 
   const { checkout, createBranch, fetch, refreshBranches, operation } =
     useGit();
+  const isWorktree = useIsWorktree();
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -68,6 +72,72 @@ export default function BranchMenu() {
     setCreating(false);
     setName('');
   };
+
+  // A worktree holds one branch, and this control stops being a switcher in
+  // one. Both of the things it would otherwise do move that branch: a
+  // checkout is the obvious one, and `New branch…` is `checkout -b`, which
+  // creates *and* switches. Either defeats the reason the window exists, and
+  // git refuses half of them anyway — so does `main/git/`, because this is a
+  // rule about the repository rather than about which buttons are drawn.
+  //
+  // **Fetch stays.** It is the one entry here that does not touch the working
+  // tree — it moves remote-tracking refs in the object store both checkouts
+  // share — and it is the only route to it in the app: the header's pull
+  // button reports a `behind` count that nothing else refreshes. Dropping the
+  // menu wholesale would have left a worktree window unable to learn it was
+  // behind.
+  if (isWorktree) {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="cursor-pointer gap-2"
+                disabled={busy}
+              >
+                <GitBranch className="size-4 text-fg-muted" />
+                <span className="text-xs font-semibold">{label}</span>
+                <div className="flex items-center gap-1">
+                  {changeSet.staged > 0 && (
+                    <div className="size-2 rounded-full border border-git-staged bg-git-staged/40"></div>
+                  )}
+                  {changeSet.dirty > 0 && (
+                    <div className="size-2 rounded-full border border-git-changed bg-git-changed/40"></div>
+                  )}
+                </div>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              This worktree holds {label} and cannot switch branches.
+            </TooltipContent>
+          </Tooltip>
+        </DropdownMenuTrigger>
+
+        <DropdownMenuContent align="end" className="w-64">
+          <DropdownMenuLabel className="text-[11px] leading-relaxed text-fg-subtle">
+            {upstream ? `Tracking ${upstream}` : 'No upstream'}
+            <br />
+            This worktree holds {label}. Switch branches in the window the
+            repository is open in, or make another worktree.
+          </DropdownMenuLabel>
+
+          <DropdownMenuSeparator />
+
+          <DropdownMenuItem
+            className="cursor-pointer gap-2"
+            disabled={busy}
+            onSelect={() => void fetch()}
+          >
+            <RefreshCw className="size-3.5" />
+            Fetch
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  }
 
   return (
     <>

@@ -11,7 +11,7 @@ import { homedir } from 'node:os';
 import { dialog, BrowserWindow, type IpcMainInvokeEvent } from 'electron';
 import { handle } from './ipc.service';
 import { getFiles } from '@main/project';
-import { attachWindow, rootOf, sessionOf } from '@main/session';
+import { attachWindow, rootOf, sessionOf, windowForRoot } from '@main/session';
 import { initialRootOf, openProjectWindow } from '@main/app';
 import { refreshAppIcon } from '@main/icon';
 import {
@@ -64,6 +64,7 @@ import {
   writeFileText,
 } from '@main/fs';
 import { replaceInProject, searchProject } from '@main/search';
+import { createWorktree, listWorktrees, removeWorktree } from '@main/worktree';
 import { watchFiles } from '@main/watch';
 import {
   createSession,
@@ -134,6 +135,48 @@ async function confirmDiscard(
       kind === 'trash'
         ? 'Git has never seen this file, so there is nothing to restore it to. It will be moved to the Trash, and can be recovered from there.'
         : 'The file goes back to its last staged or committed state. Nothing else has a copy of these changes, so this cannot be undone.',
+  };
+
+  const { response } = window
+    ? await dialog.showMessageBox(window, options)
+    : await dialog.showMessageBox(options);
+
+  return response === 0;
+}
+
+/**
+ * Asks before a worktree and everything in it goes.
+ *
+ * A third dialog rather than a flag on the other two, for the same reason
+ * there are two already: the sentence is the point. Removing a worktree
+ * deletes a whole checkout, and — because git deletes ignored files without
+ * complaint — the `node_modules` and `.env` Frodon carried into it as well.
+ * Nothing about clicking a row in a list reveals that, so it is said here.
+ *
+ * What it does *not* promise is the Trash. A worktree is hundreds of
+ * megabytes of carried dependencies; `shell.trashItem` would move all of it
+ * and leave the person to empty it by hand. The honest version is that the
+ * directory goes and the branch, with every commit on it, stays — which is
+ * the thing that actually makes this safe.
+ */
+async function confirmRemoveWorktree(
+  target: string,
+  branch: string,
+  event: IpcMainInvokeEvent
+): Promise<boolean> {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  const options = {
+    type: 'warning' as const,
+    buttons: ['Remove worktree', 'Cancel'],
+    defaultId: 0,
+    cancelId: 1,
+    message: `Remove the worktree for "${branch}"?`,
+    detail:
+      `${target}\n\n` +
+      'The directory is deleted, along with the node_modules, .env and ' +
+      'other ignored files carried into it. The branch and its commits are ' +
+      'not touched — they are in the repository, not in this directory. ' +
+      'Git refuses if anything in it is uncommitted.',
   };
 
   const { response } = window
@@ -390,6 +433,52 @@ export function registerIpcHandlers(): void {
   handle('search:replace', (request, event) =>
     replaceInProject(event.sender, request)
   );
+
+  // Worktrees. One repository checked out in more than one place, which is
+  // what the per-window project model in `main/session/` was built for.
+  handle('worktree:list', (_req, event) => listWorktrees(askingRepo(event)));
+
+  // Opens the window itself rather than answering and letting the renderer
+  // do it, because the two are one act: a worktree you have to go and find
+  // afterwards is a directory, not a place to work. `openProjectWindow`
+  // focuses an existing window if that path somehow already has one.
+  handle('worktree:create', async (request, event) => {
+    const result = await createWorktree(askingRepo(event), request);
+    if (result.ok && result.path) openProjectWindow(result.path);
+    return result;
+  });
+
+  // The third handler that asks before it acts. Two checks come before the
+  // dialog, because neither is a question worth putting to someone: a
+  // worktree open in a window must not have its directory deleted out from
+  // under it, and a path the listing does not know is not ours to remove.
+  handle('worktree:remove', async ({ path: target }, event) => {
+    const repo = askingRepo(event);
+    const worktrees = await listWorktrees(repo);
+    const entry = worktrees.find((w) => w.path === target);
+
+    if (!entry) {
+      return { ok: false, error: 'That worktree is not in this repository.' };
+    }
+
+    if (windowForRoot(target)) {
+      return {
+        ok: false,
+        error: 'It is open in another window. Close that window first.',
+      };
+    }
+
+    // A prunable worktree's directory is already gone, so there is nothing to
+    // warn about losing and nothing to confirm.
+    if (!entry.prunable) {
+      const branch = entry.branch || entry.head.slice(0, 7);
+      if (!(await confirmRemoveWorktree(target, branch, event))) {
+        return { ok: true };
+      }
+    }
+
+    return removeWorktree(repo, target);
+  });
 
   // The sender is what ties a shell to a window: its output is sent back to
   // the window that asked for it and to no other, and its process tree dies

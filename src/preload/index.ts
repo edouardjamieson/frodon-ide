@@ -141,6 +141,11 @@ const api: FrodonApi = {
     save: (scope: BookmarkScope, bookmarks: Bookmark[]) =>
       ipcRenderer.invoke('bookmark:save', { scope, bookmarks }),
   },
+  worktree: {
+    list: () => ipcRenderer.invoke('worktree:list'),
+    create: (request) => ipcRenderer.invoke('worktree:create', request),
+    remove: (path) => ipcRenderer.invoke('worktree:remove', { path }),
+  },
   window: {
     open: (root) => ipcRenderer.invoke('window:open', { root }),
   },

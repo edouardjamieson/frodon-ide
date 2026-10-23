@@ -34,6 +34,23 @@ export interface GitStatus {
   inRepo: boolean;
   /** Absolute path of the repository's top level, or '' when not in a repo. */
   repoRoot: string;
+  /**
+   * Whether this checkout is a *linked* worktree rather than the
+   * repository's own working tree.
+   *
+   * The test is git's own: in a linked worktree `--absolute-git-dir` is
+   * `<repo>/.git/worktrees/<name>` while `--git-common-dir` is `<repo>/.git`,
+   * and in the repository's own tree the two are the same directory.
+   *
+   * On the snapshot rather than derived in the renderer from the worktree
+   * list, because the list is only loaded while the Worktrees panel is open
+   * and this gates something that must never be wrong: **a window in a
+   * worktree does not switch branches.** Letting it would check the worktree's
+   * branch out somewhere it already is, or move it out from under the very
+   * window that exists to hold it still — which is the whole point of the
+   * feature. See `docs/features/worktrees.md`.
+   */
+  linkedWorktree: boolean;
   /** Current branch name, or '' when HEAD is detached or unborn. */
   branch: string;
   detached: boolean;
@@ -68,6 +85,7 @@ export interface GitResult {
 export function emptyGitStatus(): GitStatus {
   return {
     inRepo: false,
+    linkedWorktree: false,
     repoRoot: '',
     branch: '',
     detached: false,

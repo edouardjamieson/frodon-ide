@@ -18,6 +18,112 @@ their reasoning is the reasoning recorded at the time, not reconstructed.
 
 ---
 
+### ADR-0035 — A window in a worktree does not switch branches
+
+**When** 2026-10-23 · **Status** active · **Touches** worktrees, git, workbench
+
+**What.** In a linked worktree the header's branch control stops being a
+switcher and the git window's **Branches** tab is not drawn. `checkout` in
+`main/git/` refuses regardless of either. The fact comes from
+`GitStatus.linkedWorktree`, resolved in main.
+
+**Why.** A worktree exists to hold one branch still while you work on another
+somewhere else. Switching inside one defeats that directly: at best it moves
+the branch the window was opened to hold, and at worst git refuses because the
+branch being asked for is checked out in the window you came from — so the
+control's two actions are an own goal and an error message. `New branch…` goes
+with it rather than being kept, because it is `checkout -b`: it creates *and*
+switches.
+
+The tab is **hidden rather than disabled**. That view's entire purpose is
+switching, so a disabled one is a tab that exists to be refused; hiding it is
+the honest version. The header control keeps its label, its change dots and
+its tooltip, because reading which branch you are on is the half that still
+makes sense.
+
+**Fetch is kept** inside it, which is the one deviation from "read-only" and
+the one that earns itself. It touches no working tree — it moves
+remote-tracking refs in the object store both checkouts share — and it is the
+app's only route to one, since the header's pull button reports a `behind`
+count that nothing else refreshes. A fully inert control would have left
+worktree windows permanently unable to learn they were behind.
+
+**How.** `GitStatus.linkedWorktree`, published with the snapshot, so every
+window has it from the first tick. Deriving it in the renderer from the
+worktree list was the obvious alternative and is wrong: that list is only
+loaded while the Worktrees panel is open, and a rule this load-bearing cannot
+depend on a panel being visible. The test is git's own — a linked worktree's
+`--absolute-git-dir` is `<repo>/.git/worktrees/<name>` while its
+`--git-common-dir` is `<repo>/.git` — folded into the `rev-parse` that already
+resolves `repoRoot`, so it costs no extra subprocess and is resolved once per
+repository rather than once per tick. `useIsWorktree` reads it;
+`main/git/`'s `checkout` guard is the second, independent check.
+
+**Cost.** One more field on the snapshot that `sameStatus` has to compare and
+both processes have to agree about. A worktree window cannot create a branch
+at all, even one it would immediately be entitled to — making a branch without
+switching to it is a thing git can do and this control cannot. And the rule is
+invisible until you are in a worktree, so the first encounter with it is a
+control that is not where it was yesterday; the tooltip is the whole of the
+explanation.
+
+---
+
+### ADR-0034 — Worktrees are git worktrees, and every ignored file is cloned into one
+
+**When** 2026-10-23 · **Status** active · **Touches** worktrees, git, project, session
+
+**What.** Working on two branches at once means `git worktree add`, not a copy
+of the folder. Afterwards Frodon copies every path `git ls-files --ignored`
+reports into the new checkout, using copy-on-write where the filesystem has
+it. Worktrees live at `~/frodon/worktrees/<project>/<branch-slug>`.
+
+**Why.** A linked worktree shares the original's object store, which buys three
+things a copy cannot. Creating one is a checkout rather than a clone — 0.1
+seconds and a few hundred kilobytes of refs on this repository. A commit made
+in it is in the original's database immediately, so the two windows are two
+views of one repository rather than two repositories that have to be kept in
+sync by pushing. And **git refuses to check a branch out in two worktrees at
+once**, including the branch the main window is on, so "opening a worktree
+never moves the checkout you were in" is guaranteed a layer below anything
+this code could get wrong. A literal copy gives two unrelated folders, which
+is a different and much worse feature.
+
+What git does not do is carry ignored files, and a checkout with no
+`node_modules` is one you cannot run — the install it would need is the time
+the worktree was supposed to save. Copying only a declared list (`.env` and
+friends) was the alternative and it solves the small half of the problem while
+leaving the expensive half; running an install command instead solves it
+slowly, and needs the `actions` port that has not happened. Copying everything
+ignored is only reasonable because of copy-on-write: measured here, 626MB of
+`node_modules` in 2.6 seconds **with no change in free disk space**. Symlinks
+are preserved rather than followed, without which a pnpm `node_modules` would
+drag in the whole store.
+
+`~/frodon/worktrees` rather than `~/.frodon/worktrees` because
+[ADR-0023](#adr-0023--everything-that-outlives-a-window-lives-under-frodon-owned-by-main)
+is about app state and this is source code: a hidden directory is hostile to
+Finder, Spotlight, backups and every `cd` typed by hand.
+
+**How.** `main/worktree/`, over `runGit`/`operateGit`/`validateBranch` exported
+from `main/git/` so there is one way to spawn git rather than two. The listing
+is `git worktree list --porcelain`, which is also why **no worktree registry
+file exists** — the repository already records which branch is where, and a
+second copy of that could only ever be the one that is wrong. `cp -c` on
+macOS, `cp --reflink=auto` on Linux, `fsp.cp` when neither works. Removal
+never passes `--force`, refuses a worktree open in a window, refuses anything
+Frodon did not create, and asks in main first.
+
+**Cost.** A worktree dies with its parent repository — the shared object store
+is the whole point and also the dependency. The fast carry is tied to APFS and
+btrfs/XFS; elsewhere it is a real byte copy with no way to opt out yet, so a
+project with a large ignored data directory will feel it. Creating one blocks
+with no progress, because one recursive copy has no granularity to report.
+And both windows wear the same accent, since `.frodon/config.json` is tracked
+and resolves the same hue in both checkouts.
+
+---
+
 ### ADR-0033 — The Dock icon follows the focused window
 
 **When** 2026-10-22 · **Status** active · **Touches** app icon, project, session

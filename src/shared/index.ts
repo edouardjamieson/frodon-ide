@@ -7,4 +7,5 @@ export * from './layout.def';
 export * from './project.def';
 export * from './search.def';
 export * from './terminal.def';
+export * from './worktree.def';
 export * from './ipc.def';

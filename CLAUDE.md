@@ -332,7 +332,8 @@ privately · a browser with tabs that can be pinned to a device size,
 and bookmarks in groups saved with the project or kept privately · a
 launcher offering the last five projects · a workbench that reopens onto the
 tiles it was left on · several windows at once, each on its own project, with
-the Dock wearing the one you are looking at · a settings dialog on `mod+,` ·
+the Dock wearing the one you are looking at · worktrees, so two branches of
+one repository can be open side by side · a settings dialog on `mod+,` ·
 switching themes.
 
 Everything else — the rest of the config layering, the command palette, LSP,

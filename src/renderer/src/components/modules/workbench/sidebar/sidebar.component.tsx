@@ -4,6 +4,7 @@ import {
   ChevronRight,
   FolderClosed,
   FolderGit2,
+  GitBranch,
   PencilRuler,
   Search,
   Settings,
@@ -21,6 +22,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '../../../ui';
 import Boards from './boards';
 import Explorer from './explorer';
 import GlobalSearch from './search';
+import Worktrees from './worktrees';
 
 interface SidebarMenuItem {
   icon: ReactNode;
@@ -42,6 +44,8 @@ export default function Sidebar() {
         return <GlobalSearch />;
       case 'BOARDS':
         return <Boards />;
+      case 'WORKTREES':
+        return <Worktrees />;
       default:
         return null;
     }
@@ -145,11 +149,18 @@ function SidebarMenu({ collapsed }: { collapsed: boolean }) {
       shortcut: ['mod', 'shift', 'b'],
     },
     {
-      icon: <FolderGit2 className="size-5" />,
+      icon: <GitBranch className="size-5" />,
       onClick: openGit,
       label: 'Source control',
       focused: false,
       shortcut: ['mod', 'shift', 'g'],
+    },
+    {
+      icon: <FolderGit2 className="size-5" />,
+      onClick: () => toggleModule('WORKTREES'),
+      label: 'Worktrees',
+      focused: module === 'WORKTREES' && !collapsed,
+      shortcut: ['mod', 'shift', 'w'],
     },
   ];
 

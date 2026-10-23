@@ -17,6 +17,7 @@ export type CommandId =
   | 'sidebar.explorer'
   | 'sidebar.search'
   | 'sidebar.boards'
+  | 'sidebar.worktrees'
   | 'git.open'
   | 'settings.open'
   | 'window.splitRight'

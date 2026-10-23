@@ -93,7 +93,7 @@ export default function BranchMenu() {
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
                 className="cursor-pointer gap-2"
                 disabled={busy}

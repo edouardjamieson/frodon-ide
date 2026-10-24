@@ -527,6 +527,25 @@ runtime, in a payload, which is why the contract is types-only and plain data.
 
 ## Product
 
+### Every prefix of a new name is also a name that does not exist
+`product` · 2026-10-24 · `src/renderer/src/components/modules/git/branch-select.component.tsx`
+
+The worktree dialog revealed its **Start from** field whenever the branch
+typed matched no existing branch, which is exactly right as a statement about
+the repository and wrong as a trigger for drawing something. Typing
+`terminals` is seven keystrokes during which the name is new, so the field
+opened on `t` and closed on the final `s`, shoving the path preview and the
+buttons down and back on the way. The symptom was someone asking whether the
+second selector was a bug.
+
+The fix is to gate on a deliberate act — clicking the **Create “…”** row —
+rather than on a predicate over in-flight text. `BranchSelect` reports
+`'typed'` or `'picked'` alongside the value so a caller can tell the
+difference. The general form: **a predicate that is true of every prefix is
+not an event.** If a control appears when some condition about the text
+holds, check that the condition can't be transiently satisfied on the way to
+the answer.
+
 ### An arrangement is the only presentation state worth persisting
 `product` · 2026-10-15 · `src/renderer/src/lib/layout/`
 

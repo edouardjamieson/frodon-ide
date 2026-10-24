@@ -25,8 +25,8 @@ import {
   Label,
   ScrollArea,
 } from '~/components/ui';
-import { BranchSelect } from '~/components/modules/git';
-import { useGitStore } from '~/lib/git';
+import { BranchSelect, type BranchSource } from '~/components/modules/git';
+import { useBranchLabel, useGitStore } from '~/lib/git';
 import {
   useCurrentWorktree,
   useWorktrees,
@@ -252,7 +252,7 @@ function Row({
  *
  * Type a name: if it is a branch that exists, the worktree checks it out and
  * there is nothing to start from — that is the "review someone's branch"
- * case. If it does not exist, it is a new branch and the base matters, so
+ * case. If it does not exist, it is a new branch and the base can matter, so
  * **Start from** appears. One field rather than a mode switch, because the
  * thing a person has in mind is a branch name either way, and which of the
  * two cases they are in is a fact about the repository rather than a choice
@@ -288,6 +288,8 @@ function CreateForm({
   // `BranchSelect` refreshes the list itself when it mounts; this is only
   // read to tell a branch that exists from a name being invented.
   const branches = useGitStore((state) => state.branches);
+  /** What `HEAD` is here, which is where an unbased new branch starts. */
+  const head = useBranchLabel();
   const { worktrees, create, creating } = useWorktrees();
 
   /**
@@ -313,9 +315,33 @@ function CreateForm({
   const [branch, setBranch] = useState('');
   /** The base, once it has been picked. Null until then — see `startPoint`. */
   const [chosen, setChosen] = useState<string | null>(null);
+  /**
+   * The name someone asked to create, by taking the **Create “…”** row.
+   *
+   * Kept as the name rather than a flag so that typing on afterwards puts the
+   * question back: `wt/a` was invented, `wt/ab` is a different name nobody
+   * has committed to yet.
+   */
+  const [invented, setInvented] = useState('');
 
   const name = branch.trim();
   const isExisting = useMemo(() => branches.includes(name), [branches, name]);
+
+  /**
+   * A new branch, asked for deliberately.
+   *
+   * **Start from** hangs off this rather than off `!isExisting`, which is the
+   * same fact one keystroke too early: every prefix of a branch name is a
+   * name that does not exist, so a field gated on it opened on `t`, closed on
+   * `terminals`, and moved the two controls under it both times. Clicking the
+   * create row is the moment the answer stops being in flight.
+   */
+  const inventing = name !== '' && !isExisting && invented === name;
+
+  const onBranchChange = (next: string, source: BranchSource) => {
+    setBranch(next);
+    if (source === 'picked') setInvented(next);
+  };
 
   // Derived rather than stored, because the default depends on a list that
   // arrives a round trip after this mounts — storing it would mean writing
@@ -330,9 +356,14 @@ function CreateForm({
 
   const onSubmit = async () => {
     if (!canCreate) return;
+    // Sent only when the field that chooses it was on screen. A new branch
+    // created without taking the create row starts from `HEAD`, which is
+    // git's own default and the same commit the field would have defaulted
+    // to — so the shortcut costs nothing, and sending a base nobody was
+    // shown would be the dishonest half of the same outcome.
     const ok = await create({
       branch: name,
-      ...(isExisting ? {} : { startPoint }),
+      ...(inventing ? { startPoint } : {}),
     });
     // Left open on failure, with the error in the panel behind it — the
     // branch that was typed is the thing you need to edit, and a dialog that
@@ -359,7 +390,7 @@ function CreateForm({
           <BranchSelect
             id="worktree-branch"
             value={branch}
-            onChange={setBranch}
+            onChange={onBranchChange}
             allowNew
             autoFocus
             exclude={checkedOut}
@@ -368,16 +399,21 @@ function CreateForm({
             }
             placeholder="Pick a branch, or type a new name"
           />
+          {/* The line that says which of the two things is about to happen.
+              It names the base in the one case where nothing on screen does:
+              a new branch whose create row has not been taken. */}
           <p className="text-[11px] text-fg-subtle">
             {name === ''
               ? 'An existing branch is checked out; a new one is created.'
               : isExisting
                 ? 'Checks out this existing branch.'
-                : 'Creates this branch.'}
+                : inventing
+                  ? 'Creates this branch.'
+                  : `Creates this branch from ${head}. Take the create row to start it somewhere else.`}
           </p>
         </div>
 
-        {name !== '' && !isExisting ? (
+        {inventing ? (
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="worktree-start">Start from</Label>
             <BranchSelect

@@ -5,6 +5,20 @@ import { Input, ScrollArea } from '~/components/ui';
 import { useGit, useGitStore } from '~/lib/git';
 
 /**
+ * Where a reported value came from.
+ *
+ * `typed` is a keystroke — a name on its way to being something. `picked` is
+ * a row that was clicked, including the **Create “…”** one, which is the only
+ * way a person says "yes, this name, the one that does not exist yet".
+ *
+ * The distinction exists because a caller can need more of someone than a
+ * string: the worktree dialog asks for a start point, and asking it of a
+ * half-typed name means a field that appears and disappears between
+ * keystrokes.
+ */
+export type BranchSource = 'typed' | 'picked';
+
+/**
  * Pick a branch, or name one that does not exist yet.
  *
  * One field doing both jobs, because the thing a person has in mind is a
@@ -39,7 +53,7 @@ export default function BranchSelect({
   id?: string;
   /** The chosen branch, existing or not. `''` when nothing is chosen. */
   value: string;
-  onChange: (branch: string) => void;
+  onChange: (branch: string, source: BranchSource) => void;
   /** Whether a name that is not a branch yet is an acceptable answer. */
   allowNew?: boolean;
   /**
@@ -68,6 +82,17 @@ export default function BranchSelect({
    * opposite of what a picker is for.
    */
   const [query, setQuery] = useState(allowNew ? value : '');
+
+  /**
+   * The name that was clicked, as opposed to typed into the field.
+   *
+   * Only the **Create “…”** row needs it: an existing branch is highlighted
+   * by matching `value`, because typing the full name of a branch *is*
+   * selecting it. A name that does not exist yet has nothing to match
+   * against, and highlighting it the moment the text happens to be complete
+   * would make the row look taken before anyone took it.
+   */
+  const [picked, setPicked] = useState<string | null>(null);
 
   useEffect(() => {
     void refreshBranches();
@@ -103,7 +128,8 @@ export default function BranchSelect({
 
   const choose = (branch: string) => {
     setQuery(branch);
-    onChange(branch);
+    setPicked(branch);
+    onChange(branch, 'picked');
   };
 
   return (
@@ -117,12 +143,14 @@ export default function BranchSelect({
         placeholder={placeholder}
         onChange={(event) => {
           setQuery(event.target.value);
+          setPicked(null);
           // Reported on every keystroke, but only where the text is the
           // answer. With `allowNew` a parent that heard about it on Enter
           // would disagree with the field in front of the person typing;
           // without it the text is a filter, and narrowing a list is not a
-          // reason to drop what is already chosen.
-          if (allowNew) onChange(event.target.value);
+          // reason to drop what is already chosen. `typed` is how a caller
+          // tells this apart from the row below being clicked.
+          if (allowNew) onChange(event.target.value, 'typed');
         }}
       />
 
@@ -134,7 +162,7 @@ export default function BranchSelect({
               onClick={() => choose(needle)}
               className={cn(
                 'flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-left text-[12px] transition-colors hover:bg-row-hover',
-                value === needle ? 'bg-row-open text-fg' : 'text-fg-muted'
+                picked === needle ? 'bg-row-open text-fg' : 'text-fg-muted'
               )}
             >
               <Plus className="size-3.5 shrink-0" />

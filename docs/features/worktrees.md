@@ -207,10 +207,19 @@ business rather than the session registry's.
    would be listing errors; typing one by name says why rather than showing
    an empty list.
 3. If it is a branch that exists, it is checked out and there is nothing to
-   start from. If it is new, **Start from** appears — the same control
-   without the create half, because a base has to be a branch that exists —
-   and defaults to the current branch. The start point has **no** exclusion:
-   branching off `main` while `main` is checked out is the ordinary case.
+   start from. **Start from** appears only once the create row has been
+   taken — the same control without the create half, because a base has to be
+   a branch that exists — and defaults to the current branch. The start point
+   has **no** exclusion: branching off `main` while `main` is checked out is
+   the ordinary case.
+
+   The gate is the click, not the text. Every prefix of a branch name is a
+   name that does not exist, so a field shown whenever the text matches
+   nothing appeared on `t` and vanished on `terminals`, moving what was under
+   it twice. Typing a new name and going straight to **Create** is still
+   allowed, and starts the branch from `HEAD` — git's own default, and the
+   commit the field would have offered anyway. The line under the field says
+   so by name rather than leaving the base invisible.
 4. Create. The panel says which branch it is working on while the ignored
    files copy, because the slow half is a `node_modules` and a spinner that
    does not name anything is one you cannot tell apart from a hung window.
@@ -271,6 +280,9 @@ pruned.
 - **Both ends of every carried path are containment-checked**, even though
   both came from git's own output. An escape should take two independent
   mistakes rather than one.
+- **A field that depends on a finished name waits for a click.** **Start
+  from** is gated on the create row being taken, not on the text matching no
+  branch — the second is true of every prefix on the way to the first.
 - **A worktree never enters the recents list.** The panel is how you get back
   to one; the launcher is for projects that have no other route.
 - **The list is fetched, never polled.** On mount and after each mutation. A

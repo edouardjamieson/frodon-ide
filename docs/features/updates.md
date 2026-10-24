@@ -116,7 +116,8 @@ first install never comes back.
 ### Shipping a change
 
 1. Commit and push to `main` as usual.
-2. `pnpm release`. The version bumps, the tag is pushed.
+2. `pnpm release`, or `/release` in Claude Code, which checks the tree first
+   and writes the release notes after. The version bumps, the tag is pushed.
 3. A few minutes later the release is on GitHub with its manifest.
 
 ### Receiving it

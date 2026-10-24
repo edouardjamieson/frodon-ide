@@ -124,6 +124,10 @@ in front of it: it reads every changed file, checks the obligations above were
 met, and writes a subject and body in the voice the history is written in. No
 commit message in this repository carries attribution to a tool.
 
+Releasing has one too, at `.claude/skills/release/`, behind `/release`: it
+checks the tree is fit to ship, pushes the tag, watches CI publish it,
+verifies the update manifest and writes the release notes.
+
 ## Running it
 
 ```bash

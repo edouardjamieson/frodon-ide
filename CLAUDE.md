@@ -56,6 +56,8 @@ from a clean `main`; `.github/workflows/release.yml` builds and publishes,
 and installed copies offer a restart within half an hour. The updater is our
 own, not `electron-updater` — Squirrel cannot update an unsigned app. See
 [`docs/features/updates.md`](docs/features/updates.md) before touching either.
+The `release` skill and the `/release` command do the whole procedure,
+checks and release notes included.
 
 There is no test runner yet. **`pnpm run typecheck` is the check that matters**
 — most of this codebase's invariants are enforced by exhaustive switches and

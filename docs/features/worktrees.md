@@ -227,9 +227,15 @@ nothing.
 2. Refused outright if that worktree is open in a window — deleting a
    directory out from under a live window is worth preventing rather than
    reporting.
-3. A dialog in main names what goes: the directory, and the `node_modules` and
-   `.env` carried into it. **The branch and its commits stay** — they are in
-   the repository, not in the directory.
+3. A dialog in main names what goes: the directory, and everything git
+   ignores that was copied into it. **The branch and its commits stay** —
+   they are in the repository, not in the directory.
+
+   The wording stays in git's vocabulary — "everything git ignores",
+   "dependencies, build output, anything local" — rather than naming
+   `node_modules` and `.env`. Those are the concrete case in a JavaScript
+   project and meaningless in a Rust or Python one, and nothing else in this
+   app's interface claims to know which language you are writing.
 4. Git refuses if anything in it is uncommitted, and says so in its own words.
    `--force` is never passed.
 

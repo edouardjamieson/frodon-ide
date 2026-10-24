@@ -150,9 +150,10 @@ export default function Worktrees() {
               Remove the worktree for “{removing?.branch || 'this checkout'}”?
             </DialogTitle>
             <DialogDescription>
-              The directory goes, along with the <code>node_modules</code> and{' '}
-              <code>.env</code> carried into it. The branch and its commits stay
-              — they live in the repository, not in this directory.
+              The directory goes, and so does everything git ignores that was
+              copied into it — dependencies, build output, anything local. The
+              branch and its commits stay: they live in the repository, not in
+              this directory.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

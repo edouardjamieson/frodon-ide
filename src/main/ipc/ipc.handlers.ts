@@ -184,10 +184,11 @@ async function confirmRemoveWorktree(
     message: `Remove the worktree for "${branch}"?`,
     detail:
       `${target}\n\n` +
-      'The directory is deleted, along with the node_modules, .env and ' +
-      'other ignored files carried into it. The branch and its commits are ' +
-      'not touched — they are in the repository, not in this directory. ' +
-      'Git refuses if anything in it is uncommitted.',
+      'The directory is deleted, and so is everything git ignores that was ' +
+      'copied into it — dependencies, build output, local environment ' +
+      'files. The branch and its commits are not touched: they are in the ' +
+      'repository, not in this directory. Git refuses if anything in it is ' +
+      'uncommitted.',
   };
 
   const { response } = window

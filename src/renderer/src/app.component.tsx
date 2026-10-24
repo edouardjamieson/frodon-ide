@@ -70,7 +70,6 @@ export default function App() {
     return (
       <>
         <Welcome onOpen={() => void open()} />
-        <Settings />
       </>
     );
   }

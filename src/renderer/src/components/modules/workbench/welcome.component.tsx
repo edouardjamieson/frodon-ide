@@ -4,9 +4,11 @@ import AnimatedLogo from '~/components/utils/animated-logo';
 import { useTheme } from '~/lib/theme';
 import UpdateButton from '~/components/modules/update';
 import WelcomeRecents from './welcome-recents.component';
+import { useState } from 'react';
 
 export default function Welcome({ onOpen }: { onOpen: () => void }) {
   const theme = useTheme();
+  const [logoTint, setLogoTint] = useState<string | undefined>(undefined);
 
   return (
     <div className="flex h-full flex-col items-center justify-center gap-5 bg-app">
@@ -19,7 +21,7 @@ export default function Welcome({ onOpen }: { onOpen: () => void }) {
       </div>
 
       <div className="flex flex-col items-center text-center z-10">
-        <AnimatedLogo className="w-16" />
+        <AnimatedLogo className="w-16" outlineColor={logoTint} />
 
         <p className="mt-4 text-[13px] text-fg-subtle">
           Open a project to get started.
@@ -37,7 +39,7 @@ export default function Welcome({ onOpen }: { onOpen: () => void }) {
 
       {/* Below the button, not instead of it: the picker is the way in that
           always works, and the list is the shortcut past it. */}
-      <WelcomeRecents />
+      <WelcomeRecents onColorChange={(c) => setLogoTint(c ?? undefined)} />
 
       <div
         style={{
@@ -64,7 +66,7 @@ export default function Welcome({ onOpen }: { onOpen: () => void }) {
           fade={0.35}
           mouseInteraction={false}
           clickRipple={false}
-          intro
+          intro={false}
         />
       </div>
     </div>

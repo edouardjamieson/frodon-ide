@@ -21,14 +21,22 @@ import type { RecentProject } from '@shared/project.def';
  * Draws nothing at all on a first run. An empty list with a heading over it
  * would be a promise that the app has a history it does not have yet.
  */
-export default function WelcomeRecents() {
+
+interface WelcomeRecentsProps {
+  onColorChange: (color: string | null) => void;
+}
+
+export default function WelcomeRecents({ onColorChange }: WelcomeRecentsProps) {
   const { recents, forget } = useRecentProjects();
   const { openPath, opening } = useProject();
 
   if (recents.length === 0) return null;
 
   return (
-    <div className="z-10 flex w-80 flex-col gap-1">
+    <div
+      className="z-10 flex w-80 flex-col gap-1"
+      onMouseLeave={() => onColorChange(null)}
+    >
       <p className="px-2 text-[11px] font-medium tracking-wide text-fg-subtle">
         Recent
       </p>
@@ -40,6 +48,7 @@ export default function WelcomeRecents() {
           disabled={opening}
           onOpen={() => void openPath(recent.path)}
           onForget={() => void forget(recent.path)}
+          onMouseOver={onColorChange}
         />
       ))}
     </div>
@@ -60,11 +69,13 @@ function Row({
   disabled,
   onOpen,
   onForget,
+  onMouseOver,
 }: {
   recent: RecentProject;
   disabled: boolean;
   onOpen: () => void;
   onForget: () => void;
+  onMouseOver: (color: string) => void;
 }) {
   const home = useHome();
   const dark = useTheme().dark;
@@ -78,7 +89,10 @@ function Row({
   const icon = resolveProjectIcon(name, recent.config);
 
   return (
-    <div className="group flex items-center gap-1 rounded-md pr-1 transition-colors hover:bg-row-hover border">
+    <div
+      className="group flex items-center gap-1 rounded-md pr-1 transition-colors hover:bg-row-hover border"
+      onMouseEnter={() => onMouseOver(color)}
+    >
       <button
         type="button"
         disabled={disabled}

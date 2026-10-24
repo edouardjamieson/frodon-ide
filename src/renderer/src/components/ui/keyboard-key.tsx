@@ -17,7 +17,7 @@ export function KeyboardKey({ val, isMod, className }: KeyboardKeyProps) {
   const { info } = useAppStore();
   const value = isMod
     ? info?.platform === 'darwin'
-      ? 'cmd'
+      ? '⌘'
       : 'ctrl'
     : val
       ? val.toLocaleLowerCase()

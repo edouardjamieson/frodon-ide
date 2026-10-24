@@ -1,112 +1,168 @@
+<div align="center">
+
+<img src="resources/icons/silk.png" alt="Frodon" width="128" height="128" />
+
 # Frodon
 
-A desktop IDE, built because I'd rather not switch windows.
+**A desktop IDE for people who'd rather not switch windows.**
 
-This is the second attempt. The first was a terminal IDE built on OpenTUI, and
-I used it on real work for long enough to learn exactly which of its problems
-were mine and which belonged to the terminal. Enough were the terminal's that
-starting over on Electron was less work than continuing to hack around the cell
-grid.
+Editor, terminals, git, a browser and a whiteboard — tiled side by side in one
+window, colored by the project you're in.
 
-It is built for me. If it's useful to you too, good — but it isn't a product,
-there's nothing to buy, and I'll be making decisions that suit my own workflow.
+[Install](#install) · [Features](#what-it-does) · [Shortcuts](#shortcuts) ·
+[Build from source](#build-from-source) · [Docs](docs/README.md)
 
-The terminal version is preserved at
-[`frodon-tui`](https://github.com/edouardjamieson/frodon-ide). It works. It's
-just finished.
+![macOS](https://img.shields.io/badge/macOS-arm64%20%C2%B7%20x64-black?logo=apple)
+![Electron](https://img.shields.io/badge/Electron-44-47848F?logo=electron&logoColor=white)
+![License](https://img.shields.io/badge/license-MIT-blue)
 
-## Status
+</div>
 
-Early, and honest about it. Working today:
+---
 
-- Open a folder; browse it in the explorer
-- Live tree sync — files created, renamed or deleted outside Frodon (another
-  terminal, an agent) appear on their own
-- Open a file into a CodeMirror 6 editor with themed syntax highlighting
-- Three built-in themes, switchable at runtime
+Most of a working day is spent moving between an editor, a terminal, a git
+client and a browser, and losing your place each time. Frodon puts them in one
+window as tiles you split and arrange yourself, remembers that arrangement per
+project, and gives every project its own color so you can tell at a glance
+which one you are in.
 
-Next, roughly in order: embedded terminals, config layering, the full language
-map, git, panes, the command palette, and then LSP — which is the thing the
-terminal version was never going to give me and the real reason for the
-rewrite.
+It is built for one person's own workflow and shared in case it suits yours.
+There is nothing to buy, and decisions are made to fit how it is actually
+used — which also means it is early, opinionated, and honest about what is
+missing.
 
-See [`docs/migration.md`](docs/migration.md) for the full plan.
+## What it does
 
-## Installing it
+**A workbench of tiles.** Split right, split down, and put an editor, a
+terminal, the repository, a board or a web page in each. The layout is saved
+per project and comes back the way you left it.
 
-Frodon is not signed, so macOS needs telling once that it is allowed to run.
+**An editor.** CodeMirror 6 with syntax highlighting for every language it
+ships, find-in-file, a star on tabs with unsaved changes, and tabs that follow
+their files when something outside Frodon — an agent, a `git pull` —
+rewrites them.
 
-1. Download `Frodon-<version>-arm64.dmg` from the
-   [latest release](https://github.com/edouardjamieson/frodon-ide/releases/latest)
-   — `-x64` on an Intel Mac.
-2. Drag Frodon into Applications.
-3. Clear the quarantine flag, or macOS will call the app damaged:
+**Real terminals.** Real shells on real PTYs, as many as you want, each in its
+own tile. Closing one kills its whole process tree, dev servers included.
+
+**Git, built in.** Pull, push and switch branches from the header. Changed
+files colored in the tree, a history graph, branches with ahead/behind counts,
+a staging area with diffs, and what any commit did.
+
+**Worktrees.** Open two branches of one repository side by side, each in its
+own window, without stashing anything.
+
+**Find everything.** A file picker on <kbd>⌘P</kbd> that ranks the whole
+project as you type, and project-wide search with find and replace.
+
+**A browser in a tile.** Tabs that can be pinned to a phone or tablet width,
+so a layout can be checked at a size the pane isn't, and bookmarks in groups
+— kept with the project or privately.
+
+**Boards.** A drawing surface for shapes, arrows, pen strokes and text, saved
+into the project or into your home directory.
+
+**Projects with an identity.** Every project gets a name, an icon and a hue.
+The focus ring, the cursor and the selected row are all that hue, and the Dock
+icon can wear it too — so with three projects open, you always know which
+window is which.
+
+**Several windows.** One project per window, as many as you like, and a
+launcher with the last five you opened.
+
+**Updates itself.** When a new version is out, a _Restart to update_ button
+appears in the header. One click, and Frodon reopens on the projects you had
+open.
+
+## Install
+
+Frodon runs on macOS, on Apple Silicon and Intel.
+
+1. Download the latest `Frodon-<version>-arm64.dmg` from
+   [Releases](https://github.com/edouardjamieson/frodon-ide/releases/latest) —
+   or `-x64.dmg` on an Intel Mac.
+2. Drag **Frodon** into **Applications**.
+3. Frodon is not signed with an Apple Developer certificate, so macOS will call
+   it damaged until you clear its quarantine flag. Once:
 
    ```bash
    xattr -dr com.apple.quarantine /Applications/Frodon.app
    ```
 
-After that it updates itself: when a new version is out, a **Restart to
-update** button appears in the header, and Frodon reopens on the projects you
-had open.
+That is the only manual step. Updates after that arrive on their own.
 
-## Running it from source
+## Shortcuts
 
-Requires Node 22+ (Electron 44 asks for it) and pnpm — `corepack enable` will
-pick up the version pinned in `packageManager`.
+`⌘` on macOS, `Ctrl` elsewhere.
+
+| Shortcut | Does |
+| --- | --- |
+| <kbd>⌘P</kbd> | Open a file by name |
+| <kbd>⌘S</kbd> | Save |
+| <kbd>⌘F</kbd> | Find in the file |
+| <kbd>⌘W</kbd> | Close the tab |
+| <kbd>⌘B</kbd> | Show or hide the sidebar |
+| <kbd>⇧⌘E</kbd> · <kbd>⇧⌘F</kbd> · <kbd>⇧⌘B</kbd> · <kbd>⇧⌘W</kbd> | Explorer · Search · Boards · Worktrees |
+| <kbd>⇧⌘G</kbd> | Open the repository |
+| <kbd>⇧⌘→</kbd> · <kbd>⇧⌘↓</kbd> | Split right · Split down |
+| <kbd>⇧⌘N</kbd> | New window |
+| <kbd>⌘,</kbd> | Settings |
+
+## Build from source
+
+You need Node 22 or later and pnpm. `corepack enable` picks up the version
+pinned in `package.json`.
 
 ```bash
+git clone https://github.com/edouardjamieson/frodon-ide.git
+cd frodon-ide
 pnpm install
 pnpm dev
 ```
 
-`pnpm dist` packages the app into `dist/`. `pnpm release` bumps the version
-and pushes a tag, and GitHub Actions builds and publishes it — see
-[`docs/features/updates.md`](docs/features/updates.md).
+| Command | Does |
+| --- | --- |
+| `pnpm dev` | Run with hot reload in the renderer |
+| `pnpm run typecheck` | Check both halves — the check that matters, since there are no tests yet |
+| `pnpm run lint` | ESLint |
+| `pnpm dist` | Package `Frodon.app` into `dist/`, as a dmg and a zip for both arches |
+| `pnpm release` | Bump the version, tag it and push; CI builds and publishes the release |
 
-### If `pnpm dev` says `Error: Electron uninstall`
+If `pnpm dev` fails with `Error: Electron uninstall`, the Electron binary was
+not downloaded — run `pnpm exec install-electron`.
 
-As of Electron 44 there is no `postinstall` script; Electron ships an
-`install-electron` binary that fetches its ~300MB build instead. This repo's
-own `postinstall` calls it, so a plain install is enough — but if the binary is
-still missing, run the download by hand:
+## How it's built
 
-```bash
-pnpm exec install-electron
-```
+Electron 44 · React 19 · TypeScript · CodeMirror 6 · xterm.js on node-pty ·
+zustand · Tailwind 4 · electron-vite.
 
-It is fast after the first time — the binary is cached in
-`~/Library/Caches/electron`.
+The main process owns every fact — the filesystem, the watcher, git, the
+shells — and the renderer is a sandboxed page that draws views of them and
+cannot read a file without asking. Everything that crosses between the two is
+declared once, in `src/shared/ipc.def.ts`.
 
-pnpm blocks *dependency* build scripts by default. `pnpm-workspace.yaml` lists
-the ones this project allows under `allowBuilds`; any future native dependency
-(`node-pty` is the next one) needs an entry there, which `pnpm approve-builds`
-will write for you.
-
-## Stack
-
-Electron 44 · Vite 7 · React 19 · TypeScript 5.9 · CodeMirror 6 · zustand ·
-Tailwind 4
-
-## Docs
-
-Everything is indexed at [`docs/README.md`](docs/README.md), which is also the
-right place for an AI agent to start.
+The documentation is written to be read, by people and by coding agents
+alike. Start at [`docs/README.md`](docs/README.md):
 
 | | |
 | --- | --- |
-| [docs/README.md](docs/README.md) | the index: what this is, the shape of the app, where to look for a thing |
-| [architecture.md](docs/architecture.md) | the process split, layout, state ownership, security |
+| [architecture.md](docs/architecture.md) | the process split, state ownership, security |
 | [ipc.md](docs/ipc.md) | how the two halves talk, and how to add a channel |
-| [theme.md](docs/theme.md) | the palette → roles → CSS variables pipeline |
-| [features/](docs/features/) | one file per feature: the goal, the mechanism, the user flows |
-| [decisions.md](docs/decisions.md) | every decision with an architectural consequence, and what it cost |
-| [learned.md](docs/learned.md) | what this project taught us that the code doesn't say |
-| [migration.md](docs/migration.md) | what came over from the TUI, what didn't, and why |
+| [theme.md](docs/theme.md) | palette → roles → CSS variables, and why no theme has an accent |
+| [features/](docs/features/) | one file per feature: the goal, the mechanism, the user flows, what's missing |
+| [decisions.md](docs/decisions.md) | every architectural decision, and what it cost |
+| [learned.md](docs/learned.md) | what the platform taught us the hard way |
 
-[`CLAUDE.md`](CLAUDE.md) is the contract agents work under; the documentation
-conventions themselves are a skill at `.claude/skills/frodon-docs/`.
+[`CLAUDE.md`](CLAUDE.md) is the contract agents work under in this repository.
+
+## Where it's going
+
+LSP is next and is the reason this exists — Frodon began as a terminal IDE
+built on OpenTUI, and LSP was the thing a terminal was never going to give it.
+After that: a command palette, the rest of the config layering, and asking
+before a tab with unsaved work is closed. The full roadmap, and what came over
+from the terminal version, is in [`docs/migration.md`](docs/migration.md).
 
 ## License
 
-MIT
+MIT — see [`LICENSE`](LICENSE).

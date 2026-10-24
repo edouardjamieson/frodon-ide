@@ -17,6 +17,21 @@ architecture, write the ADR too and link them.
 
 ## The platform
 
+### Squirrel.Mac cannot update an ad-hoc signed app
+`code` · 2026-10-24 · `src/main/update/update.service.ts`
+
+Electron's `autoUpdater` and `electron-updater` both hand the install to
+Squirrel.Mac, which checks that the downloaded bundle's signature satisfies
+the *running* bundle's designated requirement. An ad-hoc signature has no
+identity to require, so its designated requirement is its own cdhash — and
+no other build, including the next version of the same app, can ever match
+it. The failure appears only at the first real update, after the app has
+been shipped. Hence ADR-0037: the swap is done by our own script, and the
+updater is chosen around the signature rather than the other way round.
+
+The general form: an updater's security model is part of its API, and it
+should be checked against the signing story before the first release ships.
+
 ### `--git-common-dir` answers relatively from the repository and absolutely from a worktree
 `code` · 2026-10-23 · `src/main/git/git.service.ts`
 
@@ -87,6 +102,11 @@ and restarts, so a syntax or reference error introduced in `main/` crashes
 *that* app, not the one you just started. Quit the running Frodon before
 `pnpm dev`, or accept that the window you are testing belongs to the older
 dev server.
+
+Since 2026-10-24 this is only true of two *dev* builds. The lock is keyed on
+the userData directory, and the installed app shared it with `pnpm dev` — so
+with the packaged Frodon open on this repository, `pnpm dev` exited the same
+way. `main/index.ts` now gives development builds `<userData> Dev`.
 
 The general form: a lock that is about the user's machine is also about the
 developer's, and the symptom it produces there looks nothing like its cause.
@@ -291,6 +311,19 @@ Packaging will also need `prebuilds/` unpacked from the asar.
 ---
 
 ## The libraries
+
+### electron-builder's native rebuild leaves a build that shadows node-pty's prebuilds
+`code` · 2026-10-24 · `electron-builder.yml`
+
+With `npmRebuild` at its default, `pnpm dist` runs `@electron/rebuild`, which
+compiles node-pty from source into `node_modules/node-pty/build/Release/` —
+in the *working copy*, once per arch, the last one winning. node-pty's loader
+tries `build/Release` before `prebuilds/<platform>-<arch>`, so the next
+`pnpm dev` loads whichever arch was packaged last; after an x64 build, every
+terminal on an Apple Silicon machine fails to load its binary. The prebuilds
+are N-API and already cover both arches, so `npmRebuild: false` removes the
+step and the trap together. If it ever comes back, `rm -rf
+node_modules/node-pty/build`.
 
 ### `git restore` without `--staged` restores from the index, not from HEAD
 `code` · 2026-10-18 · `src/main/git/git.service.ts`

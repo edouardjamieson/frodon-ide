@@ -1,0 +1,56 @@
+# Builds Frodon on a version tag and publishes it as a GitHub release.
+#
+# `pnpm release` is what pushes the tag. The release this creates is what
+# running copies of the app poll: they read `latest.json` from the latest
+# release and download the zip for their arch. See docs/features/updates.md.
+
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  mac:
+    # Apple Silicon. The x64 build is cross-packaged from here, which works
+    # because nothing is compiled: Electron is downloaded per arch, and
+    # node-pty ships prebuilds for both.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # A tag that disagrees with package.json would publish a release whose
+      # manifest names a different version than its title — and every copy of
+      # the app would read the manifest.
+      - name: Check the tag matches package.json
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json $version"
+            exit 1
+          fi
+
+      - run: pnpm dist
+
+      - run: node scripts/write-manifest.mjs
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            dist/*.dmg dist/*.zip dist/latest.json \
+            --title "Frodon ${GITHUB_REF_NAME#v}" \
+            --generate-notes

@@ -47,7 +47,15 @@ pnpm run build        # typecheck + build all three bundles
 pnpm run typecheck    # both tsconfigs (node + web)
 pnpm run lint
 pnpm run format
+pnpm dist             # package Frodon.app into dist/ (unsigned, both arches)
+pnpm release          # bump, commit, tag, push — CI publishes the release
 ```
+
+**Releasing is pushing a tag.** `pnpm release [patch|minor|major]` does it
+from a clean `main`; `.github/workflows/release.yml` builds and publishes,
+and installed copies offer a restart within half an hour. The updater is our
+own, not `electron-updater` — Squirrel cannot update an unsigned app. See
+[`docs/features/updates.md`](docs/features/updates.md) before touching either.
 
 There is no test runner yet. **`pnpm run typecheck` is the check that matters**
 — most of this codebase's invariants are enforced by exhaustive switches and
@@ -334,7 +342,8 @@ launcher offering the last five projects · a workbench that reopens onto the
 tiles it was left on · several windows at once, each on its own project, with
 the Dock wearing the one you are looking at · worktrees, so two branches of
 one repository can be open side by side · a settings dialog on `mod+,` ·
-switching themes.
+switching themes · a packaged, unsigned Mac app that updates itself from
+GitHub releases, with a "Restart to update" button in the header.
 
 Everything else — the rest of the config layering, the command palette, LSP,
 and the dialog that should ask before a tab with unsaved work is closed — is

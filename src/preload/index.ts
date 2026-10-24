@@ -25,6 +25,7 @@ import type { File, FileChange } from '@shared/fs.def';
 import type { GitStatus } from '@shared/git.def';
 import type { FrodonApi } from '@shared/ipc.def';
 import type { TerminalData, TerminalExit } from '@shared/terminal.def';
+import type { UpdateState } from '@shared/update.def';
 
 const api: FrodonApi = {
   project: {
@@ -151,6 +152,15 @@ const api: FrodonApi = {
   },
   app: {
     info: () => ipcRenderer.invoke('app:info'),
+  },
+  update: {
+    state: () => ipcRenderer.invoke('update:state'),
+    install: () => ipcRenderer.invoke('update:install'),
+    onChanged: (listener) => {
+      const handler = (_event: unknown, state: UpdateState) => listener(state);
+      ipcRenderer.on('update:changed', handler);
+      return () => ipcRenderer.removeListener('update:changed', handler);
+    },
   },
 };
 

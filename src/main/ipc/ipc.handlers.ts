@@ -8,7 +8,7 @@
  */
 import { basename } from 'node:path';
 import { homedir } from 'node:os';
-import { dialog, BrowserWindow, type IpcMainInvokeEvent } from 'electron';
+import { app, dialog, BrowserWindow, type IpcMainInvokeEvent } from 'electron';
 import { handle } from './ipc.service';
 import { getFiles } from '@main/project';
 import {
@@ -77,6 +77,7 @@ import {
   removeWorktree,
 } from '@main/worktree';
 import { watchFiles } from '@main/watch';
+import { getUpdateState, installUpdate } from '@main/update';
 import {
   createSession,
   killSession,
@@ -569,6 +570,7 @@ export function registerIpcHandlers(): void {
   handle('app:info', (_req, event) => ({
     platform: process.platform as Platform,
     home: homedir(),
+    version: app.getVersion(),
     initialRoot: initialRootOf(event.sender),
     versions: {
       electron: process.versions.electron ?? '',
@@ -576,4 +578,7 @@ export function registerIpcHandlers(): void {
       node: process.versions.node ?? '',
     },
   }));
+
+  handle('update:state', () => getUpdateState());
+  handle('update:install', () => installUpdate());
 }

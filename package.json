@@ -1,9 +1,14 @@
 {
   "name": "frodon",
+  "productName": "Frodon",
   "version": "0.1.0",
   "description": "A desktop IDE for people who'd rather not switch windows.",
   "license": "MIT",
-  "author": "Edouard Jamieson <edouard@volume7.io>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/edouardjamieson/frodon-ide.git"
+  },
+  "author": "Edouard Jamieson <edouardjamieson99@gmail.com>",
   "type": "module",
   "main": "./out/main/index.js",
   "packageManager": "pnpm@11.28.0",
@@ -12,6 +17,8 @@
     "dev": "electron-vite dev",
     "start": "electron-vite preview",
     "build": "pnpm run typecheck && electron-vite build",
+    "dist": "pnpm run build && electron-builder --mac --publish never",
+    "release": "node scripts/release.mjs",
     "typecheck": "pnpm run typecheck:node && pnpm run typecheck:web",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
@@ -46,6 +53,7 @@
     "class-variance-authority": "^0.7.1",
     "cn": "^0.4.0",
     "electron": "^44.7.0",
+    "electron-builder": "^26.18.0",
     "electron-vite": "^5.0.0",
     "eslint": "^10",
     "eslint-config-prettier": "^10",

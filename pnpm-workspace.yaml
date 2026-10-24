@@ -6,3 +6,6 @@
 allowBuilds:
   esbuild: true
   node-pty: true
+  # Pulled in by electron-builder for Squirrel.Windows, which this app does not
+  # build. Denied rather than left unlisted so install stops asking.
+  electron-winstaller: false

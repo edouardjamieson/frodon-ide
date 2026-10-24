@@ -32,7 +32,25 @@ rewrite.
 
 See [`docs/migration.md`](docs/migration.md) for the full plan.
 
-## Running it
+## Installing it
+
+Frodon is not signed, so macOS needs telling once that it is allowed to run.
+
+1. Download `Frodon-<version>-arm64.dmg` from the
+   [latest release](https://github.com/edouardjamieson/frodon-ide/releases/latest)
+   — `-x64` on an Intel Mac.
+2. Drag Frodon into Applications.
+3. Clear the quarantine flag, or macOS will call the app damaged:
+
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/Frodon.app
+   ```
+
+After that it updates itself: when a new version is out, a **Restart to
+update** button appears in the header, and Frodon reopens on the projects you
+had open.
+
+## Running it from source
 
 Requires Node 22+ (Electron 44 asks for it) and pnpm — `corepack enable` will
 pick up the version pinned in `packageManager`.
@@ -41,6 +59,10 @@ pick up the version pinned in `packageManager`.
 pnpm install
 pnpm dev
 ```
+
+`pnpm dist` packages the app into `dist/`. `pnpm release` bumps the version
+and pushes a tag, and GitHub Actions builds and publishes it — see
+[`docs/features/updates.md`](docs/features/updates.md).
 
 ### If `pnpm dev` says `Error: Electron uninstall`
 

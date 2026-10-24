@@ -13,7 +13,7 @@
  * object store, and two writers racing on the files under `~/.frodon/`.
  */
 import { app, BrowserWindow } from 'electron';
-import { electronApp, optimizer } from '@electron-toolkit/utils';
+import { electronApp, is, optimizer } from '@electron-toolkit/utils';
 import {
   createDockMenu,
   createMenu,
@@ -25,9 +25,27 @@ import { disposeSessions } from '@main/session';
 import { disposeWatchedFiles } from '@main/watch';
 import { disposeTerminals } from '@main/terminal';
 import { refreshAppIcon } from '@main/icon';
+import {
+  rootsToReopen,
+  startUpdateChecks,
+  stopUpdateChecks,
+} from '@main/update';
 import { createLogger } from '@main/logger';
 
 const log = createLogger('main');
+
+/**
+ * A development build is a different app, for the lock's purposes.
+ *
+ * The single-instance lock is keyed on the userData directory, and a dev
+ * build and the installed one would otherwise share it — so with Frodon open
+ * on this repository, `pnpm dev` would hand its launch to the installed copy
+ * and exit without a word. Working on Frodon from inside Frodon is the normal
+ * case, so dev gets a directory of its own. What it does not get is its own
+ * `~/.frodon/`: both write the same recents and layouts, which is the price
+ * of a dev build that opens onto your real projects.
+ */
+if (is.dev) app.setPath('userData', `${app.getPath('userData')} Dev`);
 
 /**
  * One Frodon per machine.
@@ -49,7 +67,7 @@ if (!app.requestSingleInstanceLock()) {
   void app.whenReady().then(() => {
     // Sets the AppUserModelId so Windows groups our windows under one taskbar
     // entry and notifications attribute correctly. A no-op elsewhere.
-    electronApp.setAppUserModelId('io.volume7.frodon');
+    electronApp.setAppUserModelId('com.edouardjamieson.frodon');
 
     // F12 toggles DevTools in development and is ignored in production, so a
     // shipped build can't be poked open by a stray keypress.
@@ -79,7 +97,15 @@ if (!app.requestSingleInstanceLock()) {
     // icon has to be put back on every launch — but it is a tile in the Dock,
     // and nothing about the first window should wait on it.
     void refreshAppIcon();
-    createWindow();
+    // A restart into a new version names the projects that were open, one
+    // window each. Any other launch opens the launcher.
+    const reopen = rootsToReopen();
+    if (reopen.length === 0) createWindow();
+    for (const root of reopen) createWindow(root);
+
+    // After the window, so the first frame never waits on the network. A
+    // no-op in development and anywhere the bundle cannot be replaced.
+    startUpdateChecks();
 
     // macOS keeps the app alive with no windows; clicking the dock icon is
     // expected to bring one back.
@@ -104,6 +130,7 @@ app.on('window-all-closed', () => {
 // with windows still open. A PTY holds a whole process tree, a dev server, a
 // watcher, and nothing else is going to reap it: see `terminal.registry.ts`.
 app.on('will-quit', () => {
+  stopUpdateChecks();
   disposeSessions();
   disposeWatchedFiles();
   disposeTerminals();

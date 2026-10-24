@@ -2,6 +2,7 @@ import { FolderOpen } from 'lucide-react';
 import { Button, Silk } from '~/components/ui';
 import AnimatedLogo from '~/components/utils/animated-logo';
 import { useTheme } from '~/lib/theme';
+import UpdateButton from '~/components/modules/update';
 import WelcomeRecents from './welcome-recents.component';
 
 export default function Welcome({ onOpen }: { onOpen: () => void }) {
@@ -10,6 +11,12 @@ export default function Welcome({ onOpen }: { onOpen: () => void }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-5 bg-app">
       <div className="absolute top-0 left-0 w-full h-11 [-webkit-app-region:drag]" />
+
+      {/* Top right, clear of the traffic lights, and above the drag strip so
+          it can still be clicked. */}
+      <div className="absolute top-2 right-2 z-20">
+        <UpdateButton />
+      </div>
 
       <div className="flex flex-col items-center text-center z-10">
         <AnimatedLogo className="w-16" />

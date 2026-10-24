@@ -14,6 +14,7 @@ import { useBookmarkSyncEffect } from '~/lib/bookmark';
 import { useRecentFilesEffect } from '~/lib/file-picker';
 import { useConfigSaveEffect, useUserConfigEffect } from '~/lib/config';
 import { useKeybindingEffect } from '~/lib/keybinding';
+import { useUpdateSync } from '~/lib/update';
 import { Header, Sidebar, Welcome } from '~/components/modules/workbench';
 import WindowManager from '~/components/modules/window';
 import FilePicker from '~/components/modules/file-picker';
@@ -36,8 +37,10 @@ import Backdrop from './components/ui/backdrop';
  * `useRecentFilesEffect` (records what was last looked at, for the picker),
  * `useUserConfigEffect` (reads this machine's settings and puts the chosen
  * theme on, before the launcher draws),
- * `useConfigSaveEffect` (writes a changed setting down once it settles)
- * and `useKeybindingEffect` (the one keydown listener the whole app shares).
+ * `useConfigSaveEffect` (writes a changed setting down once it settles),
+ * `useUpdateSync` (hears from main when a new version is ready to restart
+ * into) and `useKeybindingEffect` (the one keydown listener the whole app
+ * shares).
  * Mounting any of them twice would double the work on every change — and for
  * the autosave in particular, race two writes to the same file.
  */
@@ -55,6 +58,7 @@ export default function App() {
   useRecentFilesEffect();
   useUserConfigEffect();
   useConfigSaveEffect();
+  useUpdateSync();
   useKeybindingEffect();
 
   const { isOpen, open } = useProject();

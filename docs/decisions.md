@@ -18,6 +18,49 @@ their reasoning is the reasoning recorded at the time, not reconstructed.
 
 ---
 
+### ADR-0037 — Frodon updates itself by swapping its own bundle, not through Squirrel
+
+**When** 2026-10-24 · **Status** active · **Touches** updates, packaging
+
+**What.** Releases are GitHub releases built by CI on a version tag, and a
+running copy updates itself with code of its own in `main/update/`: it reads
+a `latest.json` from the latest release, downloads and verifies the zip for
+its arch, unpacks it under `~/.frodon/updates/`, and on request quits into a
+detached script that swaps the bundles and reopens the app. The build is
+ad-hoc signed and not notarized.
+
+**Why.** The obvious tool is `electron-updater`, and on macOS it is a wrapper
+around Squirrel.Mac — which refuses any update whose signature does not
+satisfy the running app's designated requirement. An ad-hoc signature's
+requirement is its own code hash, which no other build can match, so every
+update to an unsigned app fails, and only once there is a second version to
+update to. The alternative that makes Squirrel work is a paid Apple Developer
+account, signing and notarization in CI; that is the right answer for a
+product and too much ceremony for an app built for one person's use.
+
+What Squirrel does for an unsigned app comes down to "move a folder once the
+process has exited", which is a twenty-line script. The manifest is our own
+JSON rather than electron-builder's `latest-mac.yml`, because that file is
+only written when electron-builder publishes, and CI publishes with
+`gh release create` to keep tokens out of build config.
+
+**How.** `electron-builder.yml` (ad-hoc, `npmRebuild: false`, node-pty
+unpacked), `scripts/release.mjs`, `.github/workflows/release.yml`,
+`scripts/write-manifest.mjs`; `startUpdateChecks`, `installUpdate` and
+`rootsToReopen` in `main/update/update.service.ts`, started from
+`main/index.ts`; `UpdateState` across one channel pair and one event. See
+[features/updates.md](features/updates.md).
+
+**Cost.** Every person installing has to clear the quarantine flag by hand
+once, because Gatekeeper calls an unnotarized download damaged. Updates are
+full downloads with no deltas. The releases repository must be public. There
+is no Windows or Linux update path, and adding one means a second mechanism
+rather than another target. And the swap is ours to get right: a bug in the
+script is a bug that can leave someone without an app, which is why it moves
+the old bundle aside rather than deleting it first.
+
+---
+
 ### ADR-0036 — A project has two roots: where its files are, and where its identity comes from
 
 **When** 2026-10-24 · **Status** active · **Touches** project, worktrees, session, app icon

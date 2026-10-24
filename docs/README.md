@@ -79,6 +79,7 @@ rules, and what is missing.
 | [settings](features/settings.md) | two config files, and "absent means derived" |
 | [app icon](features/app-icon.md) | nine Dock icons, one of them painted from the project's hue |
 | [keybindings](features/keybindings.md) | one capture-phase listener, named commands |
+| [updates](features/updates.md) | packaging, releasing from a tag, and restarting into the new version |
 
 ### Logs
 
@@ -132,6 +133,8 @@ pnpm run build        # typecheck + build all three bundles
 pnpm run typecheck    # both tsconfigs (node + web)
 pnpm run lint
 pnpm run format
+pnpm dist             # package Frodon.app into dist/ (dmg + zip, both arches)
+pnpm release          # bump, tag and push — CI builds and publishes it
 ```
 
 There is no test runner yet. Node 22+ and pnpm (`corepack enable` picks up the
@@ -156,7 +159,8 @@ in groups saved with the project or privately · a launcher
 with the last five projects · a workbench that reopens where you left it ·
 several windows, each on its own project, with the Dock wearing whichever one
 you are looking at · worktrees, so two branches of one repository are open at
-once · a settings dialog · themes.
+once · a settings dialog · themes · a packaged app that updates itself from
+GitHub releases.
 
 What is next — the rest of the config layering, the command palette, the
 unsaved-changes dialog, and LSP — is in [migration.md](migration.md), roughly

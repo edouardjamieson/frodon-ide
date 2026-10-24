@@ -1,0 +1,71 @@
+# How `pnpm dist` turns `out/` into a Frodon.app, and what CI publishes on a
+# tag. See docs/features/updates.md for the release flow end to end.
+
+appId: com.edouardjamieson.frodon
+productName: Frodon
+copyright: Copyright © Edouard Jamieson
+
+directories:
+  output: dist
+  buildResources: build
+
+# Only what the packaged app runs. `dependencies` are added on top by
+# electron-builder itself; everything the renderer imports is a devDependency
+# and is already inside `out/renderer`, bundled by Vite.
+files:
+  - out/**
+  - package.json
+  # node-pty ships Windows prebuilds too; a Mac bundle has no use for them.
+  - '!**/node_modules/node-pty/prebuilds/win32-*/**'
+
+# No native rebuild. node-pty's prebuilds are N-API, so one binary per arch
+# loads under any Electron, and both arches are already in the package. Left
+# on, the rebuild compiles from source into `node_modules/node-pty/build/` —
+# which node-pty loads *ahead* of its prebuilds, so the next `pnpm dev`
+# picks up whichever arch was packaged last.
+npmRebuild: false
+
+# The theme icons the Dock can be switched to. Read from
+# `process.resourcesPath/icons` once packaged — see `iconDirectory`.
+extraResources:
+  - from: resources/icons
+    to: icons
+    filter:
+      - '*.png'
+
+# node-pty is loaded from disk, not from inside the archive: a `.node` file
+# cannot be dlopen'd out of an asar, and `spawn-helper` has to be a real
+# executable for `posix_spawnp` to run it. node-pty already looks for its
+# helper under `app.asar.unpacked`.
+asarUnpack:
+  - '**/node_modules/node-pty/**'
+
+mac:
+  category: public.app-category.developer-tools
+  target:
+    # The dmg is for the first install, by hand. The zip is what the updater
+    # downloads — it unpacks with `ditto` and needs no mounting.
+    - target: dmg
+      arch: [arm64, x64]
+    - target: zip
+      arch: [arm64, x64]
+  # One name for every artifact, with the arch always in it. electron-builder's
+  # default leaves the arch off x64 builds, which would leave the updater
+  # guessing which zip is whose.
+  artifactName: ${productName}-${version}-${arch}.${ext}
+  # Ad-hoc signed: no Apple identity, but a valid signature over the whole
+  # bundle. Apple Silicon refuses to run code with no signature at all, and
+  # the one Electron ships with stops covering the bundle the moment it is
+  # renamed to Frodon. Hardened runtime is off because it would also turn on
+  # library validation, which an ad-hoc signature cannot satisfy for
+  # node-pty's binary.
+  identity: '-'
+  hardenedRuntime: false
+  gatekeeperAssess: false
+
+dmg:
+  artifactName: ${productName}-${version}-${arch}.${ext}
+
+# CI publishes with the GitHub CLI, not electron-builder, and writes its own
+# `latest.json` beside the zips — see scripts/write-manifest.mjs.
+publish: null

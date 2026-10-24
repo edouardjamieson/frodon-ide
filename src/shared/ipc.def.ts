@@ -56,6 +56,7 @@ import type {
   SearchResult,
 } from './search.def';
 import type { TerminalData, TerminalExit, TerminalInfo } from './terminal.def';
+import type { UpdateState } from './update.def';
 import type {
   Worktree,
   WorktreeCreateRequest,
@@ -487,6 +488,23 @@ export interface IpcContract {
 
   /** Host facts the renderer can't ask the DOM for. */
   'app:info': { req: void; res: AppInfo };
+
+  /**
+   * Where the updater is, for a window that has just opened.
+   *
+   * Asked once on mount and then kept current by `update:changed`. A window
+   * opened after the download finished has to be told it is ready, and the
+   * event alone would leave it waiting half an hour for the next check.
+   */
+  'update:state': { req: void; res: UpdateState };
+  /**
+   * Quits, swaps the new bundle in, and opens it again on the projects that
+   * were open. Ignored unless the state is `ready`.
+   *
+   * It takes nothing and answers before anything happens: the app is gone a
+   * moment later, so there is nobody left to tell how it went.
+   */
+  'update:install': { req: void; res: void };
 }
 
 /**
@@ -530,6 +548,12 @@ export interface IpcEvents {
   'terminal:data': TerminalData;
   /** The shell exited. The session is gone from main's registry by then. */
   'terminal:exit': TerminalExit;
+
+  /**
+   * The updater moved — a download started, finished, or failed. Sent to
+   * every window, and only when the state actually changed.
+   */
+  'update:changed': UpdateState;
 }
 
 /**
@@ -548,6 +572,8 @@ export interface AppInfo {
    * crosses once at startup rather than a shortened path crossing per file.
    */
   home: string;
+  /** Frodon's own version, from package.json. `0.1.0`, no `v`. */
+  version: string;
   versions: { electron: string; chrome: string; node: string };
   /**
    * The project this window was opened for, or null for a launcher window.
@@ -692,5 +718,11 @@ export interface FrodonApi {
   };
   app: {
     info: () => Promise<Res<'app:info'>>;
+  };
+  update: {
+    state: () => Promise<Res<'update:state'>>;
+    install: () => Promise<Res<'update:install'>>;
+    /** Subscribes to updater changes. Returns an unsubscribe function. */
+    onChanged: (listener: (state: UpdateState) => void) => () => void;
   };
 }

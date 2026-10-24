@@ -151,8 +151,9 @@ node-pty 1.1.0 ships **N-API prebuilds**, so the `@electron/rebuild` step this
 file used to predict is not needed — the same binary loads under Node and
 under Electron 44. What it does need is `scripts/fix-spawn-helper.mjs`: the
 prebuilt `spawn-helper` arrives without its executable bit and the first
-terminal dies with `posix_spawnp failed`. Packaging will also need the
-`prebuilds/` directory unpacked from the asar.
+terminal dies with `posix_spawnp failed`. Packaging unpacks the whole
+package from the asar and turns electron-builder's own rebuild off — see
+[features/updates.md](features/updates.md).
 
 ### What changed in the git port
 

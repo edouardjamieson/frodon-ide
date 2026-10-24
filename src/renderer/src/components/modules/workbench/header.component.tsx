@@ -2,6 +2,7 @@ import { useProject } from '~/lib/project';
 import { useOpenSettings } from '~/lib/settings';
 import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui';
 import GitControls from '~/components/modules/git';
+import UpdateButton from '~/components/modules/update';
 import { useBranchLabel, useIsWorktree } from '~/lib/git';
 import { FolderGit2 } from 'lucide-react';
 
@@ -50,6 +51,7 @@ export default function Header() {
 
       <div className="w-full h-full [-webkit-app-region:drag]"></div>
 
+      <UpdateButton />
       <GitControls />
     </header>
   );

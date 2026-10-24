@@ -3,6 +3,8 @@ import { cn } from 'cn';
 import { Bug, Lightbulb, Send } from 'lucide-react';
 import { Button, Input } from '~/components/ui';
 import { useAppInfo } from '~/lib/app';
+import { useUpdateStore } from '~/lib/update';
+import type { UpdateState } from '@shared/update.def';
 import { Field, FieldGroup } from './settings-field.component';
 
 type FeedbackKind = 'bug' | 'idea';
@@ -26,6 +28,7 @@ export default function SettingsFeedback() {
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const info = useAppInfo();
+  const update = useUpdateStore((store) => store.state);
 
   return (
     <div className="flex flex-col gap-7">
@@ -93,6 +96,8 @@ export default function SettingsFeedback() {
 
       <FieldGroup title="Worth including">
         <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-[11px] select-text">
+          <Fact label="Frodon" value={info?.version ?? '—'} />
+          <Fact label="Updates" value={describeUpdate(update)} />
           <Fact label="Platform" value={info?.platform ?? '—'} />
           <Fact label="Electron" value={info?.versions.electron ?? '—'} />
           <Fact label="Chromium" value={info?.versions.chrome ?? '—'} />
@@ -129,6 +134,26 @@ function KindButton({
       {label}
     </button>
   );
+}
+
+/**
+ * The updater's state in a few words. Here and nowhere else: the header only
+ * ever shows the restart button, so this is where "why have I not had the
+ * new version" gets its answer.
+ */
+function describeUpdate(state: UpdateState): string {
+  switch (state.kind) {
+    case 'idle':
+      return 'Up to date';
+    case 'downloading':
+      return `Downloading ${state.version}`;
+    case 'ready':
+      return `${state.version} ready — restart to update`;
+    case 'unsupported':
+      return state.reason;
+    case 'error':
+      return `Last check failed: ${state.message}`;
+  }
 }
 
 function Fact({ label, value }: { label: string; value: string }) {

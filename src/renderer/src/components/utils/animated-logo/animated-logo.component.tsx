@@ -8,18 +8,28 @@ import {
 import { useEyesFollowCursor } from './animated-logo.hook';
 import { useProject, useProjectColor } from '~/lib/project';
 
-export default function AnimatedLogo({ className }: AnimatedLogoProps) {
+export default function AnimatedLogo({
+  className,
+  outlineColor,
+}: AnimatedLogoProps) {
   const { svgRef, pupilRefs } = useEyesFollowCursor();
   const projectColor = useProjectColor();
   const { isOpen } = useProject();
+
+  const outlineFg = outlineColor
+    ? outlineColor
+    : isOpen
+      ? projectColor
+      : 'white';
 
   return (
     <svg ref={svgRef} className={className} viewBox="0 0 277 246" fill="none">
       {/* The outline, drawn as a larger copy of the mark behind it. */}
       <path
         d="M0 24.0366C0 5.45198 20.2135 -6.08067 36.2122 3.37595L126.288 56.6184C133.821 61.0708 143.179 61.0708 150.712 56.6184L240.788 3.37594C256.787 -6.08069 277 5.45199 277 24.0366V221.971C277 235.226 266.255 245.971 253 245.971H24C10.7452 245.971 0 235.226 0 221.971V24.0366Z"
-        fill={isOpen ? projectColor : 'white'}
+        fill={outlineFg}
         opacity={0.5}
+        style={{ transition: 'all 0.2s ease-in-out' }}
       />
       <path
         d="M20 33.4334C20 27.3641 26.4938 23.5053 31.8246 26.4069L134.675 82.389C137.06 83.6869 139.94 83.6869 142.325 82.389L245.175 26.4069C250.506 23.5053 257 27.3641 257 33.4334V219.971C257 224.389 253.418 227.971 249 227.971H28C23.5817 227.971 20 224.389 20 219.971V33.4334Z"

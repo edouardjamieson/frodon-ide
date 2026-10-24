@@ -171,8 +171,9 @@ worktree exists to show.
 
 Opening one goes through `project:tree` like any other project, and that is
 the channel which records a recent — so the recents list would fill with
-checkouts. It does not: `project:tree` asks `isLinkedWorktree` first and skips
-the recording.
+checkouts. It does not: `project:tree` asks `primaryWorktree` first and skips
+the recording — one call answering both halves, since the checkout that owns
+this one is also what the identity is taken from.
 
 The launcher offers five projects. A worktree is already a click away from its
 parent in this panel, so a slot spent on one is a slot taken from a project

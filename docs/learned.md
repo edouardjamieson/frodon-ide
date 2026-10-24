@@ -70,22 +70,6 @@ later that it only covers the windows you know about. The general form: when a
 tool already refuses the thing you are about to guard against, surface its
 refusal instead of writing a second one that can disagree with it.
 
-### Copy-on-write makes copying a 626MB `node_modules` free
-`code` · 2026-10-23 · `src/main/worktree/worktree.service.ts`
-
-`cp -c` on APFS does not copy bytes. It points the new file at the same
-extents and splits them only when one side is written to, so carrying this
-repository's `node_modules` into a new worktree took **2.6 seconds and changed
-free disk space by nothing measurable** — `du` reports 636MB in both places
-and `df` reports the same 801Gi free before and after.
-
-This is the measurement the whole carry design rests on. Copying every ignored
-file is an absurd thing to do without it and an obvious one with it, and the
-difference is one flag. `--reflink=auto` is the Linux equivalent; `fsp.cp` is
-the fallback and is a real byte copy. The symlinks have to be preserved rather
-than followed, or a pnpm `node_modules` — which is mostly relative links into
-`.pnpm/` — drags the entire store along with it.
-
 ### The single-instance lock makes a second `pnpm dev` exit after a clean build
 `code` · 2026-10-22 · `src/main/index.ts`
 
@@ -425,6 +409,22 @@ Before porting a table, check whether the new ecosystem already maintains it.
 ---
 
 ## Measurements and performance
+
+### Copy-on-write makes copying a 626MB `node_modules` free
+`code` · 2026-10-23 · `src/main/worktree/worktree.service.ts`
+
+`cp -c` on APFS does not copy bytes. It points the new file at the same
+extents and splits them only when one side is written to, so carrying this
+repository's `node_modules` into a new worktree took **2.6 seconds and changed
+free disk space by nothing measurable** — `du` reports 636MB in both places
+and `df` reports the same 801Gi free before and after.
+
+This is the measurement the whole carry design rests on. Copying every ignored
+file is an absurd thing to do without it and an obvious one with it, and the
+difference is one flag. `--reflink=auto` is the Linux equivalent; `fsp.cp` is
+the fallback and is a real byte copy. The symlinks have to be preserved rather
+than followed, or a pnpm `node_modules` — which is mostly relative links into
+`.pnpm/` — drags the entire store along with it.
 
 ### A mark baked into flattened artwork cannot be resized over itself
 `code` · 2026-10-18 · `scripts/build-icons.mjs`

@@ -66,8 +66,10 @@ same grammar in the field being typed into — that is what makes the error
 message good — and main checks it again, because the renderer's answer is not
 evidence.
 
-**Neither channel takes a root.** Main already knows which project is open, and
-a path from the renderer would be a path main then writes a file into.
+**Neither channel takes a root.** Main resolves it from `event.sender` — which
+project the *asking window* has open — and a path from the renderer would be a
+path main then writes a file into. See
+[../decisions.md](../decisions.md), ADR-0032.
 
 **Nothing has a Save button.** A control writes the config store, and
 `useConfigSaveEffect` puts the file down once it settles — the same debounced

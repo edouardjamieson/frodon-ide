@@ -18,6 +18,59 @@ their reasoning is the reasoning recorded at the time, not reconstructed.
 
 ---
 
+### ADR-0036 — A project has two roots: where its files are, and where its identity comes from
+
+**When** 2026-10-24 · **Status** active · **Touches** project, worktrees, session, app icon
+
+**What.** `project:tree` answers with a `ProjectTree`: the files, and an
+`identityRoot`. Everything path-shaped uses the project root — the tree, the
+layout key, where a new file lands. The name, the hue and the icon use the
+identity root, which is the project root everywhere except a linked worktree,
+where it is the repository's own working tree.
+
+**Why.** "Absent means derived" resolves a project's name from its folder, and
+a worktree's folder is named after a branch —
+`~/.frodon/worktrees/frodon/web-browser` opened as a project called
+*web-browser*, with a hue hashed from that string and an icon reading *W*.
+Three wrong answers beside a window giving the right ones for the same
+project, which
+[ADR-0034](#adr-0034--worktrees-are-git-worktrees-and-every-ignored-file-is-cloned-into-one)
+had already decided is one project.
+
+Two cheaper fixes were available and both are worse. **Writing the name into
+the worktree's `.frodon/config.json`** stores a derivation, which
+[ADR-0025](#adr-0025--settings-are-two-files-and-absent-means-derived) refuses
+— and that file is tracked, so it would arrive in a pull request. **Reading
+the parent's config instead of the worktree's** fixes the name and moves the
+problem: `config:save-project` would then write outside the checkout you are
+in, showing up as a modification in a *different* worktree. The identity root
+leaves both files alone and changes only which directory the existing
+resolvers are pointed at.
+
+A path and not a resolved name, because **no derivation crosses the
+boundary** — the rule in `docs/features/project.md`. Main says which directory
+to ask about; the renderer runs the same three resolvers it runs on the five
+projects in the launcher.
+
+**How.** `ProjectTree` in `@shared/project.def`, resolved by `primaryWorktree`
+in `main/worktree/` from `--git-common-dir`, whose parent is the checkout that
+owns the shared `.git`. Both answers come from one `rev-parse`, the same one
+that decides whether to record a recent. Main keeps it on the session —
+`identityRootOf` — because the Dock tile is painted there. In the renderer
+only `useProjectIdentity` reads `identityRoot`; everything else reads `root`.
+Both arrive in the one call so the header never draws a branch slug for a
+frame before correcting itself.
+
+**Cost.** A second root is a second thing to pick correctly, and picking the
+wrong one fails silently in a direction nobody notices until they open a
+worktree — `root` for identity gives a branch's name, `identityRoot` for a
+file path writes into the wrong checkout. The rule lives in a comment on the
+store field and in this entry, which is weaker than a type would be. And two
+windows on one project are now identical by construction: same name, same
+icon, same accent, with only the branch to tell them apart.
+
+---
+
 ### ADR-0035 — A window in a worktree does not switch branches
 
 **When** 2026-10-23 · **Status** active · **Touches** worktrees, git, workbench

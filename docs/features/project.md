@@ -194,7 +194,7 @@ they do not share is the saved layout — see **Not there yet**.
   project you already have, reachable from the Worktrees panel, and the
   launcher holds five slots — one spent on a checkout that is a click from
   its parent is one taken from a project nothing else can reach. `project:tree`
-  asks `isLinkedWorktree` before recording. See
+  asks `primaryWorktree` before recording. See
   [worktrees.md](worktrees.md).
 - **Recents are fetched on mount, not kept current.** By the time the list
   could go stale, the hook has been unmounted by the project it opened.

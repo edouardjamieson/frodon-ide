@@ -14,6 +14,11 @@ tomorrow morning.
 A *window* here is a tile, not an OS window. The thing `main/app/` creates is
 a `BrowserWindow` and lives in the other process; the two never meet.
 
+There can be several of those, each on its own project — see
+[project.md](project.md) — which is why the command that opens one is
+`app.newWindow` while the one that splits this grid is `window.splitRight`.
+Everything below is about the grid inside one of them.
+
 ## Where it lives
 
 | Path | What it holds |

@@ -1,6 +1,9 @@
+import { cn } from 'cn';
 import { FileX, RotateCw, TriangleAlert, X } from 'lucide-react';
 import { useEditor } from './editor.hook';
 import EditorFind from './editor-find.component';
+import EditorImage from './editor-image.component';
+import { isImagePath } from './editor-image.service';
 
 interface EditorProps {
   /** The pane this editor belongs to — see `useEditor`. */
@@ -69,8 +72,13 @@ function Notice({
  * mounted anywhere without bringing a header along.
  */
 export default function Editor({ windowId, path, openPaths }: EditorProps) {
+  // A picture is not a document, so CodeMirror is told there is no file on
+  // screen: it parks whatever tab was there, reads nothing, and the find bar
+  // and `mod+s` find nothing to act on. The view stays mounted underneath,
+  // hidden, because the other tabs' documents and undo histories live in it.
+  const image = isImagePath(path) ? path : null;
   const { hostRef, error, diverged, missing, reload, dismiss, find } =
-    useEditor(windowId, path, openPaths);
+    useEditor(windowId, image ? null : path, openPaths);
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col bg-editor">
@@ -103,9 +111,16 @@ export default function Editor({ windowId, path, openPaths }: EditorProps) {
         </Notice>
       ) : null}
 
+      {/* Keyed by path, so the next picture starts fitted rather than at
+          the zoom the last one was left at. */}
+      {image ? <EditorImage key={image} path={image} /> : null}
+
       <div
         ref={hostRef}
-        className="min-h-0 flex-1 overflow-hidden select-text"
+        className={cn(
+          'min-h-0 flex-1 overflow-hidden select-text',
+          image && 'hidden'
+        )}
       />
     </div>
   );

@@ -66,6 +66,7 @@ import {
   createFile,
   deleteEntry,
   readFileText,
+  readFileBytes,
   renameEntry,
   writeFileText,
 } from '@main/fs';
@@ -348,6 +349,8 @@ export function registerIpcHandlers(): void {
   });
 
   handle('file:read', ({ path }) => readFileText(path));
+
+  handle('file:read-bytes', ({ path }) => readFileBytes(path));
 
   handle('file:write', ({ path, content }) => writeFileText(path, content));
 

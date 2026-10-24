@@ -128,6 +128,16 @@ export async function readFileText(filePath: string): Promise<string> {
   return fsp.readFile(filePath, 'utf8');
 }
 
+/**
+ * A file's bytes, as a plain `Uint8Array` rather than the `Buffer` Node hands
+ * back: a `Buffer` is a subclass, and what crosses the boundary should be the
+ * type the contract names, not one that happens to clone into it.
+ */
+export async function readFileBytes(filePath: string): Promise<Uint8Array<ArrayBuffer>> {
+  const buffer = await fsp.readFile(filePath);
+  return new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+}
+
 export async function writeFileText(
   filePath: string,
   content: string

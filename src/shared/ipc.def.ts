@@ -179,6 +179,15 @@ export interface IpcContract {
 
   /** Reads a file as UTF-8 text. Rejects if unreadable. */
   'file:read': { req: { path: string }; res: string };
+  /**
+   * Reads a file as its raw bytes. Rejects if unreadable.
+   *
+   * For the files that are not text — an image tab draws what this returns.
+   * A `Uint8Array` clones across the boundary as one copy of the bytes, where
+   * a data URL would be a third larger and a string the renderer then has to
+   * hold twice.
+   */
+  'file:read-bytes': { req: { path: string }; res: Uint8Array<ArrayBuffer> };
   /** Writes a file, creating parent directories as needed. */
   'file:write': { req: { path: string; content: string }; res: FsResult };
   /**
@@ -629,6 +638,7 @@ export interface FrodonApi {
   };
   file: {
     read: (path: string) => Promise<Res<'file:read'>>;
+    readBytes: (path: string) => Promise<Res<'file:read-bytes'>>;
     write: (path: string, content: string) => Promise<Res<'file:write'>>;
     create: (parent: string, name: string) => Promise<Res<'file:create'>>;
     createDir: (

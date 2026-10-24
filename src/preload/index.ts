@@ -52,6 +52,7 @@ const api: FrodonApi = {
   },
   file: {
     read: (path) => ipcRenderer.invoke('file:read', { path }),
+    readBytes: (path) => ipcRenderer.invoke('file:read-bytes', { path }),
     write: (path, content) =>
       ipcRenderer.invoke('file:write', { path, content }),
     create: (parent, name) =>

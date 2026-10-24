@@ -1,8 +1,9 @@
 # Editor
 
 CodeMirror 6 in a tile, with tabs, saving, syntax highlighting fetched per
-language, find-in-file, and an answer for what happens when something outside
-Frodon rewrites the file you are looking at.
+language, find-in-file, an answer for what happens when something outside
+Frodon rewrites the file you are looking at — and pictures drawn as pictures,
+with zoom and pan.
 
 ## Goal
 
@@ -19,6 +20,7 @@ must not silently clobber them either.
 | `components/modules/editor/editor.service.ts` | `minimalChange` — the diff that keeps a cursor in place |
 | `components/modules/editor/editor.theme.ts` | the resolved `Theme` handed to CodeMirror's own theme API |
 | `components/modules/editor/editor-find.*` | the find bar: state field, view plugin, decorations |
+| `components/modules/editor/editor-image.*` | an image tab: the bytes, the view, zoom and pan |
 | `renderer/src/lib/editor/` | `dirty`, `pendingSave`, `pendingFind` — what the rest of the app knows about open documents |
 | `renderer/src/lib/file-watch/` | the subscription that says a file moved |
 | `main/watch/` | per-path mtime and size, for the files windows said they had open |
@@ -101,6 +103,32 @@ window consumes and clears, the same shape `pendingReveal` has. A request
 addressed to a terminal is never made: nothing would come along to take it, and
 it would fire the instant a file was opened there.
 
+### A picture is not a document
+
+An image tab is drawn by `EditorImage` instead of CodeMirror, decided by
+extension in `IMAGE_TYPES` — only formats Chromium decodes by itself, since the
+`<img>` element is the decoder. The CodeMirror view stays mounted and hidden
+under it, and is told the window has *no* file on screen: it parks the tab it
+was showing, reads nothing, and `mod+s` and `mod+f` find nothing to act on.
+The other tabs' documents and undo histories live in that view, so unmounting
+it for a picture would discard them.
+
+The bytes come over `file:read-bytes` as a `Uint8Array` and are drawn from an
+object URL, which is why the renderer's CSP allows `blob:` in `img-src`. A data
+URL needed no CSP change and would have cost a third more on the wire and a
+second copy as a string.
+
+The view is a scale and an offset applied as one CSS transform, not an image
+resized in a scrolling box — a scroll box can only pan as far as its content is
+wide, so zooming about the cursor would mean resizing and re-scrolling in the
+same frame, and the frame where only one had landed is a visible jump.
+`settle` keeps the picture on screen after every change: centred on an axis
+where it fits, and pannable only until its edge meets the pane's where it does
+not.
+
+A picture rewritten on disk is re-read and replaced. There is nothing to merge
+in a picture, so there is no question to ask.
+
 ## User flows
 
 ### Opening a file
@@ -129,6 +157,19 @@ it would fire the instant a file was opened there.
 3. Each window answers for its own documents. Only "this file is gone from
    disk" is shared, because the tab bar draws it.
 
+### Looking at a picture
+
+1. Opening a `.png`, `.jpg`, `.gif`, `.webp`, `.avif`, `.bmp` or `.ico` shows
+   it fitted to the pane — never upscaled past 100%, so an icon arrives at its
+   own size rather than as a blur.
+2. Pinch, or the wheel with Cmd or Ctrl held, zooms about the cursor. The
+   wheel alone, or a drag, pans.
+3. Double-click goes to 100% under the cursor, and back to fitted.
+4. The strip beneath gives the dimensions and the file size, zoom buttons, the
+   percentage (click for 100%) and fit. Past 200%, pixels are drawn as squares.
+5. A fitted picture stays fitted as the tile is resized; one that has been
+   zoomed or panned keeps its view.
+
 ### Finding in the file
 
 1. `mod+f` opens a bar above the document — not an overlay in the corner, which
@@ -152,12 +193,20 @@ it would fire the instant a file was opened there.
 - **`editor.theme.ts` is one of only two places `useTheme()` is correct.**
   CodeMirror builds its own stylesheets; everything else writes a utility class.
   See [theme.md](../theme.md).
+- **SVG opens as text.** It is a picture, but it is opened to be edited far
+  more often than to be looked at.
 - **Everything that changes without rebuilding a document lives in one
   compartment.** A compartment can only be reconfigured if it was present when
   the state was created, so it is installed in every state and merely swapped —
   which is what lets a theme change keep the scroll and the undo history.
 
 ## Not there yet
+
+- Other binary files still open as text. A file that is neither a known
+  picture nor valid UTF-8 wants a "binary file" placeholder rather than a
+  screen of replacement characters.
+- A picture's zoom has no keyboard chords. They would go through the
+  registry like every other, not a `keydown` in the component.
 
 - The dialog that asks before a tab with a star on it is closed. `dirty` has
   the answer; nothing asks the question.

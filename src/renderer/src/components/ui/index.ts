@@ -17,6 +17,12 @@
  * Adding a component means adding a line here. The CLI will not do it.
  */
 export { Button, buttonVariants } from './button';
+export {
+  ButtonGroup,
+  ButtonGroupSeparator,
+  ButtonGroupText,
+  buttonGroupVariants,
+} from './button-group';
 export { Checkbox } from './checkbox';
 export {
   ContextMenu,

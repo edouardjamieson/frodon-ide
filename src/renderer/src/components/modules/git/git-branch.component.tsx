@@ -102,10 +102,14 @@ export default function BranchMenu() {
                 <span className="text-xs font-semibold">{label}</span>
                 <div className="flex items-center gap-1">
                   {changeSet.staged > 0 && (
-                    <div className="size-2 rounded-full border border-git-staged bg-git-staged/40"></div>
+                    <div className="w-[14px] h-[14px] rounded-sm text-[11px] font-bold text-git-staged border flex items-center justify-center border-git-staged bg-git-staged/40">
+                      {changeSet.staged > 9 ? '9+' : changeSet.staged}
+                    </div>
                   )}
                   {changeSet.dirty > 0 && (
-                    <div className="size-2 rounded-full border border-git-changed bg-git-changed/40"></div>
+                    <div className="w-[14px] h-[14px] rounded-sm text-[11px] font-bold text-git-changed border flex items-center justify-center border-git-changed bg-git-changed/40">
+                      {changeSet.dirty > 9 ? '9+' : changeSet.dirty}
+                    </div>
                   )}
                 </div>
               </Button>
@@ -157,10 +161,14 @@ export default function BranchMenu() {
             <span className="text-xs font-semibold">{label}</span>
             <div className="flex items-center gap-1">
               {changeSet.staged > 0 && (
-                <div className="size-2 rounded-full border border-git-staged bg-git-staged/40"></div>
+                <div className="w-[14px] h-[14px] rounded-sm text-[11px] font-bold text-git-staged border flex items-center justify-center border-git-staged bg-git-staged/30">
+                  {changeSet.staged > 9 ? '9+' : changeSet.staged}
+                </div>
               )}
               {changeSet.dirty > 0 && (
-                <div className="size-2 rounded-full border border-git-changed bg-git-changed/40"></div>
+                <div className="w-[14px] h-[14px] rounded-sm text-[11px] font-bold text-git-changed border flex items-center justify-center border-git-changed bg-git-changed/30">
+                  {changeSet.dirty > 9 ? '9+' : changeSet.dirty}
+                </div>
               )}
             </div>
           </Button>

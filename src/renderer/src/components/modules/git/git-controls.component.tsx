@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import {
   Button,
+  ButtonGroup,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -15,7 +16,8 @@ import { useGit, useGitStore, useIsRepo } from '~/lib/git';
 import BranchMenu from './git-branch.component';
 
 /**
- * The git cluster in the header: the repository, pull, push, and the branch.
+ * The git cluster in the header: the branch, then pull and push, joined into
+ * one group.
  *
  * It draws nothing at all outside a repository — a folder that isn't one has
  * no branch to show and no remote to push to, and three disabled buttons
@@ -41,25 +43,26 @@ export default function GitControls() {
     <div className="flex items-center gap-2">
       {error ? <GitError message={error} onDismiss={dismissError} /> : null}
 
-      <GitAction
-        icon={ArrowDownToLine}
-        label={behind > 0 ? `Pull ${behind} commit(s)` : 'Pull'}
-        count={behind}
-        busy={operation === 'pull'}
-        disabled={busy}
-        onClick={() => void pull()}
-      />
+      <ButtonGroup>
+        <BranchMenu />
+        <GitAction
+          icon={ArrowDownToLine}
+          label={'Pull'}
+          count={behind}
+          busy={operation === 'pull'}
+          disabled={busy}
+          onClick={() => void pull()}
+        />
 
-      <GitAction
-        icon={ArrowUpToLine}
-        label={ahead > 0 ? `Push ${ahead} commit(s)` : 'Push'}
-        count={ahead}
-        busy={operation === 'push'}
-        disabled={busy}
-        onClick={() => void push()}
-      />
-
-      <BranchMenu />
+        <GitAction
+          icon={ArrowUpToLine}
+          label={'Push'}
+          count={ahead}
+          busy={operation === 'push'}
+          disabled={busy}
+          onClick={() => void push()}
+        />
+      </ButtonGroup>
     </div>
   );
 }
@@ -83,30 +86,27 @@ function GitAction({
   onClick,
 }: GitActionProps) {
   return (
-    <Hint label={label}>
-      <Button
-        variant="outline"
-        size="icon-sm"
-        className="relative cursor-pointer"
-        disabled={disabled}
-        onClick={onClick}
-        aria-label={label}
-      >
-        {busy ? (
-          <LoaderCircle className="size-4 animate-spin" />
-        ) : (
-          <Icon className="size-4" />
-        )}
+    <Button
+      variant="outline"
+      size="sm"
+      className="relative cursor-pointer"
+      disabled={disabled}
+      onClick={onClick}
+      aria-label={label}
+    >
+      {busy ? (
+        <LoaderCircle className="size-4 animate-spin" />
+      ) : (
+        <Icon className="size-4 text-fg-muted" />
+      )}
 
-        {count > 0 && !busy ? (
-          <div className="absolute left-[70%] top-[60%] flex size-4 items-center justify-center rounded-full bg-project/50  backdrop-blur-sm">
-            <span className="font-bold text-fg text-[10px] text-shadow-sm">
-              {count > 9 ? '9+' : count}
-            </span>
-          </div>
-        ) : null}
-      </Button>
-    </Hint>
+      <span className="text-xs font-semibold">{label}</span>
+      {count > 0 && !busy && (
+        <div className="w-[14px] h-[14px] rounded-sm text-[11px] font-bold text-project border flex items-center justify-center border-project bg-project/30">
+          {count > 9 ? '9+' : count}
+        </div>
+      )}
+    </Button>
   );
 }
 

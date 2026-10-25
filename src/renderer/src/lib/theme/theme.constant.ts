@@ -338,4 +338,68 @@ export const BUILT_IN_THEMES: ThemeDefinition[] = [
       },
     },
   },
+  {
+    // The warm one. Every other theme here sits on a neutral or a cool grey,
+    // and a long evening in front of blue-black is a different evening from
+    // one in front of brown. The neutrals are kept low in chroma on purpose:
+    // the accent is the open project's hue, and a background with a strong
+    // cast of its own would fight half the projects anyone opens. The syntax
+    // is earth — terracotta, olive, ochre, sage — so nothing in the code
+    // reaches for the saturation the project's color is allowed.
+    name: 'umber',
+    description:
+      'Warm brown-black neutrals and earthy syntax, for long evenings.',
+    dark: true,
+    colors: {
+      palette: {
+        bg: '#15120e',
+        bgElevated: '#1d1914',
+        bgOverlay: '#191510',
+        bgHighlight: '#2b251e',
+        bgSelection: '#3d352b',
+        scrim: '#00000080',
+
+        border: '#2b251e',
+
+        fg: '#ece1d0',
+        fgMuted: '#b3a693',
+        fgSubtle: '#6b6052',
+        fgOnAccent: '#15120e',
+
+        danger: '#e5735e',
+        warning: '#e2b45f',
+        success: '#b4bb6f',
+      },
+      syntax: {
+        plain: '#e4d6c1',
+        comment: '#857a6a',
+        keyword: '#e8836b',
+        string: '#b4bb6f',
+        number: '#d79ab0',
+        function: '#8fb8a8',
+        variable: '#e4d6c1',
+        class: '#e2b45f',
+        tag: '#f0a46c',
+        punctuation: '#c8b8a2',
+      },
+      ansi: {
+        black: '#1d1915',
+        red: '#e8836b',
+        green: '#b4bb6f',
+        yellow: '#e2b45f',
+        blue: '#8fb0c8',
+        magenta: '#d79ab0',
+        cyan: '#8fb8a8',
+        white: '#cbbca7',
+        brightBlack: '#6b6052',
+        brightRed: '#f29c86',
+        brightGreen: '#c8cf85',
+        brightYellow: '#f0c878',
+        brightBlue: '#a8c4d8',
+        brightMagenta: '#e6b2c4',
+        brightCyan: '#a8cfc0',
+        brightWhite: '#ece1d0',
+      },
+    },
+  },
 ];

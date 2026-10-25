@@ -22,7 +22,7 @@ import { AppIconField } from './settings-app-icon.component';
 export default function SettingsAppearance() {
   const { theme, themes, select } = useThemePreference();
 
-  // Three definitions today, so this is not about cost — it is about identity.
+  // Four definitions today, so this is not about cost — it is about identity.
   // Resolving inside the map would build four new objects per keystroke
   // anywhere else in the dialog.
   const resolved = useMemo(

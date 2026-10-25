@@ -1,7 +1,7 @@
 {
   "name": "frodon",
   "productName": "Frodon",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A desktop IDE for people who'd rather not switch windows.",
   "license": "MIT",
   "repository": {

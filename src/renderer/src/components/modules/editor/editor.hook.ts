@@ -62,6 +62,7 @@ import {
 import { languages } from '@codemirror/language-data';
 import { useTheme } from '~/lib/theme';
 import type { Theme } from '~/lib/theme';
+import { useEditorText, type TextPreferences } from '~/lib/config';
 import { useWindowStore } from '~/lib/window';
 import { useIsMissing } from '~/lib/file-watch';
 import { isMarkdownPath, useEditorStore } from '~/lib/editor';
@@ -161,9 +162,27 @@ async function loadLanguage(path: string | null): Promise<void> {
   }
 }
 
-/** What the compartment holds for a given file: its colors and its grammar. */
-function appearanceFor(theme: Theme, path: string | null): Extension[] {
-  return [codeMirrorTheme(theme), ...languageFor(path)];
+/**
+ * What the compartment holds for a given file: its colors, its face, its
+ * grammar, and whether long lines wrap.
+ *
+ * Wrapping lives here rather than in `mode`, though it is about layout rather
+ * than color, because it changes for the same reason the rest of this does —
+ * a preference flipped in the settings, reaching every open document at
+ * once — and the effect that reconfigures this compartment already walks
+ * every parked state to do exactly that. A markdown page carries its own
+ * `lineWrapping` in `mode` and keeps it whatever this says.
+ */
+function appearanceFor(
+  theme: Theme,
+  text: TextPreferences,
+  path: string | null
+): Extension[] {
+  return [
+    codeMirrorTheme(theme, text),
+    text.wordWrap ? EditorView.lineWrapping : [],
+    ...languageFor(path),
+  ];
 }
 
 /** Line numbers, the active line and folding: how code is drawn. */
@@ -202,6 +221,7 @@ function modeFor(path: string | null, source: boolean): Extension {
 function createState(
   doc: string,
   theme: Theme,
+  text: TextPreferences,
   path: string | null,
   source: boolean
 ) {
@@ -224,7 +244,7 @@ function createState(
       // `lib/keybinding/`, which listens in the capture phase precisely so
       // that CodeMirror's own keymap cannot claim a chord first.
       findExtension(),
-      appearance.of(appearanceFor(theme, path)),
+      appearance.of(appearanceFor(theme, text, path)),
       mode.of(modeFor(path, source)),
     ],
   });
@@ -346,6 +366,9 @@ export function useEditor(
    * one place a theme change is meant to be handled.
    */
   const themeRef = useRef(theme);
+  /** The font and wrapping, read the same way and for the same reason. */
+  const text = useEditorText();
+  const textRef = useRef(text);
   /**
    * Whether this window shows markdown as source — `mod+e`. Read through a
    * ref by the effects that build documents, for the reason `themeRef` is,
@@ -434,7 +457,13 @@ export function useEditor(
 
     const view: EditorView = new EditorView({
       parent: host,
-      state: createState('', themeRef.current, null, sourceRef.current),
+      state: createState(
+        '',
+        themeRef.current,
+        textRef.current,
+        null,
+        sourceRef.current
+      ),
       // Taking over dispatch rather than installing an `updateListener` in
       // every state: this belongs to the *view*, which outlives each document
       // swapped into it, so there is one hook here instead of one in every
@@ -477,7 +506,15 @@ export function useEditor(
     if (shownRef.current) docsRef.current.set(shownRef.current, view.state);
 
     if (!path) {
-      view.setState(createState('', themeRef.current, null, sourceRef.current));
+      view.setState(
+        createState(
+          '',
+          themeRef.current,
+          textRef.current,
+          null,
+          sourceRef.current
+        )
+      );
       shownRef.current = null;
       return;
     }
@@ -511,6 +548,7 @@ export function useEditor(
         const state = createState(
           content,
           themeRef.current,
+          textRef.current,
           path,
           sourceRef.current
         );
@@ -683,28 +721,35 @@ export function useEditor(
     });
   }, [adopt, settleDirty]);
 
-  // Swap colors and grammar in place, on the visible document and on every
-  // parked one — a tab switched back to after a theme change must not come
-  // back wearing the old theme.
+  // Swap colors, font and grammar in place, on the visible document and on
+  // every parked one — a tab switched back to after a theme change must not
+  // come back wearing the old theme, nor one after a font change in the old
+  // size. Going through the theme rather than a CSS variable is deliberate:
+  // a reconfigure is something CodeMirror knows to re-measure after, and the
+  // gutter, the cursor and the scroll height are all computed from those
+  // measurements.
   useEffect(() => {
     themeRef.current = theme;
+    textRef.current = text;
 
     const view = viewRef.current;
     if (!view) return;
 
     view.dispatch({
-      effects: appearance.reconfigure(appearanceFor(theme, shownRef.current)),
+      effects: appearance.reconfigure(
+        appearanceFor(theme, text, shownRef.current)
+      ),
     });
 
     for (const [known, state] of docsRef.current) {
       docsRef.current.set(
         known,
         state.update({
-          effects: appearance.reconfigure(appearanceFor(theme, known)),
+          effects: appearance.reconfigure(appearanceFor(theme, text, known)),
         }).state
       );
     }
-  }, [theme]);
+  }, [theme, text]);
 
   // Flip markdown between a page and its source, on the visible document and
   // on every parked one, so the window's other markdown tabs come back the

@@ -56,3 +56,12 @@ export function monospaceStack(): string {
 
   return stack || 'ui-monospace, Menlo, monospace';
 }
+
+/**
+ * The face a terminal is set in: the chosen one in front of the app's stack,
+ * the way the editor does it, so a face this machine lacks still lands on a
+ * monospace one.
+ */
+export function terminalFont(family: string | undefined): string {
+  return family ? `${family}, ${monospaceStack()}` : monospaceStack();
+}

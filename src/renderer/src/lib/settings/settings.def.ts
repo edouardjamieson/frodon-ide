@@ -19,6 +19,7 @@ export type SettingsSection =
   | 'project.general'
   | 'project.files'
   | 'user.appearance'
+  | 'user.editor'
   | 'user.shortcuts'
   | 'user.feedback';
 

@@ -36,6 +36,13 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     description: 'The colors every project is drawn in on this machine.',
   },
   {
+    id: 'user.editor',
+    scope: 'user',
+    label: 'Editor',
+    description:
+      'How code is set, in the editor and in the terminal, on this machine.',
+  },
+  {
     id: 'user.shortcuts',
     scope: 'user',
     label: 'Shortcuts',

@@ -97,6 +97,24 @@ export const MAX_EXCLUDE_PATTERNS = 200;
 /** Longest single pattern. A path, so a little more room than a name. */
 export const MAX_EXCLUDE_PATTERN_LENGTH = 200;
 
+/** The size text is drawn at when nobody chose one, in CSS pixels. */
+export const DEFAULT_FONT_SIZE = 13;
+
+/**
+ * The range a font size may be chosen from.
+ *
+ * Nine is the smallest a monospace face stays legible at on a non-Retina
+ * screen; thirty-two is a presentation, and past it a terminal is a few dozen
+ * columns wide and stops being one.
+ */
+export const MIN_FONT_SIZE = 9;
+export const MAX_FONT_SIZE = 32;
+
+/**
+ * Longest font family list. Long enough for three or four named faces, which
+ * is as many fallbacks as anyone writes before the built-in stack takes over.
+ */
+export const MAX_FONT_FAMILY_LENGTH = 120;
 
 /**
  * The open project's identity, as that project chose it.
@@ -164,6 +182,32 @@ export interface UserConfig {
    * pull request for everyone who clones the repository.
    */
   appIcon?: AppIcon;
+  /**
+   * The face code is set in, as a CSS font-family list. Absent: the app's own
+   * monospace stack, `--font-mono`.
+   *
+   * Whatever is written here goes *in front of* that stack rather than
+   * replacing it, so a face this machine does not have falls back to a
+   * monospace one instead of to the browser's default serif.
+   */
+  editorFontFamily?: string;
+  /** In CSS pixels. Absent: `DEFAULT_FONT_SIZE`. */
+  editorFontSize?: number;
+  /**
+   * Long lines folded at the edge of the pane, rather than scrolled to.
+   * Absent: off. A markdown page wraps regardless — a paragraph is one line
+   * of the file, and a page that scrolled sideways would not be a page.
+   */
+  wordWrap?: boolean;
+  /**
+   * The terminal's face. Absent: **whatever the editor uses**, which is the
+   * derivation most people want — one font for code wherever it is — and
+   * the reason this is a separate field at all is the face with ligatures
+   * that reads well in a file and badly in `htop`.
+   */
+  terminalFontFamily?: string;
+  /** Absent: the editor's size, for the same reason. */
+  terminalFontSize?: number;
 }
 
 /**
@@ -299,6 +343,30 @@ export function isValidExcludePattern(value: string): boolean {
 }
 
 /**
+ * Whether a string is a font-family list worth handing to CSS and to xterm.
+ *
+ * Letters, digits, spaces, commas, quotes, dots and hyphens — every real
+ * family name and every way of listing them. The narrowness is the point:
+ * this lands in a CodeMirror stylesheet, and a value allowed to carry `;` or
+ * `}` would be a value allowed to end the declaration and start another.
+ */
+export function isValidFontFamily(value: string): boolean {
+  const family = value.trim();
+  return (
+    family.length > 0 &&
+    family.length <= MAX_FONT_FAMILY_LENGTH &&
+    /^[\p{L}\p{N} ,'"._-]+$/u.test(family)
+  );
+}
+
+/** A font size in range, rounded to a whole pixel, or null. */
+export function normalizeFontSize(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  const size = Math.round(value);
+  return size >= MIN_FONT_SIZE && size <= MAX_FONT_SIZE ? size : null;
+}
+
+/**
  * The patterns in force for a project: its own list, or the defaults.
  *
  * One place that says what an absent `exclude` means, so main walking the
@@ -372,6 +440,28 @@ export function sanitizeUserConfig(value: unknown): UserConfig {
   }
 
   if (isValidAppIcon(raw.appIcon)) config.appIcon = raw.appIcon;
+
+  if (
+    typeof raw.editorFontFamily === 'string' &&
+    isValidFontFamily(raw.editorFontFamily)
+  ) {
+    config.editorFontFamily = raw.editorFontFamily.trim();
+  }
+
+  const editorSize = normalizeFontSize(raw.editorFontSize);
+  if (editorSize !== null) config.editorFontSize = editorSize;
+
+  if (typeof raw.wordWrap === 'boolean') config.wordWrap = raw.wordWrap;
+
+  if (
+    typeof raw.terminalFontFamily === 'string' &&
+    isValidFontFamily(raw.terminalFontFamily)
+  ) {
+    config.terminalFontFamily = raw.terminalFontFamily.trim();
+  }
+
+  const terminalSize = normalizeFontSize(raw.terminalFontSize);
+  if (terminalSize !== null) config.terminalFontSize = terminalSize;
 
   return config;
 }

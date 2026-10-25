@@ -7,7 +7,8 @@
  * Saving is one subscription, mounted once, because what it watches is a
  * single store that every window on the page shares.
  */
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
+import { DEFAULT_FONT_SIZE } from '@shared/config.def';
 import { useThemeSwitcher } from '~/lib/theme';
 import { useConfigStore } from './config.store';
 import {
@@ -19,6 +20,7 @@ import {
   sameConfig,
 } from './config.service';
 import { CONFIG_SAVE_MS } from './config.constant';
+import type { TextPreferences } from './config.def';
 
 /**
  * Reads this machine's settings and puts them on, once. Mount this ONCE near
@@ -165,6 +167,59 @@ export const useUserConfig = () => {
   const update = useConfigStore((state) => state.updateUserConfig);
 
   return { config, update };
+};
+
+/**
+ * How text is set in the editor: the face, the size, and whether long lines
+ * wrap. With the derivations already applied, so a consumer never has to
+ * know what an absent field means.
+ *
+ * Selected field by field and rebuilt only when one of them moves. The user
+ * config is replaced whole on every change to it — a theme picked, an icon
+ * chosen — and an object rebuilt on each of those would reconfigure every
+ * open document for a change that had nothing to do with text.
+ *
+ * `fontFamily` stays undefined when nobody chose one, rather than becoming
+ * the default stack. Only CSS can name `--font-mono` without reading it, and
+ * the editor and the terminal reach that stack two different ways.
+ */
+export const useEditorText = (): TextPreferences => {
+  const fontFamily = useConfigStore((state) => state.user.editorFontFamily);
+  const fontSize = useConfigStore((state) => state.user.editorFontSize);
+  const wordWrap = useConfigStore((state) => state.user.wordWrap);
+
+  return useMemo(
+    () => ({
+      fontFamily,
+      fontSize: fontSize ?? DEFAULT_FONT_SIZE,
+      wordWrap: wordWrap ?? false,
+    }),
+    [fontFamily, fontSize, wordWrap]
+  );
+};
+
+/**
+ * The same for the terminal, where an absent field means "what the editor
+ * has" rather than the built-in default — one font for code, wherever it is,
+ * until somebody says otherwise. A terminal does not wrap by choice, so that
+ * field is always false here.
+ */
+export const useTerminalText = (): TextPreferences => {
+  const fontFamily = useConfigStore(
+    (state) => state.user.terminalFontFamily ?? state.user.editorFontFamily
+  );
+  const fontSize = useConfigStore(
+    (state) => state.user.terminalFontSize ?? state.user.editorFontSize
+  );
+
+  return useMemo(
+    () => ({
+      fontFamily,
+      fontSize: fontSize ?? DEFAULT_FONT_SIZE,
+      wordWrap: false,
+    }),
+    [fontFamily, fontSize]
+  );
 };
 
 /** Whatever the last write said, for a dialog to show. */

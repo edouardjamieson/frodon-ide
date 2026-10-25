@@ -344,9 +344,10 @@ and bookmarks in groups saved with the project or kept privately · a
 launcher offering the last five projects · a workbench that reopens onto the
 tiles it was left on · several windows at once, each on its own project, with
 the Dock wearing the one you are looking at · worktrees, so two branches of
-one repository can be open side by side · a settings dialog on `mod+,` ·
-switching themes · a packaged, unsigned Mac app that updates itself from
-GitHub releases, with a "Restart to update" button in the header.
+one repository can be open side by side · a settings dialog on `mod+,`, with
+the editor's font and wrapping and the folders a project hides · switching
+themes · feedback filed as a prefilled GitHub issue · a packaged, unsigned Mac
+app that updates itself from GitHub releases, with a "Restart to update" button in the header.
 
 Everything else — the rest of the config layering, the command palette, LSP,
 and the dialog that should ask before a tab with unsaved work is closed — is

@@ -15,9 +15,32 @@ import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { tags as t } from '@lezer/highlight';
 import type { Extension } from '@codemirror/state';
 import type { Theme } from '~/lib/theme';
+import type { TextPreferences } from '~/lib/config';
 
-export function codeMirrorTheme(theme: Theme): Extension {
+/**
+ * The face code is set in: the chosen one in front of the app's own stack,
+ * so a face this machine lacks falls through to a monospace one rather than
+ * to whatever the browser defaults to.
+ */
+function codeFont(text: TextPreferences): string {
+  return text.fontFamily
+    ? `${text.fontFamily}, var(--font-mono)`
+    : 'var(--font-mono)';
+}
+
+/**
+ * Takes the text preferences as well as the theme, because both end up in
+ * the one stylesheet and a second `EditorView.theme` for the font would be a
+ * second stylesheet arguing with this one about `fontSize` — CodeMirror's
+ * precedence between two themes is mount order, which is nothing anyone
+ * should have to reason about to change a font.
+ */
+export function codeMirrorTheme(
+  theme: Theme,
+  text: TextPreferences
+): Extension {
   const { colors, syntax } = theme;
+  const font = codeFont(text);
 
   const base = EditorView.theme(
     {
@@ -25,10 +48,10 @@ export function codeMirrorTheme(theme: Theme): Extension {
         color: syntax.plain,
         backgroundColor: colors.editorBg,
         height: '100%',
-        fontSize: '13px',
+        fontSize: `${text.fontSize}px`,
       },
       '.cm-content': {
-        fontFamily: 'var(--font-mono)',
+        fontFamily: font,
         caretColor: colors.editorCursor,
         padding: '8px 0',
       },
@@ -56,7 +79,7 @@ export function codeMirrorTheme(theme: Theme): Extension {
       '.cm-searchMatch.cm-searchMatch-selected': {
         backgroundColor: colors.editorSearchMatchActiveBg,
       },
-      '.cm-scroller': { fontFamily: 'var(--font-mono)', lineHeight: '1.6' },
+      '.cm-scroller': { fontFamily: font, lineHeight: '1.6' },
       // The focus ring belongs to the pane, not the text area.
       '&.cm-focused': { outline: 'none' },
     },

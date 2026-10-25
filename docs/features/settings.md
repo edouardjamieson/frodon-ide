@@ -17,7 +17,7 @@ one undifferentiated list would be hiding the only thing about it that matters.
 | `main/config/config.service.ts` | reading forgivingly, writing narrowly; `readProjectConfigSync` for the session |
 | `main/session/session.service.ts` | `setProjectExcludes`, which hands a saved `exclude` to the project's watcher |
 | `main/feedback/` | turning the feedback form into a prefilled GitHub issue URL |
-| `renderer/src/lib/config/` | the replica, `update`, and `useConfigSaveEffect` |
+| `renderer/src/lib/config/` | the replica, `update`, `useConfigSaveEffect`, and `useEditorText` / `useTerminalText` |
 | `renderer/src/lib/settings/settings.constant.ts` | the pages, the hue swatches, the icon suggestions |
 | `components/modules/settings/` | the dialog and one component per page |
 
@@ -46,6 +46,15 @@ Every field is optional, and that is the model rather than an omission.
 | `exclude` | the whole list of patterns | `DEFAULT_EXCLUDE` |
 | `theme` (user) | a theme name | `frodon-dark` |
 | `appIcon` (user) | a key from `APP_ICONS` | `auto`, painted from the project's hue |
+| `editorFontFamily` (user) | a font-family list, put in front of `--font-mono` | `--font-mono` |
+| `editorFontSize` (user) | 9–32 px | 13 |
+| `wordWrap` (user) | `true` | off — switching it off removes the key |
+| `terminalFontFamily` (user) | as the editor's | **the editor's face** |
+| `terminalFontSize` (user) | 9–32 px | **the editor's size** |
+
+The two terminal fields derive from the editor's fields, not from the
+built-in defaults: one font for code wherever it is, until somebody says
+otherwise.
 
 Clearing a field in the dialog **removes the key** rather than writing an empty
 string. Writing a derivation into the file would freeze it at the moment
@@ -95,6 +104,13 @@ every save of the name comes through there too. Written out, the list
 *replaces* the defaults rather than adding to them; see
 [../decisions.md](../decisions.md), ADR-0039.
 
+**Fonts and wrapping reach the panes as preferences, not CSS variables.** The
+editor folds them into the `appearance` compartment beside the theme, so a
+change reconfigures every open document — parked ones included — and
+CodeMirror re-measures. The terminal sets `fontFamily` and `fontSize` on the
+live xterm and fits again, because a new cell size never trips the
+`ResizeObserver`.
+
 **Nothing re-reads a config file while the app is running.** Editing one by
 hand in another window and then changing a setting in the dialog will overwrite
 the hand edit. The watcher that would fix this is not worth its chattiness yet.
@@ -106,6 +122,7 @@ the hand edit. The watcher that would fix this is not worth its chattiness yet.
 | `project.general` | `.frodon/config.json` | name, hue, icon — how the project introduces itself |
 | `project.files` | `.frodon/config.json` | the exclude list, and what is always hidden whatever it says |
 | `user.appearance` | `~/.frodon/config.json` | the theme, and the app icon |
+| `user.editor` | `~/.frodon/config.json` | the editor's font, size and wrapping; the terminal's font and size |
 | `user.shortcuts` | — | the chord table, read-only until the config layer lands |
 | `user.feedback` | — | a report, opened as a GitHub issue in the browser |
 
@@ -143,6 +160,15 @@ about to be.
 3. Once the write lands, main rescans and the explorer, search and `mod+p`
    stop showing it. "Back to the defaults" removes the key, and so does an
    edit that lands the list exactly on the defaults again.
+
+### Changing the font
+
+1. `mod+,` → Editor. The sample at the top, the editor and every terminal
+   behind the dialog change as the field does.
+2. A family the sanitizer would refuse — anything with `;` or `}` — is not
+   taken, keystroke by keystroke, the way the icon field refuses a third
+   letter.
+3. The terminal follows the editor until its own fields are filled.
 
 ### Reporting a bug
 

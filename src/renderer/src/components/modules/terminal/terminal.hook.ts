@@ -17,7 +17,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { useTheme } from '~/lib/theme';
-import { monospaceStack, xtermTheme } from './terminal.theme';
+import { useTerminalText } from '~/lib/config';
+import { terminalFont, xtermTheme } from './terminal.theme';
 
 interface UseTerminalOptions {
   /** The session id, shared with main. Changing it is a different shell. */
@@ -41,19 +42,26 @@ export function useTerminal({
 }: UseTerminalOptions) {
   const hostRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
+  /**
+   * The mount effect's fit, for the font effect below. A new size changes the
+   * cell, not the element, so the `ResizeObserver` never hears about it and
+   * the grid would stay the shape it was for the old font.
+   */
+  const fitRef = useRef<(() => void) | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const theme = useTheme();
+  const text = useTerminalText();
   /**
    * Values the mount effect needs but must not re-run for. Rebuilding the
    * emulator because the theme changed would throw away the scrollback — and
    * killing the shell because the project moved would be worse.
    */
-  const latest = useRef({ theme, cwd, onExit });
+  const latest = useRef({ theme, text, cwd, onExit });
   // Declared before every other effect so it has already run by the time they
   // read it, on this commit and on every later one.
   useEffect(() => {
-    latest.current = { theme, cwd, onExit };
+    latest.current = { theme, text, cwd, onExit };
   });
 
   // One emulator and one shell, for as long as the tab exists.
@@ -62,8 +70,8 @@ export function useTerminal({
     if (!host) return;
 
     const term = new Terminal({
-      fontFamily: monospaceStack(),
-      fontSize: 13,
+      fontFamily: terminalFont(latest.current.text.fontFamily),
+      fontSize: latest.current.text.fontSize,
       lineHeight: 1.2,
       cursorBlink: true,
       // Deep enough to scroll back through a build, shallow enough that a
@@ -100,6 +108,7 @@ export function useTerminal({
     };
 
     fitIfVisible();
+    fitRef.current = fitIfVisible;
 
     const offData = window.frodon.terminal.onData(sessionId, (data) =>
       term.write(data)
@@ -148,6 +157,7 @@ export function useTerminal({
       void window.frodon.terminal.kill(sessionId);
       term.dispose();
       termRef.current = null;
+      fitRef.current = null;
     };
   }, [sessionId]);
 
@@ -157,6 +167,27 @@ export function useTerminal({
     const term = termRef.current;
     if (term) term.options.theme = xtermTheme(theme);
   }, [theme]);
+
+  // Change the face in place, like the colors. xterm re-measures its cell from
+  // these, and the fit afterwards turns the new cell into a new grid — and
+  // the PTY hears about that through `onResize`, so a full-screen program
+  // redraws at the new size rather than into the old one.
+  useEffect(() => {
+    const term = termRef.current;
+    if (!term) return;
+
+    const fontFamily = terminalFont(text.fontFamily);
+    if (
+      term.options.fontFamily === fontFamily &&
+      term.options.fontSize === text.fontSize
+    ) {
+      return;
+    }
+
+    term.options.fontFamily = fontFamily;
+    term.options.fontSize = text.fontSize;
+    fitRef.current?.();
+  }, [text]);
 
   // Keystrokes go to exactly one shell: the visible tab of the focused window.
   useEffect(() => {

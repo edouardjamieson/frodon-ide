@@ -47,3 +47,15 @@ export interface ConfigStore {
   saveError: string | null;
   setSaveError: (error: string | null) => void;
 }
+
+/**
+ * How a pane sets its text, resolved from the user config.
+ *
+ * Every field is filled in except the face, which stays undefined until
+ * somebody names one — see `useEditorText`.
+ */
+export interface TextPreferences {
+  fontFamily: string | undefined;
+  fontSize: number;
+  wordWrap: boolean;
+}

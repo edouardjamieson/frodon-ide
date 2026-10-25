@@ -329,7 +329,7 @@ body {
 }
 
 /*
- * The sidebar cat's animations — see `components/modules/companion`.
+ * The sidebar companion's animations — see `components/modules/companion`.
  *
  * Here rather than in Tailwind's arbitrary-value syntax because the frames
  * have to agree with each other: the tail's keyframes assume four equal slots
@@ -340,11 +340,11 @@ body {
 /* One tail frame visible per quarter of the period; the component staggers
    the four frames by a quarter each. `opacity: 0` is the resting value, so a
    frame whose animation is off shows nothing rather than everything. */
-.cat-tail-frame {
+.companion-motion-frame {
   opacity: 0;
-  animation: cat-tail-slot 2.4s steps(1, end) infinite;
+  animation: companion-motion-slot 2.4s steps(1, end) infinite;
 }
-@keyframes cat-tail-slot {
+@keyframes companion-motion-slot {
   0% {
     opacity: 1;
   }
@@ -355,14 +355,14 @@ body {
 }
 
 /* A blink every five seconds, shut for about a fifth of a second. */
-.cat-blink-open {
-  animation: cat-blink-open 5s steps(1, end) infinite;
+.companion-blink-open {
+  animation: companion-blink-open 5s steps(1, end) infinite;
 }
-.cat-blink-closed {
+.companion-blink-closed {
   opacity: 0;
-  animation: cat-blink-closed 5s steps(1, end) infinite;
+  animation: companion-blink-closed 5s steps(1, end) infinite;
 }
-@keyframes cat-blink-open {
+@keyframes companion-blink-open {
   0% {
     opacity: 1;
   }
@@ -371,7 +371,7 @@ body {
     opacity: 0;
   }
 }
-@keyframes cat-blink-closed {
+@keyframes companion-blink-closed {
   0% {
     opacity: 0;
   }
@@ -383,14 +383,14 @@ body {
 
 /* Hearts and snores drift up and fade. `backwards` holds the first keyframe
    through the delay, so a staggered one waits invisible instead of sitting
-   on the cat's head until its turn. */
-.cat-float {
-  animation: cat-float 1.6s ease-out infinite backwards;
+   on its head until its turn. */
+.companion-float {
+  animation: companion-float 1.6s ease-out infinite backwards;
 }
-[data-mood='asleep'] .cat-float {
+[data-mood='asleep'] .companion-float {
   animation-duration: 3s;
 }
-@keyframes cat-float {
+@keyframes companion-float {
   0% {
     opacity: 0;
     transform: translateY(0);
@@ -404,16 +404,16 @@ body {
   }
 }
 
-/* With motion reduced the cat holds still: tail curled, eyes open, and the
-   hearts and snores shown where they start rather than rising. */
+/* With motion reduced the companion holds still: first frame, eyes open,
+   and the hearts and snores shown where they start rather than rising. */
 @media (prefers-reduced-motion: reduce) {
-  .cat-tail-frame,
-  .cat-blink-open,
-  .cat-blink-closed,
-  .cat-float {
+  .companion-motion-frame,
+  .companion-blink-open,
+  .companion-blink-closed,
+  .companion-float {
     animation: none;
   }
-  .cat-tail-frame[data-frame='0'] {
+  .companion-motion-frame[data-frame='0'] {
     opacity: 1;
   }
 }

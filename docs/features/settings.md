@@ -49,6 +49,8 @@ Every field is optional, and that is the model rather than an omission.
 | `editorFontFamily` (user) | a font-family list, put in front of `--font-mono` | `--font-mono` |
 | `editorFontSize` (user) | 9–32 px | 13 |
 | `wordWrap` (user) | `true` | off — switching it off removes the key |
+| `companion` (user) | a key from `COMPANIONS` | `classic` |
+| `hideCompanion` (user) | `true` | shown — showing it again removes the key |
 | `terminalFontFamily` (user) | as the editor's | **the editor's face** |
 | `terminalFontSize` (user) | 9–32 px | **the editor's size** |
 
@@ -123,6 +125,7 @@ the hand edit. The watcher that would fix this is not worth its chattiness yet.
 | `project.files` | `.frodon/config.json` | the exclude list, and what is always hidden whatever it says |
 | `user.appearance` | `~/.frodon/config.json` | the theme, and the app icon |
 | `user.editor` | `~/.frodon/config.json` | the editor's font, size and wrapping; the terminal's font and size |
+| `user.companion` | `~/.frodon/config.json` | who sits in the sidebar, and whether anybody does |
 | `user.shortcuts` | — | the chord table, read-only until the config layer lands |
 | `user.feedback` | — | a report, opened as a GitHub issue in the browser |
 | `user.about` | — | the logo, the version, the updater's state, what it runs on, and the repository |

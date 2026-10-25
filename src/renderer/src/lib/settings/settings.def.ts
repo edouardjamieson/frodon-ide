@@ -20,6 +20,7 @@ export type SettingsSection =
   | 'project.files'
   | 'user.appearance'
   | 'user.editor'
+  | 'user.companion'
   | 'user.shortcuts'
   | 'user.feedback'
   | 'user.about';

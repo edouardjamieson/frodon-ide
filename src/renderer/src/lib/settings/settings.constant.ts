@@ -43,6 +43,13 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
       'How code is set, in the editor and in the terminal, on this machine.',
   },
   {
+    id: 'user.companion',
+    scope: 'user',
+    label: 'Companion',
+    description:
+      'Who sits in the corner of the sidebar, and whether anybody does.',
+  },
+  {
     id: 'user.shortcuts',
     scope: 'user',
     label: 'Shortcuts',

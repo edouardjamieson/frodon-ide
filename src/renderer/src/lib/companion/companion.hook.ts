@@ -3,7 +3,7 @@ import { IDLE_CHECK_MS, PURR_MS, SLEEP_AFTER_MS } from './companion.constant';
 import { useCompanionStore } from './companion.store';
 
 /**
- * The cat's moods, and the clock that puts it to sleep.
+ * The companion's moods, and the clock that puts it to sleep.
  *
  * Activity is *observed*, never handled: the listeners are passive, swallow
  * nothing and bind no key, so this is not the kind of `keydown` listener the
@@ -13,16 +13,17 @@ import { useCompanionStore } from './companion.store';
  *
  * Every event only writes a timestamp into a ref. The store is touched when
  * the mood actually changes, which while you work is never: an app that
- * re-rendered the cat on every keystroke would be paying for a cat.
+ * re-rendered the companion on every keystroke would be paying for a cat.
  */
-export const useCatCompanion = () => {
+export const useCompanion = () => {
   const mood = useCompanionStore((state) => state.mood);
   const setMood = useCompanionStore((state) => state.setMood);
   const lastActivity = useRef(0);
   const purrTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    // Mounting counts as activity: the clock starts when the cat appears.
+    // Mounting counts as activity: the clock starts when the companion
+    // appears.
     lastActivity.current = Date.now();
 
     const onActivity = () => {

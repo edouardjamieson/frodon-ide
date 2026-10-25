@@ -1,69 +1,42 @@
 import type { CSSProperties } from 'react';
-import { useCatCompanion, type CatMood } from '~/lib/companion';
+import { DEFAULT_COMPANION, type CompanionKind } from '@shared/config.def';
+import { useCompanion, type CompanionMood } from '~/lib/companion';
+import { useUserConfig } from '~/lib/config';
 import {
-  COLLAR,
-  EYES_CLOSED,
-  EYES_HAPPY,
-  EYES_OPEN,
-  FUR,
+  COMPANION_PATHS,
   HEART_HEIGHT,
-  HEART_PIXELS,
+  HEART_PATH,
   HEART_WIDTH,
-  NOSE,
+  MOTION_PERIOD,
   SPRITE_HEIGHT,
   SPRITE_SCALE,
   SPRITE_WIDTH,
-  TAIL_FRAMES,
-  TAIL_PERIOD,
-  TAIL_RESTING,
+  TONE_CLASS,
 } from './companion.constant';
-import { pixelPath } from './companion.service';
-
-// Built once at load. The sprite never changes shape, only which of these
-// paths are showing, so nothing here is worth recomputing on a render.
-const FUR_PATH = pixelPath(FUR);
-const COLLAR_PATH = pixelPath(COLLAR);
-const NOSE_PATH = pixelPath(NOSE);
-const EYES_OPEN_PATH = pixelPath(EYES_OPEN);
-const EYES_CLOSED_PATH = pixelPath(EYES_CLOSED);
-const EYES_HAPPY_PATH = pixelPath(EYES_HAPPY);
-const TAIL_FRAME_PATHS = TAIL_FRAMES.map(pixelPath);
-const TAIL_RESTING_PATH = pixelPath(TAIL_RESTING);
-const HEART_PATH = pixelPath(HEART_PIXELS);
+import type { CompanionPaths, ToneLayer } from './companion.def';
 
 /**
- * The cat at the foot of the sidebar. It sits under whichever module the
- * panel is showing, so it is there for the explorer, search, boards and
- * worktrees alike, and goes away only when the panel is collapsed.
+ * The companion in the corner of the sidebar, whichever one the settings
+ * chose.
  *
  * Every animation is CSS, keyed off `data-mood`. React renders when the mood
- * changes, which is a few times an hour; the blinking and swishing in between
+ * changes, which is a few times an hour; the blinking and swaying in between
  * cost it nothing.
  */
 export default function Companion() {
-  const { mood, pet } = useCatCompanion();
+  const { mood, pet } = useCompanion();
+  const { config } = useUserConfig();
+  const kind = config.companion ?? DEFAULT_COMPANION;
 
   return (
     <button
       type="button"
       onClick={pet}
       data-mood={mood}
-      aria-label="Pet the cat"
+      aria-label={`Pet the ${kind}`}
       className="relative cursor-pointer pointer-events-auto"
     >
-      <svg
-        viewBox={`0 0 ${SPRITE_WIDTH} ${SPRITE_HEIGHT}`}
-        width={SPRITE_WIDTH * SPRITE_SCALE}
-        height={SPRITE_HEIGHT * SPRITE_SCALE}
-        shapeRendering="crispEdges"
-        className="block"
-      >
-        <path d={FUR_PATH} className="fill-fg-muted" />
-        <path d={COLLAR_PATH} className="fill-project" />
-        <path d={NOSE_PATH} className="fill-sidebar" />
-        <Eyes mood={mood} />
-        <Tail mood={mood} />
-      </svg>
+      <CompanionFigure kind={kind} mood={mood} />
 
       {mood === 'purring' ? <Hearts /> : null}
       {mood === 'asleep' ? <Snores /> : null}
@@ -71,53 +44,122 @@ export default function Companion() {
   );
 }
 
-function Eyes({ mood }: { mood: CatMood }) {
+/**
+ * One companion in one mood, and nothing else — no petting, no clock. The
+ * sidebar wraps it in both; the settings page draws every one of them side by
+ * side with it.
+ */
+export function CompanionFigure({
+  kind,
+  mood,
+  scale = SPRITE_SCALE,
+}: {
+  kind: CompanionKind;
+  mood: CompanionMood;
+  scale?: number;
+}) {
+  const paths = COMPANION_PATHS[kind];
+
+  return (
+    <svg
+      viewBox={`0 0 ${SPRITE_WIDTH} ${SPRITE_HEIGHT}`}
+      width={SPRITE_WIDTH * scale}
+      height={SPRITE_HEIGHT * scale}
+      shapeRendering="crispEdges"
+      className="block"
+    >
+      <Layers layers={paths.body} />
+      <Eyes mood={mood} face={paths.face} className={TONE_CLASS[paths.eyes]} />
+      <Motion mood={mood} frames={paths.frames} resting={paths.resting} />
+    </svg>
+  );
+}
+
+function Layers({
+  layers,
+  className,
+  style,
+  frame,
+}: {
+  layers: readonly ToneLayer[];
+  className?: string;
+  style?: CSSProperties;
+  frame?: number;
+}) {
+  return (
+    <>
+      {layers.map((layer) => (
+        <path
+          key={layer.tone}
+          d={layer.d}
+          data-frame={frame}
+          className={`${className ?? ''} ${TONE_CLASS[layer.tone]}`}
+          style={style}
+        />
+      ))}
+    </>
+  );
+}
+
+function Eyes({
+  mood,
+  face,
+  className,
+}: {
+  mood: CompanionMood;
+  face: CompanionPaths['face'];
+  className: string;
+}) {
   switch (mood) {
     case 'awake':
       // Both pairs are drawn and the CSS cross-fades them, so a blink is
       // two opacity flips on the compositor rather than a timer in React.
       return (
         <>
-          <path d={EYES_OPEN_PATH} className="cat-blink-open fill-sidebar" />
+          <path d={face.open} className={`companion-blink-open ${className}`} />
           <path
-            d={EYES_CLOSED_PATH}
-            className="cat-blink-closed fill-sidebar"
+            d={face.closed}
+            className={`companion-blink-closed ${className}`}
           />
         </>
       );
     case 'asleep':
-      return <path d={EYES_CLOSED_PATH} className="fill-sidebar" />;
+      return <path d={face.closed} className={className} />;
     case 'purring':
-      return <path d={EYES_HAPPY_PATH} className="fill-sidebar" />;
+      return <path d={face.happy} className={className} />;
   }
 }
 
-function Tail({ mood }: { mood: CatMood }) {
-  if (mood === 'asleep') {
-    return <path d={TAIL_RESTING_PATH} className="fill-fg-muted" />;
-  }
+function Motion({
+  mood,
+  frames,
+  resting,
+}: {
+  mood: CompanionMood;
+  frames: CompanionPaths['frames'];
+  resting: CompanionPaths['resting'];
+}) {
+  if (mood === 'asleep') return <Layers layers={resting} />;
 
   // Every frame runs the same keyframes, each offset by its slot, so exactly
   // one is showing at any instant. The delays are negative to start every
   // frame mid-cycle at once — a positive one would leave all four visible
   // until it ran out.
-  const period = TAIL_PERIOD[mood];
-  const slots = TAIL_FRAME_PATHS.length;
+  const period = MOTION_PERIOD[mood];
+  const slots = frames.length;
 
   return (
     <>
-      {TAIL_FRAME_PATHS.map((d, i) => (
-        <path
+      {frames.map((layers, i) => (
+        <Layers
           key={i}
-          d={d}
-          data-frame={i}
-          className="cat-tail-frame fill-fg-muted"
-          style={
-            {
-              animationDuration: `${period}s`,
-              animationDelay: `${-(((slots - i) % slots) * period) / slots}s`,
-            } satisfies CSSProperties
-          }
+          layers={layers}
+          frame={i}
+          className="companion-motion-frame"
+          style={{
+            animationDuration: `${period}s`,
+            animationDelay: `${-(((slots - i) % slots) * period) / slots}s`,
+          }}
         />
       ))}
     </>
@@ -135,7 +177,7 @@ function Hearts() {
           width={HEART_WIDTH * 2}
           height={HEART_HEIGHT * 2}
           shapeRendering="crispEdges"
-          className="cat-float pointer-events-none absolute fill-project"
+          className="companion-float pointer-events-none absolute fill-project"
           style={{
             left: (3 + i * 5) * SPRITE_SCALE,
             top: -2,
@@ -155,7 +197,7 @@ function Snores() {
       {[0, 1, 2].map((i) => (
         <span
           key={i}
-          className="cat-float pointer-events-none absolute font-mono text-[10px] leading-none text-fg-subtle"
+          className="companion-float pointer-events-none absolute font-mono text-[10px] leading-none text-fg-subtle"
           style={{
             left: (10 + i * 2) * SPRITE_SCALE,
             top: -4,

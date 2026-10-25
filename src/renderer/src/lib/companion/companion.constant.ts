@@ -1,7 +1,7 @@
 /**
- * How long nobody may touch the app before the cat falls asleep. Long enough
- * that reading a file without scrolling does not count as leaving, short
- * enough that coming back from a coffee finds it curled up.
+ * How long nobody may touch the app before the companion falls asleep. Long
+ * enough that reading a file without scrolling does not count as leaving,
+ * short enough that coming back from a coffee finds it curled up.
  */
 export const SLEEP_AFTER_MS = 3 * 60_000;
 

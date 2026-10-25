@@ -208,7 +208,41 @@ export interface UserConfig {
   terminalFontFamily?: string;
   /** Absent: the editor's size, for the same reason. */
   terminalFontSize?: number;
+  /**
+   * Who sits in the corner of the sidebar. Absent: `DEFAULT_COMPANION`.
+   *
+   * A user setting for the reason the app icon is one: a companion is a fact
+   * about the person at the keyboard, and one written into the project's
+   * file would arrive in everyone else's sidebar with the next pull.
+   */
+  companion?: CompanionKind;
+  /** Whether anybody sits there at all. Absent: shown. */
+  hideCompanion?: boolean;
 }
+
+/**
+ * The companions there are, as names — the cats, then the rest. Like
+ * `APP_ICONS`, these are written into `~/.frodon/config.json`, so renaming
+ * one later forgets every choice of it.
+ */
+export const COMPANIONS = [
+  'classic',
+  'tuxedo',
+  'siamese',
+  'tabby',
+  'chonk',
+  'shadow',
+  'calico',
+  'dog',
+  'alien',
+  'turtle',
+  'fish',
+  'robot',
+] as const;
+
+export type CompanionKind = (typeof COMPANIONS)[number];
+
+export const DEFAULT_COMPANION: CompanionKind = 'classic';
 
 /**
  * The icons that exist, as keys rather than paths.
@@ -316,6 +350,13 @@ export function isValidAppIcon(value: unknown): value is AppIcon {
   return (
     typeof value === 'string' &&
     (APP_ICONS as readonly string[]).includes(value)
+  );
+}
+
+export function isValidCompanion(value: unknown): value is CompanionKind {
+  return (
+    typeof value === 'string' &&
+    (COMPANIONS as readonly string[]).includes(value)
   );
 }
 
@@ -462,6 +503,10 @@ export function sanitizeUserConfig(value: unknown): UserConfig {
 
   const terminalSize = normalizeFontSize(raw.terminalFontSize);
   if (terminalSize !== null) config.terminalFontSize = terminalSize;
+
+  if (isValidCompanion(raw.cat)) config.companion = raw.cat;
+  if (typeof raw.hideCompanion === 'boolean')
+    config.hideCompanion = raw.hideCompanion;
 
   return config;
 }

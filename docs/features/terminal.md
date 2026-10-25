@@ -18,7 +18,7 @@ imitated.
 | `main/terminal/terminal.registry.ts` | killing a shell and everything it started |
 | `main/terminal/terminal.constant.ts` | `FLUSH_MS`, `MAX_BATCH`, the default shell |
 | `components/modules/terminal/terminal.hook.ts` | the xterm instance, wired through refs |
-| `components/modules/terminal/terminal.theme.ts` | the sixteen ANSI colors, handed to xterm's `ITheme` |
+| `components/modules/terminal/terminal.theme.ts` | the sixteen ANSI colors, handed to xterm's `ITheme`, and `terminalFont` |
 
 ## How it works
 
@@ -38,6 +38,14 @@ the typed round trip.
 **The renderer names the session.** Main spawns the shell and keys its registry
 by that name. Main minting the id and returning it would leave the tab without
 an identity for the round trip, and every tab needs one the moment it is drawn.
+
+**The font follows the editor unless told otherwise.** `useTerminalText`
+resolves `terminalFontFamily` and `terminalFontSize`, falling back to the
+editor's fields and only then to the built-in stack and 13px. A change is set
+on the live xterm — no rebuild, so the scrollback survives — and then fitted
+by hand: a new cell size changes the grid without changing the element, so the
+`ResizeObserver` that fits on a drag never hears about it. The fit's
+`onResize` tells the PTY, and a full-screen program redraws at the new size.
 
 **Output is addressed, not broadcast.** The window that asked for the shell is
 kept on `event.sender` at the handler — a `WebContents`, which can be asked

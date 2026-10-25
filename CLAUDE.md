@@ -347,7 +347,8 @@ the Dock wearing the one you are looking at · worktrees, so two branches of
 one repository can be open side by side · a settings dialog on `mod+,`, with
 the editor's font and wrapping and the folders a project hides · switching
 themes · feedback filed as a prefilled GitHub issue · a packaged, unsigned Mac
-app that updates itself from GitHub releases, with a "Restart to update" button in the header.
+app that updates itself from GitHub releases, with a "Restart to update"
+button in the header.
 
 Everything else — the rest of the config layering, the command palette, LSP,
 and the dialog that should ask before a tab with unsaved work is closed — is

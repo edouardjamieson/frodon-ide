@@ -33,6 +33,14 @@ a large project instantly and blocking for seconds on `node_modules` — and it
 is why the search and the file picker are fast for free: they read a tree that
 was already narrowed.
 
+**What is excluded is the project's to say.** The patterns are `exclude` in
+`.frodon/config.json`, edited on the Files page of the settings, and
+`DEFAULT_EXCLUDE` when the project has none. `.git`, `node_modules`,
+`.DS_Store` and `Thumbs.db` are hidden whatever it says. Main applies a saved
+list immediately — `setExcludes` swaps the matcher and rescans — so a folder
+leaves the tree, search and `mod+p` together. See
+[settings.md](settings.md) and ADR-0039 in [decisions.md](../decisions.md).
+
 **Compare before you push.** `sameTree` drops a rescan that found nothing new.
 Under IPC a pointless push also costs a structured clone of the whole tree plus
 a React reconcile on the other side.
@@ -141,9 +149,8 @@ a name main trimmed is the name everything is re-keyed to.
 
 - Drag to move a file.
 - Multi-select.
-- The configurable exclude list — `DEFAULT_EXCLUDE` in
-  `main/project/project.service.ts` is a placeholder waiting on the config
-  layer.
+- A personal exclude list, for what only you want hidden. It waits for the
+  `.frodon/config.local.json` layer in [migration.md](../migration.md).
 
 ## See also
 

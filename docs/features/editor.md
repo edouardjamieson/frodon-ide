@@ -18,7 +18,7 @@ must not silently clobber them either.
 | --- | --- |
 | `components/modules/editor/editor.hook.ts` | lifecycle: the view, one `EditorState` per tab, reads, saves, external changes |
 | `components/modules/editor/editor.service.ts` | `minimalChange` — the diff that keeps a cursor in place |
-| `components/modules/editor/editor.theme.ts` | the resolved `Theme` handed to CodeMirror's own theme API |
+| `components/modules/editor/editor.theme.ts` | the resolved `Theme`, and the chosen font and size, handed to CodeMirror's own theme API |
 | `components/modules/editor/editor-find.*` | the find bar: state field, view plugin, decorations |
 | `components/modules/editor/editor-image.*` | an image tab: the bytes, the view, zoom and pan |
 | `components/modules/editor/editor-markdown.service.ts` | a markdown page: the grammar, the block that is revealed, the decorations |
@@ -99,6 +99,21 @@ module-level, so the second window to open a `.rs` file pays nothing.
 
 A grammar that will not load is a file without colors: worth a line in the
 console and nothing else.
+
+### The font and the wrap are settings, applied like the theme
+
+The face, the size and whether long lines wrap come from the user config
+(`editorFontFamily`, `editorFontSize`, `wordWrap`) through `useEditorText`,
+which resolves the absent values once. `codeMirrorTheme` takes them beside the
+theme and writes them into the same stylesheet — a second `EditorView.theme`
+for the font would leave the precedence between the two to CodeMirror's mount
+order. A chosen family goes in front of `--font-mono`, so a face this machine
+lacks falls back to a monospace one.
+
+All of it rides in the `appearance` compartment, so changing a font in the
+settings reconfigures the visible document and every parked one, and
+CodeMirror re-measures. A markdown page carries its own `lineWrapping` in
+`mode` and wraps whatever `wordWrap` says.
 
 ### What a key cannot reach, it asks for
 
@@ -306,6 +321,8 @@ Backspace that removes a marker.
 
 ## Not there yet
 
+- A markdown page's prose keeps its own face and size; the font settings set
+  code, and the code inside a page's fences.
 - A link to the web on a page does nothing when mod-clicked; `openBrowser`
   takes no URL yet. Pictures on the web are not drawn, for the CSP reason above.
 - A picture rewritten on disk keeps its old pixels in a page until restart —

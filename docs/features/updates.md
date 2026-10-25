@@ -130,7 +130,11 @@ first install never comes back.
    the same projects, one window each.
 
 Settings → Feedback shows the version and what the updater is doing, which is
-where "why have I not got it yet" gets answered.
+where "why have I not got it yet" gets answered. The same sentence —
+`describeUpdate` in `shared/update.def.ts` — goes at the bottom of an issue
+opened from that page, and the issue opens on `RELEASE_REPO`: a fork that
+changes where its updates come from changes where its reports go in the same
+line. See ADR-0040.
 
 ## Rules
 

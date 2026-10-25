@@ -600,6 +600,18 @@ export interface AppInfo {
   /** Frodon's own version, from package.json. `0.1.0`, no `v`. */
   version: string;
   versions: { electron: string; chrome: string; node: string };
+  /** The kernel's release — `25.5.0` on macOS 26 — as `os.release()` says it. */
+  osRelease: string;
+  /** `arm64`, `x64`. Which build is running, which is not always the machine's. */
+  arch: string;
+  /**
+   * Where this copy comes from and takes reports: `RELEASE_REPO` as a URL.
+   *
+   * Handed over rather than written into the renderer a second time, so a
+   * fork that changes the one line in `main/update/` gets an About page that
+   * links to the fork.
+   */
+  repository: string;
   /**
    * The project this window was opened for, or null for a launcher window.
    *

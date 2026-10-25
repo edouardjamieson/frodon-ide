@@ -14,6 +14,7 @@ import {
   type SettingsCategory,
   type SettingsSection,
 } from '~/lib/settings';
+import SettingsAbout from './settings-about.component';
 import SettingsAppearance from './settings-appearance.component';
 import SettingsEditor from './settings-editor.component';
 import SettingsFeedback from './settings-feedback.component';
@@ -166,5 +167,7 @@ function Page({ section }: { section: SettingsSection }) {
       return <SettingsShortcuts />;
     case 'user.feedback':
       return <SettingsFeedback />;
+    case 'user.about':
+      return <SettingsAbout />;
   }
 }

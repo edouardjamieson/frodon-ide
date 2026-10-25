@@ -125,6 +125,7 @@ the hand edit. The watcher that would fix this is not worth its chattiness yet.
 | `user.editor` | `~/.frodon/config.json` | the editor's font, size and wrapping; the terminal's font and size |
 | `user.shortcuts` | — | the chord table, read-only until the config layer lands |
 | `user.feedback` | — | a report, opened as a GitHub issue in the browser |
+| `user.about` | — | the logo, the version, the updater's state, what it runs on, and the repository |
 
 The hue strip offers 24 swatches 15° apart *and* the full 360 underneath — the
 swatches exist to be clicked, not to be the only way through. They are drawn

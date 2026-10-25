@@ -21,7 +21,8 @@ export type SettingsSection =
   | 'user.appearance'
   | 'user.editor'
   | 'user.shortcuts'
-  | 'user.feedback';
+  | 'user.feedback'
+  | 'user.about';
 
 /** One row in the dialog's own sidebar. */
 export interface SettingsCategory {

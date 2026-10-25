@@ -56,6 +56,12 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     description:
       'Something broken, or something missing — filed as an issue on GitHub.',
   },
+  {
+    id: 'user.about',
+    scope: 'user',
+    label: 'About',
+    description: 'Which Frodon this is, what it runs on, and where it lives.',
+  },
 ];
 
 /** Where the dialog opens when nobody said. */

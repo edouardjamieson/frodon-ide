@@ -2,9 +2,6 @@ import { useState } from 'react';
 import { cn } from 'cn';
 import { Bug, ExternalLink, Lightbulb } from 'lucide-react';
 import { Button, Input } from '~/components/ui';
-import { useAppInfo } from '~/lib/app';
-import { useUpdateStore } from '~/lib/update';
-import { describeUpdate } from '@shared/update.def';
 import {
   MAX_FEEDBACK_DETAILS_LENGTH,
   MAX_FEEDBACK_TITLE_LENGTH,
@@ -25,17 +22,15 @@ type Handoff = 'idle' | 'opening' | 'opened' | 'failed';
  * details and the versions already in place, so the person's last step is
  * reading what they are about to post and pressing Submit on it.
  *
- * The versions underneath stay on screen. They are what goes at the bottom of
- * the issue, and showing them here is what makes it no surprise when they
- * turn up there.
+ * The versions are not drawn here any more. Main puts them in the issue
+ * itself, and the line beside the button says so; the person who wants to
+ * read them first has Settings → About.
  */
 export default function SettingsFeedback() {
   const [kind, setKind] = useState<FeedbackKind>('bug');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [handoff, setHandoff] = useState<Handoff>('idle');
-  const info = useAppInfo();
-  const update = useUpdateStore((store) => store.state);
 
   const open = async () => {
     setHandoff('opening');
@@ -129,17 +124,6 @@ export default function SettingsFeedback() {
           <p className="text-[11px] text-fg-subtle">{HANDOFF_NOTES[handoff]}</p>
         </div>
       </FieldGroup>
-
-      <FieldGroup title="Worth including">
-        <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-[11px] select-text">
-          <Fact label="Frodon" value={info?.version ?? '—'} />
-          <Fact label="Updates" value={describeUpdate(update)} />
-          <Fact label="Platform" value={info?.platform ?? '—'} />
-          <Fact label="Electron" value={info?.versions.electron ?? '—'} />
-          <Fact label="Chromium" value={info?.versions.chrome ?? '—'} />
-          <Fact label="Node" value={info?.versions.node ?? '—'} />
-        </dl>
-      </FieldGroup>
     </div>
   );
 }
@@ -152,11 +136,11 @@ export default function SettingsFeedback() {
  * "thanks" and gets a browser instead.
  */
 const HANDOFF_NOTES: Record<Handoff, string> = {
-  idle: 'Opens a new issue in your browser with all of this filled in. Nothing is posted until you submit it there.',
+  idle: 'Opens a new issue in your browser with this and your versions filled in. Nothing is posted until you submit it there.',
   opening: 'Opening your browser…',
   opened: 'Opened in your browser. Read it over, then submit it there.',
   failed:
-    'Could not open your browser. The versions below are selectable, to paste into an issue by hand.',
+    'Could not open your browser. Settings → About lists the versions, to paste into an issue by hand.',
 };
 
 /**
@@ -205,14 +189,5 @@ function KindButton({
       {icon}
       {label}
     </button>
-  );
-}
-
-function Fact({ label, value }: { label: string; value: string }) {
-  return (
-    <>
-      <dt className="text-fg-subtle">{label}</dt>
-      <dd className="text-fg-muted tabular-nums">{value}</dd>
-    </>
   );
 }

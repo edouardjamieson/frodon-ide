@@ -7,7 +7,7 @@
  * call.
  */
 import { basename } from 'node:path';
-import { homedir } from 'node:os';
+import { arch, homedir, release } from 'node:os';
 import { app, dialog, BrowserWindow, type IpcMainInvokeEvent } from 'electron';
 import { handle } from './ipc.service';
 import { getFiles } from '@main/project';
@@ -79,7 +79,7 @@ import {
   removeWorktree,
 } from '@main/worktree';
 import { watchFiles } from '@main/watch';
-import { getUpdateState, installUpdate } from '@main/update';
+import { RELEASE_REPO, getUpdateState, installUpdate } from '@main/update';
 import {
   createSession,
   killSession,
@@ -592,6 +592,9 @@ export function registerIpcHandlers(): void {
       chrome: process.versions.chrome ?? '',
       node: process.versions.node ?? '',
     },
+    osRelease: release(),
+    arch: arch(),
+    repository: `https://github.com/${RELEASE_REPO}`,
   }));
 
   handle('app:report-issue', (report) => reportIssue(report));

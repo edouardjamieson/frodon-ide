@@ -129,12 +129,13 @@ first install never comes back.
 3. Click it. Frodon quits, the bundle is swapped, and Frodon opens again on
    the same projects, one window each.
 
-Settings → Feedback shows the version and what the updater is doing, which is
+Settings → About shows the version and what the updater is doing, which is
 where "why have I not got it yet" gets answered. The same sentence —
-`describeUpdate` in `shared/update.def.ts` — goes at the bottom of an issue
-opened from that page, and the issue opens on `RELEASE_REPO`: a fork that
-changes where its updates come from changes where its reports go in the same
-line. See ADR-0040.
+`describeUpdate` in `shared/update.def.ts` — goes into an issue opened from
+Settings → Feedback, and both the issue and About's repository link come
+from `RELEASE_REPO`: a fork that changes where its updates come from changes
+where its reports go and where About points, in the same line. See
+ADR-0040.
 
 ## Rules
 
@@ -162,7 +163,7 @@ line. See ADR-0040.
 - **Full downloads only**, around 130 MB each. electron-builder writes
   blockmaps for deltas, and nothing reads them.
 - **A standard (non-admin) account** cannot write /Applications, and gets
-  an error in Settings → Feedback rather than an update.
+  an error in Settings → About rather than an update.
 - **No "check now".** A release is noticed on launch or within thirty
   minutes.
 - **Signing and notarization**, which would make the first-install step go

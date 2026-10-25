@@ -40,9 +40,10 @@ const log = createLogger('feedback');
  * The facts a report needs and nobody can be expected to know, as a block
  * at the bottom of the issue.
  *
- * Gathered here rather than taken from the renderer. The form prints the same
- * values so they can be read, but the ones that go into a public issue should
- * be the ones main actually has — not whatever the page said they were.
+ * Gathered here rather than taken from the renderer. Settings → About prints
+ * the same values so they can be read, but the ones that go into a public
+ * issue should be the ones main actually has — not whatever the page said
+ * they were.
  */
 function environment(): string {
   const rows = [

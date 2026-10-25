@@ -47,6 +47,7 @@ export default function BranchMenu() {
     staged: staged.length,
     dirty: unstaged.length + untracked.length,
   };
+  const showChangeSet = changeSet.staged > 0 || changeSet.dirty > 0;
 
   const { checkout, createBranch, fetch, refreshBranches, operation } =
     useGit();
@@ -100,18 +101,20 @@ export default function BranchMenu() {
               >
                 <GitBranch className="size-4 text-fg-muted" />
                 <span className="text-xs font-semibold">{label}</span>
-                <div className="flex items-center gap-1">
-                  {changeSet.staged > 0 && (
-                    <div className="w-[14px] h-[14px] rounded-sm text-[11px] font-bold text-git-staged border flex items-center justify-center border-git-staged bg-git-staged/40">
-                      {changeSet.staged > 9 ? '9+' : changeSet.staged}
-                    </div>
-                  )}
-                  {changeSet.dirty > 0 && (
-                    <div className="w-[14px] h-[14px] rounded-sm text-[11px] font-bold text-git-changed border flex items-center justify-center border-git-changed bg-git-changed/40">
-                      {changeSet.dirty > 9 ? '9+' : changeSet.dirty}
-                    </div>
-                  )}
-                </div>
+                {showChangeSet && (
+                  <div className="flex items-center gap-1">
+                    {changeSet.staged > 0 && (
+                      <div className="w-[14px] h-[14px] rounded-sm text-[11px] font-bold text-git-staged border flex items-center justify-center border-git-staged bg-git-staged/40">
+                        {changeSet.staged > 9 ? '9+' : changeSet.staged}
+                      </div>
+                    )}
+                    {changeSet.dirty > 0 && (
+                      <div className="w-[14px] h-[14px] rounded-sm text-[11px] font-bold text-git-changed border flex items-center justify-center border-git-changed bg-git-changed/40">
+                        {changeSet.dirty > 9 ? '9+' : changeSet.dirty}
+                      </div>
+                    )}
+                  </div>
+                )}
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom">
@@ -158,19 +161,21 @@ export default function BranchMenu() {
             ) : (
               <GitBranch className="size-4 text-fg-muted" />
             )}
-            <span className="text-xs font-semibold">{label}</span>
-            <div className="flex items-center gap-1">
-              {changeSet.staged > 0 && (
-                <div className="w-[14px] h-[14px] rounded-sm text-[11px] font-bold text-git-staged border flex items-center justify-center border-git-staged bg-git-staged/30">
-                  {changeSet.staged > 9 ? '9+' : changeSet.staged}
-                </div>
-              )}
-              {changeSet.dirty > 0 && (
-                <div className="w-[14px] h-[14px] rounded-sm text-[11px] font-bold text-git-changed border flex items-center justify-center border-git-changed bg-git-changed/30">
-                  {changeSet.dirty > 9 ? '9+' : changeSet.dirty}
-                </div>
-              )}
-            </div>
+            <span className="text-xs font-semibold font-mono">{label}</span>
+            {showChangeSet && (
+              <div className="flex items-center gap-1">
+                {changeSet.staged > 0 && (
+                  <div className="w-[14px] h-[14px] rounded-sm text-[11px] font-bold text-git-staged border flex items-center justify-center border-git-staged bg-git-staged/30">
+                    {changeSet.staged > 9 ? '9+' : changeSet.staged}
+                  </div>
+                )}
+                {changeSet.dirty > 0 && (
+                  <div className="w-[14px] h-[14px] rounded-sm text-[11px] font-bold text-git-changed border flex items-center justify-center border-git-changed bg-git-changed/30">
+                    {changeSet.dirty > 9 ? '9+' : changeSet.dirty}
+                  </div>
+                )}
+              </div>
+            )}
           </Button>
         </DropdownMenuTrigger>
 

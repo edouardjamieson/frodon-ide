@@ -13,8 +13,9 @@ one undifferentiated list would be hiding the only thing about it that matters.
 
 | Path | What it holds |
 | --- | --- |
-| `shared/config.def.ts` | `ProjectConfig`, `UserConfig`, and the sanitizers |
-| `main/config/config.service.ts` | reading forgivingly, writing narrowly |
+| `shared/config.def.ts` | `ProjectConfig`, `UserConfig`, the sanitizers, `DEFAULT_EXCLUDE` and `ALWAYS_EXCLUDED` |
+| `main/config/config.service.ts` | reading forgivingly, writing narrowly; `readProjectConfigSync` for the session |
+| `main/session/session.service.ts` | `setProjectExcludes`, which hands a saved `exclude` to the project's watcher |
 | `renderer/src/lib/config/` | the replica, `update`, and `useConfigSaveEffect` |
 | `renderer/src/lib/settings/settings.constant.ts` | the pages, the hue swatches, the icon suggestions |
 | `components/modules/settings/` | the dialog and one component per page |
@@ -41,6 +42,7 @@ Every field is optional, and that is the model rather than an omission.
 | `name` | the chosen name | the folder's basename |
 | `hue` | 0–359 | hashed from the name |
 | `icon` | one emoji, or 1–2 letters | the first letter of `name` |
+| `exclude` | the whole list of patterns | `DEFAULT_EXCLUDE` |
 | `theme` (user) | a theme name | `frodon-dark` |
 | `appIcon` (user) | a key from `APP_ICONS` | `auto`, painted from the project's hue |
 
@@ -82,6 +84,16 @@ record something the app noticed, this records something a person just did in a
 dialog they are still looking at. A choice that silently did not take is the
 worst outcome available, so it surfaces along the bottom.
 
+**`exclude` is the one field main acts on, not only stores.** The session
+reads it synchronously when a project's watcher is created —
+`readProjectConfigSync`, because `attachWindow` is synchronous and the first
+tree has to already leave `dist` out — and `config:save-project` hands a
+successfully written list to `setProjectExcludes`, which rebuilds the matcher
+and rescans. An unchanged list is answered before anything is built, since
+every save of the name comes through there too. Written out, the list
+*replaces* the defaults rather than adding to them; see
+[../decisions.md](../decisions.md), ADR-0039.
+
 **Nothing re-reads a config file while the app is running.** Editing one by
 hand in another window and then changing a setting in the dialog will overwrite
 the hand edit. The watcher that would fix this is not worth its chattiness yet.
@@ -90,7 +102,8 @@ the hand edit. The watcher that would fix this is not worth its chattiness yet.
 
 | Section | Scope | What is on it |
 | --- | --- | --- |
-| `project.general` | `.frodon/config.json` | name, hue, icon — the three fields that end up in a commit |
+| `project.general` | `.frodon/config.json` | name, hue, icon — how the project introduces itself |
+| `project.files` | `.frodon/config.json` | the exclude list, and what is always hidden whatever it says |
 | `user.appearance` | `~/.frodon/config.json` | the theme, and the app icon |
 | `user.shortcuts` | — | the chord table, read-only until the config layer lands |
 | `user.feedback` | — | something broken, something missing |
@@ -120,6 +133,16 @@ about to be.
    write to `:root` with no React re-render at all.
 3. It lands in `~/.frodon/config.json` and stays on this machine.
 
+### Hiding a folder from the project
+
+1. `mod+,` → Files. The list shown is the one in force — the defaults, until
+   the project has its own.
+2. Type a name or a path pattern and press Enter. The first edit writes the
+   whole list into `.frodon/config.json`; the page says so above it.
+3. Once the write lands, main rescans and the explorer, search and `mod+p`
+   stop showing it. "Back to the defaults" removes the key, and so does an
+   edit that lands the list exactly on the defaults again.
+
 ## Adding a setting
 
 1. A field on `ProjectConfig` or `UserConfig` in `shared/config.def.ts`, with
@@ -130,6 +153,10 @@ about to be.
 3. If it needs a page of its own: a `SettingsSection` member, a row in
    `SETTINGS_CATEGORIES`, and a case in the dialog's `Page` switch, which is
    exhaustive and will refuse to compile until you add it.
+
+A field holding a list is fine — `sameConfig` compares arrays by contents,
+one level deep — but nothing here nests further than that, and the
+comparison will not follow it if something does.
 
 **Decide the scope first.** Does this belong in a pull request? Then it is a
 project setting. Resist adding one that is wired to nothing — a short dialog is
@@ -150,8 +177,14 @@ an honest one.
 This is the first half of the config layering described in
 [migration.md](../migration.md). That port adds two more layers
 (`.frodon/config.local.json` and a defaults layer) and the sections the TUI had
-— excludes, actions, keybindings — all merged in main and pushed to the
-renderer.
+still missing here — actions and keybindings — all merged in main and pushed to
+the renderer. Excludes have landed, in the project layer only: there is no
+personal exclude list yet.
+
+A second window on the same project keeps its old copy of the project config
+after the first one saves. The tree updates in both, because that push comes
+from main; the Files page in the other window shows the list it read when it
+opened.
 
 These two files are the two layers that port keeps, so nothing here has to be
 undone: the dialog edits the project layer and the user layer, which is what it

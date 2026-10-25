@@ -16,7 +16,11 @@
 export type SettingsScope = 'project' | 'user';
 
 export type SettingsSection =
-  'project.general' | 'user.appearance' | 'user.shortcuts' | 'user.feedback';
+  | 'project.general'
+  | 'project.files'
+  | 'user.appearance'
+  | 'user.shortcuts'
+  | 'user.feedback';
 
 /** One row in the dialog's own sidebar. */
 export interface SettingsCategory {

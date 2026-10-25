@@ -16,6 +16,7 @@ import {
 } from '~/lib/settings';
 import SettingsAppearance from './settings-appearance.component';
 import SettingsFeedback from './settings-feedback.component';
+import SettingsFiles from './settings-files.component';
 import SettingsProject from './settings-project.component';
 import SettingsShortcuts from './settings-shortcuts.component';
 
@@ -154,6 +155,8 @@ function Page({ section }: { section: SettingsSection }) {
   switch (section) {
     case 'project.general':
       return <SettingsProject />;
+    case 'project.files':
+      return <SettingsFiles />;
     case 'user.appearance':
       return <SettingsAppearance />;
     case 'user.shortcuts':

@@ -6,7 +6,8 @@ import type { SettingsCategory, SettingsSection } from './settings.def';
  *
  * Grouped by scope on screen, so the first thing a page tells you is which
  * file it writes to. Project comes first because it is the one with a
- * consequence for other people: those three fields end up in a commit.
+ * consequence for other people: everything on those pages ends up in a
+ * commit.
  *
  * Labels and descriptions live here rather than in the components for the
  * reason `DEFAULT_KEYBINDINGS` is a table — the sidebar and the page heading
@@ -20,6 +21,13 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     label: 'General',
     description:
       'How this project introduces itself. Saved in the repository, so everyone who opens it sees the same thing.',
+  },
+  {
+    id: 'project.files',
+    scope: 'project',
+    label: 'Files',
+    description:
+      'What the explorer, search and the file picker leave out. Saved in the repository, so everyone who clones it skips the same things.',
   },
   {
     id: 'user.appearance',

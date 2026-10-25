@@ -15,7 +15,7 @@
  */
 import path from 'node:path';
 import { createLogger } from '@main/logger';
-import { createIgnoreMatcher } from '@main/ignore';
+import { createIgnoreMatcher, type IgnoreMatcher } from '@main/ignore';
 import {
   readFilesFromDir,
   sameTree,
@@ -28,14 +28,6 @@ import type { File } from '@shared/fs.def';
 const log = createLogger('project');
 
 /**
- * Patterns hidden from the tree. A placeholder until the config layering is
- * ported from the TUI — see docs/migration.md.
- */
-const DEFAULT_EXCLUDE = ['node_modules', '.git', 'dist', 'out', '.next'];
-
-const matcher = () => createIgnoreMatcher(DEFAULT_EXCLUDE);
-
-/**
  * One project, scanned and watched.
  *
  * Everything that used to be a module-level `let`. A caller holds it and
@@ -45,6 +37,14 @@ export interface ProjectWatch {
   readonly root: string;
   /** The tree as main last scanned it. */
   files: File[];
+  /**
+   * What the tree walk and the watcher skip, built from the project's
+   * `exclude`. Mutable, because the settings page changes it while the
+   * project is open — see `setExcludes`.
+   */
+  isIgnored: IgnoreMatcher;
+  /** The patterns `isIgnored` was built from, to tell a real change from a save. */
+  excludes: readonly string[];
   unwatch: (() => void) | null;
   /** Where a new tree goes. The session decides which windows that means. */
   readonly onChange: (files: File[]) => void;
@@ -58,7 +58,7 @@ export interface ProjectWatch {
  * boundary, plus a React reconcile on the other side.
  */
 function rescan(watch: ProjectWatch): void {
-  const next = readFilesFromDir(watch.root, matcher());
+  const next = readFilesFromDir(watch.root, watch.isIgnored);
   if (sameTree(watch.files, next)) return;
   watch.files = next;
   watch.onChange(next);
@@ -94,26 +94,66 @@ function onFilesystemChange(watch: ProjectWatch, batch: WatchBatch): void {
   refreshFiles(batch.partial ? undefined : absolute);
 }
 
-/** Opens `root` as a project root, arming the watcher. */
+/**
+ * Opens `root` as a project root, arming the watcher.
+ *
+ * Takes its patterns rather than reading the config itself, for the reason
+ * `main/ignore` takes them: this module emits a tree and has no opinion about
+ * where a project keeps its settings. `main/session/` reads them.
+ */
 export function openProject(
   root: string,
+  excludes: readonly string[],
   onChange: (files: File[]) => void
 ): ProjectWatch {
+  const isIgnored = createIgnoreMatcher(excludes);
   const watch: ProjectWatch = {
     root,
-    files: readFilesFromDir(root, matcher()),
+    files: readFilesFromDir(root, isIgnored),
+    isIgnored,
+    excludes,
     unwatch: null,
     onChange,
   };
 
+  // Through the handle rather than the matcher built above, so that changing
+  // the excludes reaches the watcher as well as the walk. The recursive watch
+  // itself stays armed over the whole root either way — it is one FSEvents
+  // stream whatever is excluded, and the filter is what keeps an excluded
+  // directory's writes from turning into rescans.
   watch.unwatch = watchDirectory(
     root,
     (batch) => onFilesystemChange(watch, batch),
-    { isIgnored: matcher() }
+    { isIgnored: (entry) => watch.isIgnored(entry) }
   );
   log.info(`opened ${root} (${watch.files.length} top-level entries)`);
 
   return watch;
+}
+
+/**
+ * Changes what the project hides, and rescans so the change shows.
+ *
+ * Every save of the project's settings comes through here, including the
+ * eleven that typing its name produces, and a rescan is a synchronous walk of
+ * the whole tree — so an unchanged list is answered before anything is built.
+ * A changed one goes through `rescan` like any other, so a pattern that
+ * matched nothing still pushes nothing to anybody.
+ */
+export function setExcludes(
+  watch: ProjectWatch,
+  excludes: readonly string[]
+): void {
+  if (
+    excludes.length === watch.excludes.length &&
+    excludes.every((pattern, index) => pattern === watch.excludes[index])
+  ) {
+    return;
+  }
+
+  watch.excludes = excludes;
+  watch.isIgnored = createIgnoreMatcher(excludes);
+  rescan(watch);
 }
 
 /**

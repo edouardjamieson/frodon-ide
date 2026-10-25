@@ -27,15 +27,27 @@ function isPathPattern(pattern: string): boolean {
   return pattern.includes('/') || GLOB_CHARS.test(pattern);
 }
 
-export function createIgnoreMatcher(patterns: string[] = []): IgnoreMatcher {
+export function createIgnoreMatcher(
+  patterns: readonly string[] = []
+): IgnoreMatcher {
   const names = new Set<string>(ALWAYS_IGNORED);
   const globs: ((value: string) => boolean)[] = [];
 
   for (const pattern of patterns) {
     const trimmed = pattern.trim();
     if (!trimmed) continue;
-    if (isPathPattern(trimmed)) globs.push(picomatch(trimmed, { dot: true }));
-    else names.add(trimmed);
+    if (!isPathPattern(trimmed)) {
+      names.add(trimmed);
+      continue;
+    }
+    // Patterns come from a file people edit by hand now, and a glob picomatch
+    // cannot parse is one pattern that hides nothing — not a project that
+    // refuses to open.
+    try {
+      globs.push(picomatch(trimmed, { dot: true }));
+    } catch {
+      continue;
+    }
   }
 
   return ({ name, relativePath }: IgnoreEntry) => {

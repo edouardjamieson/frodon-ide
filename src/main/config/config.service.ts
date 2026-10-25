@@ -26,6 +26,7 @@
  * something a person just did, in a dialog they are still looking at, and a
  * choice that silently did not take is the worst outcome available.
  */
+import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
@@ -160,4 +161,33 @@ export async function readConfigOfProject(
   return sanitizeProjectConfig(
     await readJson(path.join(root, FRODON_DIRNAME, CONFIG_FILENAME))
   );
+}
+
+/**
+ * The same, synchronously, for the one caller that cannot wait.
+ *
+ * `main/session/` opens a project's watcher inside `attachWindow`, which is
+ * synchronous, and the tree that walk produces has to already honour the
+ * project's excludes — the alternative is walking `dist` once on the way in
+ * and then again to take it back out, and an explorer that flashes it. One
+ * small file read on the main thread, once per project opened, is the cheaper
+ * of the two.
+ */
+export function readProjectConfigSync(root: string): ProjectConfig {
+  let raw: string;
+  try {
+    raw = fs.readFileSync(
+      path.join(root, FRODON_DIRNAME, CONFIG_FILENAME),
+      'utf8'
+    );
+  } catch {
+    return {};
+  }
+
+  try {
+    return sanitizeProjectConfig(JSON.parse(raw));
+  } catch {
+    log.warn(`${root} has a config that is not readable JSON; ignoring it`);
+    return {};
+  }
 }

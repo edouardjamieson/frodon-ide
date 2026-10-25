@@ -25,7 +25,14 @@
  */
 import { BrowserWindow, type WebContents } from 'electron';
 import { createLogger } from '@main/logger';
-import { closeProject, openProject, type ProjectWatch } from '@main/project';
+import {
+  closeProject,
+  openProject,
+  setExcludes,
+  type ProjectWatch,
+} from '@main/project';
+import { readProjectConfigSync } from '@main/config';
+import { excludesOf } from '@shared/config.def';
 import { closeRepo, openRepo, type GitRepo } from '@main/git';
 import type { EventChannel, EventPayload } from '@shared/ipc.def';
 
@@ -98,7 +105,7 @@ function createSession(root: string): ProjectSession {
   const session: ProjectSession = {
     root,
     identityRoot: root,
-    watch: openProject(root, (files) =>
+    watch: openProject(root, excludesOf(readProjectConfigSync(root)), (files) =>
       sendToProject(root, 'project:changed', files)
     ),
     repo: openRepo(root, (status) =>
@@ -187,6 +194,21 @@ export function rootOf(contents: WebContents | null): string | null {
 export function identityRootOf(contents: WebContents | null): string | null {
   if (!contents) return null;
   return byWindow.get(contents)?.identityRoot ?? null;
+}
+
+/**
+ * Applies a project's newly saved excludes to its watcher and its tree.
+ *
+ * Here rather than in the config handler because the watcher is per root and
+ * shared: one window saving the list changes what every window on that
+ * project sees, and the rescan's push is what tells them.
+ */
+export function setProjectExcludes(
+  root: string,
+  excludes: readonly string[]
+): void {
+  const session = byRoot.get(root);
+  if (session) setExcludes(session.watch, excludes);
 }
 
 /** Records where a project's identity comes from, once `project:tree` knows. */

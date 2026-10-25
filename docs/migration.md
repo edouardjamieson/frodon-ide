@@ -345,18 +345,19 @@ Sections merge key-by-key, except `actions` and `themes`, which **accumulate**
 masking the other. Theme resolution deliberately happens outside the layer
 merge, because the merge is shallow and a theme is three levels deep.
 
-Lives in main; the resolved config is pushed to the renderer over IPC. Two
-placeholders are waiting for it: `DEFAULT_EXCLUDE` in
-`main/project/project.service.ts`, and `DEFAULT_KEYBINDINGS` in
+Lives in main; the resolved config is pushed to the renderer over IPC. One
+placeholder is waiting for it: `DEFAULT_KEYBINDINGS` in
 `renderer/src/lib/keybinding/`, which is already written in the shape a config
-file would hand over.
+file would hand over. `DEFAULT_EXCLUDE` was the other, and is now the absent
+value of the project config's `exclude` — see ADR-0039.
 
 **Two of the four layers are already there.** The settings dialog reads and
 writes `<root>/.frodon/config.json` and `~/.frodon/config.json` through
 `main/config/` — see `docs/features/settings.md` — so this port is not starting from
 nothing: it adds the defaults and `.local` layers around them, the merge, and
-the sections (`exclude`, `actions`, `keybindings`) those two files do not yet
-carry. The user layer lands at `~/.frodon/` rather than the TUI's
+the sections (`actions`, `keybindings`) those two files do not yet carry.
+`exclude` is already in the project file, and replaces the defaults rather
+than merging with them, which the layering will have to keep in mind. The user layer lands at `~/.frodon/` rather than the TUI's
 `~/.config/frodon`, because `~/.frodon/` is where this app already keeps the
 recents list, the saved layouts and the local boards, and one directory per
 app is enough.

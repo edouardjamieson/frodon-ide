@@ -19,17 +19,26 @@ import type { ProjectConfig, UserConfig } from '@shared/config.def';
 /**
  * Whether two configs say the same thing.
  *
- * Shallow and key-wise over the union, which is all these shapes ever are: a
- * handful of optional primitives. Written generically so that adding a field
- * does not quietly stop being compared — a comparison that lists its fields
- * by hand is a comparison that goes out of date in silence, and the cost of
- * that here is a setting that never reaches the disk.
+ * Key-wise over the union, which is all these shapes ever are: a handful of
+ * optional primitives, and one list of strings. Written generically so that
+ * adding a field does not quietly stop being compared — a comparison that
+ * lists its fields by hand is a comparison that goes out of date in silence,
+ * and the cost of that here is a setting that never reaches the disk.
+ *
+ * Arrays are compared by their contents, one level deep. `exclude` is
+ * rebuilt as a new array on every edit, so comparing it by identity would
+ * call every save a change; and nothing here nests deeper than that.
  */
 export function sameConfig<T extends object>(a: T, b: T): boolean {
   const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
 
   for (const key of keys) {
-    if (a[key as keyof T] !== b[key as keyof T]) return false;
+    const left: unknown = a[key as keyof T];
+    const right: unknown = b[key as keyof T];
+    if (left === right) continue;
+    if (!Array.isArray(left) || !Array.isArray(right)) return false;
+    if (left.length !== right.length) return false;
+    if (left.some((value, index) => value !== right[index])) return false;
   }
 
   return true;

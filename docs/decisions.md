@@ -18,6 +18,45 @@ their reasoning is the reasoning recorded at the time, not reconstructed.
 
 ---
 
+### ADR-0039 — A project's `exclude` replaces the defaults, and main applies it as soon as it is saved
+
+**When** 2026-10-25 · **Status** active · **Touches** settings, project, explorer, search, file picker
+
+**What.** `exclude` in `.frodon/config.json` is the whole list of patterns the
+tree walk and the watcher skip. Absent, it is `DEFAULT_EXCLUDE`; written, it
+replaces that list rather than adding to it. `ALWAYS_EXCLUDED` (`.git`,
+`node_modules`, `.DS_Store`, `Thumbs.db`) applies either way. Saving the list
+rebuilds the project's matcher and rescans at once, in main.
+
+**Why.** Additive was the alternative, and it leaves a project that ships its
+`dist` on purpose with no way to see it short of a negation syntax nobody would
+find. Replacing is the rule `absent means derived` already implies: the field
+is either the derivation or a choice, never a patch on one. The settings page
+starts from the defaults, so the common case — the defaults plus one more — is
+still one click, and an edit that lands back on exactly the defaults removes
+the key so the project keeps following them. Applying in main rather than
+asking the renderer to filter follows from ADR-0005: the tree, search and the
+file picker all read the one list main walked, so one matcher change reaches
+all of them.
+
+**How.** `excludesOf` and the sanitizer in `shared/config.def.ts`.
+`main/session/` creates a project's watcher with
+`excludesOf(readProjectConfigSync(root))` — synchronous, so the first tree
+already honours it — and `config:save-project` calls `setProjectExcludes`
+after a successful write. `setExcludes` in `main/project/project.service.ts`
+compares the list first, because every save of the name comes through there,
+then swaps `watch.isIgnored` and calls `rescan`. The watcher reads the matcher
+through the handle, so it follows the change without being re-armed.
+
+**Cost.** A project with its own list does not pick up a default added later.
+Main reads the project's config file synchronously once per project opened.
+The recursive watch still covers the whole root — only the filter moves — so an
+excluded directory full of writes still costs FSEvents traffic, just not
+rescans. There is no personal exclude list yet; it waits for the `.local` layer
+in [migration.md](migration.md).
+
+---
+
 ### ADR-0038 — A markdown page is decorations over the file, not a block editor beside it
 
 **When** 2026-10-24 · **Status** active · **Touches** editor, keybindings

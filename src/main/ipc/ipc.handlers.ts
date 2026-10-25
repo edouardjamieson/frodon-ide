@@ -16,6 +16,7 @@ import {
   rootOf,
   sessionOf,
   setIdentityRoot,
+  setProjectExcludes,
   windowForRoot,
 } from '@main/session';
 import { initialRootOf, openProjectWindow } from '@main/app';
@@ -85,6 +86,7 @@ import {
   resizeSession,
   writeSession,
 } from '@main/terminal';
+import { excludesOf, sanitizeProjectConfig } from '@shared/config.def';
 import type { Platform } from '@shared/ipc.def';
 
 /**
@@ -332,8 +334,17 @@ export function registerIpcHandlers(): void {
   // Both writes refresh the icon, for the two different reasons it can go
   // stale: a project's `hue` is what the generated one is painted from, and a
   // user's `appIcon` is which of the nine is showing at all.
+  //
+  // A project write also reaches the watcher, because `exclude` is the one
+  // field main acts on rather than only stores. Applied only once the file is
+  // down: a list that failed to save must not be the one the tree is showing,
+  // or the explorer and the file would disagree about what this project hides.
   handle('config:save-project', async ({ config }, event) => {
-    const result = await writeProjectConfig(askingRoot(event), config);
+    const root = askingRoot(event);
+    const result = await writeProjectConfig(root, config);
+    if (result.ok && root) {
+      setProjectExcludes(root, excludesOf(sanitizeProjectConfig(config)));
+    }
     void refreshAppIcon();
     return result;
   });

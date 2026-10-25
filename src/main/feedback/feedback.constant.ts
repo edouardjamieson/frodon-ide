@@ -10,14 +10,29 @@ import type { FeedbackKind } from '@shared/feedback.def';
 export const MAX_ISSUE_URL_LENGTH = 7800;
 
 /**
- * The labels each kind asks for.
+ * The issue form each kind opens, in `.github/ISSUE_TEMPLATE/`.
  *
- * GitHub's own defaults, so a fork has them without creating anything. They
- * are only *applied* when the person filing has triage rights on the
- * repository — for everyone else GitHub drops the parameter in silence, which
- * is the right failure: the issue still opens, unlabelled.
+ * A form rather than a free-text body, so a report filed from the app and one
+ * typed on GitHub arrive in the same shape. The form also carries the labels:
+ * a `labels` query parameter is only honoured for people with triage rights
+ * on the repository, but labels a template declares are applied to every
+ * issue opened from it.
+ *
+ * If a fork deletes the forms, GitHub opens a blank issue and the fields
+ * below have nowhere to land — the title survives and the rest is lost, which
+ * is why the forms are checked in beside the code that names them.
  */
-export const ISSUE_LABELS: Record<FeedbackKind, string> = {
-  bug: 'bug',
-  idea: 'enhancement',
+export const ISSUE_TEMPLATES: Record<FeedbackKind, string> = {
+  bug: 'bug.yml',
+  idea: 'idea.yml',
 };
+
+/**
+ * The form fields the app fills, by their `id` in the templates. GitHub fills
+ * any form field whose id matches a query parameter; these two are the
+ * contract, and renaming one on either side leaves that field empty.
+ */
+export const ISSUE_FIELDS = {
+  details: 'details',
+  environment: 'environment',
+} as const;

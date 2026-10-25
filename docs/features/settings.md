@@ -173,8 +173,9 @@ about to be.
 ### Reporting a bug
 
 1. `mod+,` → Feedback. Pick broken or missing, give it a summary.
-2. "Open on GitHub" sends the three fields to main, which builds an
-   `issues/new` URL with the versions appended and opens it in the browser.
+2. "Open on GitHub" sends the three fields to main, which opens the matching
+   issue form in `.github/ISSUE_TEMPLATE/` in the browser, with the details
+   and the versions already in its fields. The form adds the label.
 3. The person reads it on GitHub's own form and submits it there. Frodon
    posts nothing; see ADR-0040.
 

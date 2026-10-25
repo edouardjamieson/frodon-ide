@@ -1,0 +1,33 @@
+# Filled in from Settings → Feedback in the app, or by hand here.
+#
+# The field ids are a contract with `main/feedback/feedback.constant.ts`: the
+# app opens this form with `?template=bug.yml&details=…&environment=…`, and
+# GitHub fills each field whose id matches a query parameter. Renaming an id
+# here without changing it there leaves that field empty.
+name: Something is broken
+description: Frodon did something it should not have, or did not do something it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Filing from inside Frodon fills this in for you — **Settings → Feedback**.
+  - type: textarea
+    id: details
+    attributes:
+      label: What happened
+      description: What you did, what happened, and what you expected instead.
+      placeholder: |
+        1. Split a window to the right
+        2. Click back into the terminal
+        3. Typing goes nowhere until the pane is clicked again
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Versions
+      description: Settings → Feedback lists these, and fills them in when the issue is opened from there.
+      placeholder: Frodon 0.2.0 on macOS 15, arm64
+    validations:
+      required: true

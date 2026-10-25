@@ -28,7 +28,11 @@ import {
   type FeedbackReport,
 } from '@shared/feedback.def';
 import { describeUpdate } from '@shared/update.def';
-import { ISSUE_LABELS, MAX_ISSUE_URL_LENGTH } from './feedback.constant';
+import {
+  ISSUE_FIELDS,
+  ISSUE_TEMPLATES,
+  MAX_ISSUE_URL_LENGTH,
+} from './feedback.constant';
 
 const log = createLogger('feedback');
 
@@ -58,18 +62,14 @@ function environment(): string {
 }
 
 function issueUrl(report: FeedbackReport, details: string): string {
-  const body = [
-    details || '_No details given._',
-    '',
-    '---',
-    '',
-    environment(),
-  ].join('\n');
-
+  // Into the issue form's own fields rather than one `body`, so the report
+  // lands under the headings the template gives it — the same issue whether
+  // it was filed from the app or typed on GitHub.
   const query = new URLSearchParams({
+    template: ISSUE_TEMPLATES[report.kind],
     title: report.title,
-    body,
-    labels: ISSUE_LABELS[report.kind],
+    [ISSUE_FIELDS.details]: details,
+    [ISSUE_FIELDS.environment]: environment(),
   });
 
   return `https://github.com/${RELEASE_REPO}/issues/new?${query.toString()}`;

@@ -40,15 +40,22 @@ took a URL would open whatever the page asked it to in the system browser.
 
 **How.** `app:report-issue` in `shared/ipc.def.ts` takes a `FeedbackReport`
 (`shared/feedback.def.ts`). `main/feedback/feedback.service.ts` re-checks it,
-appends `environment()` — the version, `describeUpdate`, platform, Electron,
+builds `environment()` — the version, `describeUpdate`, platform, Electron,
 Chromium, Node, all read in main — trims the details until the URL fits
-`MAX_ISSUE_URL_LENGTH`, and calls `shell.openExternal`. The repository is
-`RELEASE_REPO` from `main/update/`, so a fork that changes where updates come
-from changes where reports go in the same line.
+`MAX_ISSUE_URL_LENGTH`, and calls `shell.openExternal`. The URL opens one of
+the issue forms in `.github/ISSUE_TEMPLATE/` (`bug.yml`, `idea.yml`, named by
+`ISSUE_TEMPLATES`) and fills its fields by id — `details` and `environment`,
+named by `ISSUE_FIELDS` — so a report from the app and one typed on GitHub
+arrive in the same shape. The forms declare their own labels, which GitHub
+applies to every issue opened from them; a `labels` query parameter would only
+be honoured for people with triage rights. The repository is `RELEASE_REPO`
+from `main/update/`, so a fork that changes where updates come from changes
+where reports go in the same line.
 
 **Cost.** Reporting needs a GitHub account and leaves the app for the browser.
-Labels (`bug`, `enhancement`) only stick for people with triage rights; for
-everyone else GitHub drops them and the issue arrives unlabelled. A long report
+The field ids are a contract between two files in different languages, and
+renaming one on either side leaves that field empty with no error. A fork that
+deletes the forms gets a blank issue with only the title filled. A long report
 is cut to fit GitHub's URL limit, with a note asking for the rest to be pasted
 in by hand.
 

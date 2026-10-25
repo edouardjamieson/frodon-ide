@@ -1,0 +1,22 @@
+# Filled in from Settings → Feedback in the app, or by hand here. The field
+# ids are a contract with `main/feedback/feedback.constant.ts`; see bug.yml.
+name: Something is missing
+description: Something you wanted Frodon to do and it could not.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Filing from inside Frodon fills this in for you — **Settings → Feedback**.
+  - type: textarea
+    id: details
+    attributes:
+      label: What you were trying to do
+      description: The moment you wanted it, rather than the feature you imagined — there may be a better shape for it.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Versions
+      description: Optional for an idea. Settings → Feedback fills it in.

@@ -153,7 +153,8 @@ Opening a folder · the explorer tree with create, rename and delete · live tre
 sync from a filesystem watcher · the window manager, splitting the workbench
 into tiles · files in tabs in a themed CodeMirror editor, with saving, a star
 for unsaved work, and following files that change outside Frodon · syntax
-highlighting for every language CodeMirror ships · find-in-file · real shells
+highlighting for every language CodeMirror ships · find-in-file · markdown
+as a page that turns back into source block by block, with a `/` menu · real shells
 on real PTYs · git status polled in main, with pull/push/branch in the header,
 changed files colored in the tree, a history graph, branches, and a staging
 area with diffs · project-wide search with find and replace · a file picker

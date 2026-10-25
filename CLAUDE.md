@@ -332,7 +332,8 @@ repository, a board or a web page · files in tabs in a themed CodeMirror
 editor, with saving on `mod+s`, a star on a tab that differs from its file, and
 tabs that follow their files when something outside Frodon rewrites them ·
 syntax highlighting for every language CodeMirror ships, fetched per grammar ·
-find-in-file on `mod+f` · real shells on real PTYs · git status polled in main
+find-in-file on `mod+f` · markdown drawn as a page, each block turning
+back into its source when clicked, with a `/` menu for adding blocks · real shells on real PTYs · git status polled in main
 with pull/push/branch in the header, changed files colored in the tree, a
 history graph, branches with their ahead/behind counts, a staging area with
 diffs, and what a commit did · project-wide search with find and replace,

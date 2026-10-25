@@ -11,6 +11,7 @@
 export type CommandId =
   | 'file.save'
   | 'editor.find'
+  | 'editor.toggleMarkdown'
   | 'tab.close'
   | 'picker.open'
   | 'sidebar.toggle'

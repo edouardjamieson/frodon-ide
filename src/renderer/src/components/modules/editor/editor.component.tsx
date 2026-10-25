@@ -1,5 +1,13 @@
 import { cn } from 'cn';
-import { FileX, RotateCw, TriangleAlert, X } from 'lucide-react';
+import {
+  BookOpen,
+  Code,
+  FileX,
+  RotateCw,
+  TriangleAlert,
+  X,
+} from 'lucide-react';
+import { isMarkdownPath, useEditorStore } from '~/lib/editor';
 import { useEditor } from './editor.hook';
 import EditorFind from './editor-find.component';
 import EditorImage from './editor-image.component';
@@ -77,8 +85,9 @@ export default function Editor({ windowId, path, openPaths }: EditorProps) {
   // and `mod+s` find nothing to act on. The view stays mounted underneath,
   // hidden, because the other tabs' documents and undo histories live in it.
   const image = isImagePath(path) ? path : null;
-  const { hostRef, error, diverged, missing, reload, dismiss, find } =
+  const { hostRef, error, diverged, missing, reload, dismiss, find, source } =
     useEditor(windowId, image ? null : path, openPaths);
+  const toggleSource = useEditorStore((state) => state.toggleMarkdownSource);
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col bg-editor">
@@ -115,13 +124,27 @@ export default function Editor({ windowId, path, openPaths }: EditorProps) {
           the zoom the last one was left at. */}
       {image ? <EditorImage key={image} path={image} /> : null}
 
-      <div
-        ref={hostRef}
-        className={cn(
-          'min-h-0 flex-1 overflow-hidden select-text',
-          image && 'hidden'
-        )}
-      />
+      <div className={cn('relative min-h-0 flex-1', image && 'hidden')}>
+        <div ref={hostRef} className="h-full overflow-hidden select-text" />
+
+        {/* Over the page's top margin, which is empty by design, rather than
+            in a strip of its own: a strip would push the page down to say
+            something `mod+e` says already. */}
+        {isMarkdownPath(path) ? (
+          <button
+            onClick={() => toggleSource(windowId)}
+            title={source ? 'Show as a page (⌘E)' : 'Show the source (⌘E)'}
+            className="absolute top-2 right-4 flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-fg-muted opacity-60 transition-opacity hover:bg-button hover:opacity-100"
+          >
+            {source ? (
+              <BookOpen className="size-3" />
+            ) : (
+              <Code className="size-3" />
+            )}
+            {source ? 'Page' : 'Source'}
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }

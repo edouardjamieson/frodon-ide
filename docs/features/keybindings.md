@@ -99,6 +99,7 @@ the app is in the background, which is right for a media key and wrong for
 | --- | --- | --- |
 | `mod+s` | `file.save` | not in the menu, on purpose |
 | `mod+f` | `editor.find` | find in the file on screen |
+| `mod+e` | `editor.toggleMarkdown` | a markdown file as a page or as source |
 | `mod+w` | `tab.close` | the thing in front, then the window |
 | `mod+p` | `picker.open` | |
 | `mod+b` | `sidebar.toggle` | the only way the panel goes away |

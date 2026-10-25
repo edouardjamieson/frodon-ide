@@ -18,6 +18,54 @@ their reasoning is the reasoning recorded at the time, not reconstructed.
 
 ---
 
+### ADR-0038 — A markdown page is decorations over the file, not a block editor beside it
+
+**When** 2026-10-24 · **Status** active · **Touches** editor, keybindings
+
+**What.** A markdown file opens as a page: every block drawn rendered, the
+block under the cursor drawn as its source, a `/` menu for inserting blocks.
+It is built as CodeMirror decorations over the file's own text in the same
+view every other file uses — not as a separate editor with a block model of
+its own. `mod+e` flips a window between the page and the plain source.
+
+**Why.** The Notion-shaped alternative — a list of block components, each
+holding a fragment of the file and serialising back on save — would have
+needed its own answer to every question the editor already answers: one state
+per tab, undo, the star, saving, a file rewritten on disk, find, a jump from
+project search. And a markdown file round-tripped through a model is a file
+reformatted by it: lists renumbered, emphasis normalised, blank lines
+collapsed — a diff nobody asked for in a repository. Decorations change what
+is drawn and nothing else, so the bytes on disk are only ever what was typed.
+
+Revealing a whole block rather than the cursor's line (Obsidian's unit) is the
+block-editor half kept: a paragraph that wraps across four screen lines is
+one thing to edit, and so is a table or a fence.
+
+**How.** `editor-markdown.service.ts` (the grammar, the `preview` state field,
+`markdownPage`), `editor-markdown-widget.service.ts`,
+`editor-markdown-slash.service.ts`, `editor-markdown-html.service.ts`,
+`editor-markdown-picture.service.ts` and `editor-markdown.constant.ts` in
+`components/modules/editor/`; a `mode` compartment in `editor.hook.ts` that
+holds either the page or the code chrome; `markdownTheme` in `editor.theme.ts`;
+`markdownSource` in the editor store and `editor.toggleMarkdown` in the
+registry. See [features/editor.md](features/editor.md#a-markdown-file-is-a-page).
+
+HTML in the file is drawn as elements, through `DOMParser` and an allowlist
+of tags and attributes, never through `innerHTML`. A page is also how you read
+a README somebody else wrote, and the renderer holds the preload bridge; the
+CSP would stop an inline handler, but an allowlist means nothing has to be
+stopped.
+
+**Cost.** The page can only draw what markdown can say: no drag handles, no
+blocks moved by the mouse, no columns, and nothing stored that the file does
+not hold. Revealing a block shifts its text by the width of its syntax, which a
+true block editor never does. The decorations are a state field and walk the
+whole tree on each rebuild — see [learned.md](learned.md). And two new
+dependencies, `@codemirror/lang-markdown` and `@codemirror/autocomplete`, were
+already in the tree through `language-data` but are now ours to keep current.
+
+---
+
 ### ADR-0037 — Frodon updates itself by swapping its own bundle, not through Squirrel
 
 **When** 2026-10-24 · **Status** active · **Touches** updates, packaging

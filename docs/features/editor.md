@@ -2,8 +2,8 @@
 
 CodeMirror 6 in a tile, with tabs, saving, syntax highlighting fetched per
 language, find-in-file, an answer for what happens when something outside
-Frodon rewrites the file you are looking at — and pictures drawn as pictures,
-with zoom and pan.
+Frodon rewrites the file you are looking at — pictures drawn as pictures,
+with zoom and pan, and markdown drawn as a page.
 
 ## Goal
 
@@ -21,6 +21,12 @@ must not silently clobber them either.
 | `components/modules/editor/editor.theme.ts` | the resolved `Theme` handed to CodeMirror's own theme API |
 | `components/modules/editor/editor-find.*` | the find bar: state field, view plugin, decorations |
 | `components/modules/editor/editor-image.*` | an image tab: the bytes, the view, zoom and pan |
+| `components/modules/editor/editor-markdown.service.ts` | a markdown page: the grammar, the block that is revealed, the decorations |
+| `components/modules/editor/editor-markdown-widget.service.ts` | what the page draws: bullets, boxes, rules, code headers, tables, pictures |
+| `components/modules/editor/editor-markdown-html.service.ts` | HTML in a markdown file: the allowlist, and which containers are open |
+| `components/modules/editor/editor-markdown-picture.service.ts` | reading a picture a page points at, for `![]()` and `<img>` alike |
+| `components/modules/editor/editor-markdown-slash.service.ts` | the `/` menu |
+| `components/modules/editor/editor-markdown.constant.ts` | which nodes are blocks, and what `/` offers |
 | `renderer/src/lib/editor/` | `dirty`, `pendingSave`, `pendingFind` — what the rest of the app knows about open documents |
 | `renderer/src/lib/file-watch/` | the subscription that says a file moved |
 | `main/watch/` | per-path mtime and size, for the files windows said they had open |
@@ -129,6 +135,88 @@ not.
 A picture rewritten on disk is re-read and replaced. There is nothing to merge
 in a picture, so there is no question to ask.
 
+### A markdown file is a page
+
+A `.md`, `.markdown` or `.mkd` file opens drawn as a page — prose type in a
+centered column, headings at their sizes, bullets, ticked boxes, quotes with a
+bar, rules, tables as tables, pictures as pictures — and the block the cursor
+is in is drawn as the markdown it is. Click a paragraph and its asterisks
+appear; click away and they go. See ADR-0038.
+
+It is the same CodeMirror view, holding the same text. The page is
+*decorations*: syntax hidden, widgets drawn in place of markers, classes on
+lines. The document is the file byte for byte, so tabs, undo, saving, the
+star, external changes, find and a jump from search all work on a page
+without knowing it is one. The `mode` compartment holds either the page or
+the code chrome — line numbers, folding, the active line — and the page has
+none of those, because a wrapped paragraph is one line of the file however
+many it fills on screen.
+
+**The block is the unit.** The innermost of a paragraph, a heading, a task, a
+rule or a link reference around the cursor, widened to whole lines; a fence, a
+table or an HTML block revealed whole wherever the cursor is in it
+(`BLOCK_NODES`, `WHOLE_NODES`). A paragraph inside a list item reveals that
+item's line, marker included, and not the list. Unfocused, nothing is
+revealed — a document you are only reading is all page.
+
+**Drawn around, or drawn instead.** What is drawn *around* text — a heading's
+size, a quote's bar, a code block's box — stays when the block is revealed;
+only what *replaces* text is withdrawn. Going into a heading shows its hashes
+without shrinking it, so the click lands where it was aimed.
+
+**Code is never a widget.** A fence's lines stay text, highlighted by the
+grammar the fence names — fetched lazily from the language registry, the way
+a file's own grammar is — so a code block reads the same on the page and in
+source, and can be edited without changing shape. On the page the opening
+fence becomes the language and a Copy button, and the closing one a sliver of
+padding.
+
+**A line break inside a paragraph is a space.** That is what markdown means by
+it, and every doc in this repository wraps at eighty columns: drawn as breaks,
+they read as a ragged column and a row of badges as a stack. On the page each
+soft break is drawn as a space and the paragraph reflows to the column; a hard
+break — two spaces or a backslash at the end of a line — stays a break. Going
+into the paragraph brings its line breaks back, which is the largest shift any
+block makes when it is revealed.
+
+**HTML is drawn as HTML.** READMEs use it for what markdown cannot say — a
+centered header, a logo at a set size, a key drawn as a key. Three shapes:
+
+- *An HTML block* with something to draw — an `<img>` on its own line, a
+  `<details>` — is drawn as the elements it describes.
+- *A bare container tag* on a line of its own, like the `<div
+  align="center">` that opens a README and the `</div>` that closes it, is
+  hidden, and the markdown between the two takes its alignment.
+  `HtmlContainers` is fed every HTML block in order and answers for whatever
+  comes next, because markdown makes those two tags separate blocks with
+  ordinary markdown in between and no single node knows.
+- *An inline tag* in a paragraph — `<kbd>⌘P</kbd>`, `<sub>`, `<br>`, an
+  `<img>` — has its tags hidden and what is between them styled. One left
+  unclosed in its block stays as written.
+
+The markup never reaches `innerHTML`. `DOMParser` builds an inert document —
+no scripts run, nothing is fetched — and it is copied into the page element by
+element through `HTML_TAGS`: an unknown tag is unwrapped to its text, one that
+runs or embeds (`HTML_DROPPED`) goes with its contents, and only
+presentational attributes cross — no `style`, `class`, `id` or `on*`. A link's
+`href` becomes `data-href`, so it follows on mod-click like any other. Table
+cells go through the same path, which is how a `<kbd>` in the README's
+shortcut table is drawn as a key.
+
+**Pictures** are read through `file:read-bytes` and drawn from an object URL,
+as an image tab's are, relative to the markdown file's folder. SVG is drawn
+here, unlike in a tab. A picture on the web shows its alt text in a small
+chip, with the reason on hover: the CSP admits nothing remote, and fetching
+through main (ADR-0029) is not wired for this.
+
+**Frontmatter** — a `---` block at the very top — is found by its fences and
+drawn as a quiet block. The parser would otherwise read it as a rule and a
+heading.
+
+The grammar is GitHub's dialect, not the registry's CommonMark; see
+[learned.md](../learned.md). It brings Enter that continues a list and
+Backspace that removes a marker.
+
 ## User flows
 
 ### Opening a file
@@ -170,6 +258,22 @@ in a picture, so there is no question to ask.
 5. A fitted picture stays fitted as the tile is resized; one that has been
    zoomed or panned keeps its view.
 
+### Writing a page
+
+1. Open a markdown file. It arrives as a page, with a Source button in the top
+   right.
+2. Click into any block to edit its markdown; arrow keys move between blocks
+   the same way.
+3. Type `/` at the start of a line, or after a space, and pick a block —
+   text, three headings, a bulleted, numbered or to-do list, a quote, code, a
+   table, a divider, a picture or a link. Typing after the slash filters it
+   (`/h2`, `/todo`). On a line with nothing but a list marker, the pick
+   replaces the marker; after text, it starts a new line beneath.
+4. Click a to-do's box to tick it, without going into the source.
+5. Mod-click a rendered link to a file to open it in a tab.
+6. `mod+e`, or the button, flips the window to plain source with line numbers,
+   and back. The choice is per window and holds across its markdown tabs.
+
 ### Finding in the file
 
 1. `mod+f` opens a bar above the document — not an overlay in the corner, which
@@ -201,6 +305,19 @@ in a picture, so there is no question to ask.
   which is what lets a theme change keep the scroll and the undo history.
 
 ## Not there yet
+
+- A link to the web on a page does nothing when mod-clicked; `openBrowser`
+  takes no URL yet. Pictures on the web are not drawn, for the CSP reason above.
+- A picture rewritten on disk keeps its old pixels in a page until restart —
+  the object URLs are cached by path and never invalidated.
+- A table cell's markdown is converted by a handful of regexes rather than
+  the parser — code, bold, italics, links and pictures, and nothing nested
+  inside them. Editing a table is editing pipes.
+- Badges and other pictures from the web — most READMEs' second line — are
+  their alt text until main fetches remote pictures for the page.
+- No callouts (`> [!note]`), math, footnotes or wiki links — each is a node or
+  an extension to the grammar and a case in `decorate`.
+- Code typed inside a fence is not auto-indented by its own language.
 
 - Other binary files still open as text. A file that is neither a known
   picture nor valid UTF-8 wants a "binary file" placeholder rather than a

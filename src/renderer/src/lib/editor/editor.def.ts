@@ -59,4 +59,16 @@ export interface EditorStore {
   pendingFind: string | null;
   requestFind: (windowId: string) => void;
   clearFind: () => void;
+
+  /**
+   * The windows showing markdown as source rather than as a page.
+   *
+   * Per window rather than per file: it is how you want to look at markdown
+   * in that pane right now — to fix a table's pipes, to see what a link
+   * really says — and it holds across that pane's tabs until it is flipped
+   * back. Absent means a page, which is what a markdown file is for reading.
+   * Presentation only, so it never leaves the renderer and is not restored.
+   */
+  markdownSource: ReadonlySet<string>;
+  toggleMarkdownSource: (windowId: string) => void;
 }

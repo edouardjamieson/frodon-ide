@@ -439,6 +439,35 @@ included — and `matchFilename` beats an extension table on `Dockerfile`,
 
 Before porting a table, check whether the new ecosystem already maintains it.
 
+### The registry's markdown is CommonMark, with every fence one grey string
+`code` · 2026-10-24 · `src/renderer/.../editor/editor-markdown.service.ts`
+
+`@codemirror/language-data` loads markdown as a bare `markdown()`, whose
+default base is `commonmarkLanguage`. So a file opened through the registry has
+no `Table`, `Task` or `Strikethrough` nodes at all — a table is a paragraph
+full of pipes — and a fenced block is `CodeText` with nothing inside it,
+because no `codeLanguages` were given. Both look like a missing feature of the
+page rather than a choice of grammar, which is where the time went.
+
+`markdown({ base: markdownLanguage, codeLanguages: languages })` fixes both, and
+passing the registry's own `languages` array as `codeLanguages` means each
+fence's grammar is fetched lazily on first sight, exactly as a file's is. That
+is why `languageFor` hands markdown its own grammar instead of asking the
+registry.
+
+### Decorations that change line structure must come from a state field
+`code` · 2026-10-24 · `src/renderer/.../editor/editor-markdown.service.ts`
+
+A table drawn as one block in place of several lines, or a hidden setext
+underline that takes its line break with it, is refused if it comes from a
+`ViewPlugin`: CodeMirror computes the document's vertical layout before
+plugins run, so anything that changes which lines exist has to be visible to
+it earlier. The markdown page's decorations are therefore a `StateField`
+provided through `EditorView.decorations.from`, which also means they cannot
+be limited to the viewport the way a plugin's are — the whole tree is walked
+per rebuild. On prose that is milliseconds; it is the reason a rebuild only
+happens when the cursor changes *block*.
+
 ---
 
 ## Measurements and performance

@@ -22,6 +22,10 @@ export const DEFAULT_KEYBINDINGS: Keybinding[] = [
   // TUI could not have, because a terminal cannot tell the two chords apart
   // from the control byte it receives.
   { chord: 'mod+f', command: 'editor.find' },
+  // A markdown file between its page and its source. Obsidian's chord for
+  // the same toggle, and free here: the hand-built menu has no Edit item
+  // with Cmd+E on it.
+  { chord: 'mod+e', command: 'editor.toggleMarkdown' },
   // Closes what the focused window is showing — a file, a shell, a board, a
   // page — and the window itself once there is nothing left in it.
   { chord: 'mod+w', command: 'tab.close' },
@@ -65,6 +69,7 @@ export const DEFAULT_KEYBINDINGS: Keybinding[] = [
 export const COMMAND_LABELS: Record<CommandId, string> = {
   'file.save': 'Save the file',
   'editor.find': 'Find in this file',
+  'editor.toggleMarkdown': 'Show markdown as a page or as source',
   'tab.close': 'Close the tab',
   'picker.open': 'Go to file',
   'sidebar.toggle': 'Show or hide the sidebar',

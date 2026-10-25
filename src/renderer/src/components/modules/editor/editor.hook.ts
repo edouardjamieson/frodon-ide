@@ -64,8 +64,9 @@ import { useTheme } from '~/lib/theme';
 import type { Theme } from '~/lib/theme';
 import { useWindowStore } from '~/lib/window';
 import { useIsMissing } from '~/lib/file-watch';
-import { useEditorStore } from '~/lib/editor';
+import { isMarkdownPath, useEditorStore } from '~/lib/editor';
 import { minimalChange } from './editor.service';
+import { markdownGrammar, markdownPage } from './editor-markdown.service';
 import { findExtension } from './editor-find.service';
 import { useEditorFind } from './editor-find.hook';
 import { codeMirrorTheme } from './editor.theme';
@@ -82,6 +83,16 @@ import { codeMirrorTheme } from './editor.theme';
  * state.
  */
 const appearance = new Compartment();
+
+/**
+ * How a document is drawn: as code, with line numbers and folding, or — for
+ * markdown that has not been flipped to source — as a page.
+ *
+ * Its own compartment rather than more of `appearance`, because the two
+ * change for different reasons: a theme change touches every document's
+ * colors, and `mod+e` touches one window's way of looking at markdown.
+ */
+const mode = new Compartment();
 
 /**
  * Grammars that have been fetched, by language name.
@@ -113,6 +124,10 @@ function descriptionFor(path: string | null): LanguageDescription | null {
 
 /** The grammar for a path, if it is already in hand. Never fetches. */
 function languageFor(path: string | null): Extension[] {
+  // GitHub's dialect with each fence highlighted in its own language, rather
+  // than the registry's CommonMark — see `markdownGrammar`.
+  if (isMarkdownPath(path)) return [markdownGrammar];
+
   const description = descriptionFor(path);
   if (!description) return [];
 
@@ -135,6 +150,7 @@ function languageFor(path: string | null): Extension[] {
  * is worth a line in the console and nothing else.
  */
 async function loadLanguage(path: string | null): Promise<void> {
+  if (isMarkdownPath(path)) return;
   const description = descriptionFor(path);
   if (!description || grammars.has(description.name)) return;
 
@@ -150,25 +166,48 @@ function appearanceFor(theme: Theme, path: string | null): Extension[] {
   return [codeMirrorTheme(theme), ...languageFor(path)];
 }
 
-function createState(doc: string, theme: Theme, path: string | null) {
+/** Line numbers, the active line and folding: how code is drawn. */
+const codeChrome: Extension = [
+  lineNumbers(),
+  highlightActiveLine(),
+  highlightActiveLineGutter(),
+  foldGutter({
+    markerDOM: (open) => {
+      const arrow = document.createElement('div');
+      arrow.innerHTML = open ? '▾' : '▸';
+      arrow.style.fontSize = '16px';
+      arrow.style.marginLeft = '8px';
+      arrow.style.marginRight = '8px';
+      arrow.style.lineHeight = '1.2';
+      arrow.style.cursor = 'pointer';
+      return arrow;
+    },
+  }),
+];
+
+/**
+ * What a document is drawn with, given whether its window has markdown
+ * flipped to source.
+ *
+ * A page has no gutter and no active-line band: line numbers count lines of
+ * the file, and a paragraph is one line however many it wraps to, so the
+ * numbers would only say how the file is written, not where you are on the
+ * page.
+ */
+function modeFor(path: string | null, source: boolean): Extension {
+  if (isMarkdownPath(path) && !source) return markdownPage(path);
+  return codeChrome;
+}
+
+function createState(
+  doc: string,
+  theme: Theme,
+  path: string | null,
+  source: boolean
+) {
   return EditorState.create({
     doc,
     extensions: [
-      lineNumbers(),
-      highlightActiveLine(),
-      highlightActiveLineGutter(),
-      foldGutter({
-        markerDOM: (open) => {
-          const arrow = document.createElement('div');
-          arrow.innerHTML = open ? '▾' : '▸';
-          arrow.style.fontSize = '16px';
-          arrow.style.marginLeft = '8px';
-          arrow.style.marginRight = '8px';
-          arrow.style.lineHeight = '1.2';
-          arrow.style.cursor = 'pointer';
-          return arrow;
-        },
-      }),
       drawSelection(),
       dropCursor(),
       rectangularSelection(),
@@ -186,6 +225,7 @@ function createState(doc: string, theme: Theme, path: string | null) {
       // that CodeMirror's own keymap cannot claim a chord first.
       findExtension(),
       appearance.of(appearanceFor(theme, path)),
+      mode.of(modeFor(path, source)),
     ],
   });
 }
@@ -306,6 +346,13 @@ export function useEditor(
    * one place a theme change is meant to be handled.
    */
   const themeRef = useRef(theme);
+  /**
+   * Whether this window shows markdown as source — `mod+e`. Read through a
+   * ref by the effects that build documents, for the reason `themeRef` is,
+   * and kept current by the mode effect near the bottom.
+   */
+  const source = useEditorStore((state) => state.markdownSource.has(windowId));
+  const sourceRef = useRef(source);
   /** A jump waiting to be honored — see `applyReveal`. */
   const reveal = useWindowStore((state) => state.pendingReveal);
   const [error, setError] = useState<string | null>(null);
@@ -387,7 +434,7 @@ export function useEditor(
 
     const view: EditorView = new EditorView({
       parent: host,
-      state: createState('', themeRef.current, null),
+      state: createState('', themeRef.current, null, sourceRef.current),
       // Taking over dispatch rather than installing an `updateListener` in
       // every state: this belongs to the *view*, which outlives each document
       // swapped into it, so there is one hook here instead of one in every
@@ -430,7 +477,7 @@ export function useEditor(
     if (shownRef.current) docsRef.current.set(shownRef.current, view.state);
 
     if (!path) {
-      view.setState(createState('', themeRef.current, null));
+      view.setState(createState('', themeRef.current, null, sourceRef.current));
       shownRef.current = null;
       return;
     }
@@ -461,7 +508,12 @@ export function useEditor(
         // Another tab may have been clicked while this read was in flight;
         // dropping a stale result keeps the editor on the newer one.
         if (cancelled) return;
-        const state = createState(content, themeRef.current, path);
+        const state = createState(
+          content,
+          themeRef.current,
+          path,
+          sourceRef.current
+        );
         view.setState(state);
         applyTo(view);
         shownRef.current = path;
@@ -654,6 +706,30 @@ export function useEditor(
     }
   }, [theme]);
 
+  // Flip markdown between a page and its source, on the visible document and
+  // on every parked one, so the window's other markdown tabs come back the
+  // way the window is now looking at markdown. A code file is reconfigured to
+  // what it already had, which CodeMirror notices and does nothing about.
+  useEffect(() => {
+    if (sourceRef.current === source) return;
+    sourceRef.current = source;
+
+    const view = viewRef.current;
+    if (!view) return;
+
+    view.dispatch({
+      effects: mode.reconfigure(modeFor(shownRef.current, source)),
+    });
+
+    for (const [known, state] of docsRef.current) {
+      docsRef.current.set(
+        known,
+        state.update({ effects: mode.reconfigure(modeFor(known, source)) })
+          .state
+      );
+    }
+  }, [source]);
+
   /**
    * Writes the tab on screen out to its file.
    *
@@ -729,6 +805,8 @@ export function useEditor(
     error,
     save,
     find,
+    /** This window shows markdown as source rather than as a page. */
+    source,
     /** This tab's file was rewritten under edits made here. */
     diverged: path !== null && diverged.has(path),
     /** This tab's file is no longer on disk. */

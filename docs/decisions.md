@@ -18,6 +18,42 @@ their reasoning is the reasoning recorded at the time, not reconstructed.
 
 ---
 
+### ADR-0040 — Feedback becomes a GitHub issue the person submits, not a message Frodon sends
+
+**When** 2026-10-25 · **Status** active · **Touches** settings, feedback
+
+**What.** The feedback form does not send anything. Its button opens the
+repository's `issues/new` page in the person's browser, with the title, the
+details and a block of versions already filled in, and the person submits it
+there under their own account. The renderer hands main the three fields; main
+builds the URL.
+
+**Why.** There is no server behind Frodon, and the form's Send button had been
+disabled since it was drawn because there was nowhere for it to go. An email
+relay or an endpoint would be the largest piece of infrastructure the project
+owns, built to receive a handful of reports, with a key in the app to abuse.
+The issue tracker already exists, notifies, lets someone answer, and is where a
+fork's own users would expect to go. Prefilling it keeps the part the form was
+good for — the versions nobody remembers to include — and the person sees every
+word before it becomes public. The URL is built in main because a channel that
+took a URL would open whatever the page asked it to in the system browser.
+
+**How.** `app:report-issue` in `shared/ipc.def.ts` takes a `FeedbackReport`
+(`shared/feedback.def.ts`). `main/feedback/feedback.service.ts` re-checks it,
+appends `environment()` — the version, `describeUpdate`, platform, Electron,
+Chromium, Node, all read in main — trims the details until the URL fits
+`MAX_ISSUE_URL_LENGTH`, and calls `shell.openExternal`. The repository is
+`RELEASE_REPO` from `main/update/`, so a fork that changes where updates come
+from changes where reports go in the same line.
+
+**Cost.** Reporting needs a GitHub account and leaves the app for the browser.
+Labels (`bug`, `enhancement`) only stick for people with triage rights; for
+everyone else GitHub drops them and the issue arrives unlabelled. A long report
+is cut to fit GitHub's URL limit, with a note asking for the rest to be pasted
+in by hand.
+
+---
+
 ### ADR-0039 — A project's `exclude` replaces the defaults, and main applies it as soon as it is saved
 
 **When** 2026-10-25 · **Status** active · **Touches** settings, project, explorer, search, file picker

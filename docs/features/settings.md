@@ -16,6 +16,7 @@ one undifferentiated list would be hiding the only thing about it that matters.
 | `shared/config.def.ts` | `ProjectConfig`, `UserConfig`, the sanitizers, `DEFAULT_EXCLUDE` and `ALWAYS_EXCLUDED` |
 | `main/config/config.service.ts` | reading forgivingly, writing narrowly; `readProjectConfigSync` for the session |
 | `main/session/session.service.ts` | `setProjectExcludes`, which hands a saved `exclude` to the project's watcher |
+| `main/feedback/` | turning the feedback form into a prefilled GitHub issue URL |
 | `renderer/src/lib/config/` | the replica, `update`, and `useConfigSaveEffect` |
 | `renderer/src/lib/settings/settings.constant.ts` | the pages, the hue swatches, the icon suggestions |
 | `components/modules/settings/` | the dialog and one component per page |
@@ -106,7 +107,7 @@ the hand edit. The watcher that would fix this is not worth its chattiness yet.
 | `project.files` | `.frodon/config.json` | the exclude list, and what is always hidden whatever it says |
 | `user.appearance` | `~/.frodon/config.json` | the theme, and the app icon |
 | `user.shortcuts` | — | the chord table, read-only until the config layer lands |
-| `user.feedback` | — | something broken, something missing |
+| `user.feedback` | — | a report, opened as a GitHub issue in the browser |
 
 The hue strip offers 24 swatches 15° apart *and* the full 360 underneath — the
 swatches exist to be clicked, not to be the only way through. They are drawn
@@ -142,6 +143,14 @@ about to be.
 3. Once the write lands, main rescans and the explorer, search and `mod+p`
    stop showing it. "Back to the defaults" removes the key, and so does an
    edit that lands the list exactly on the defaults again.
+
+### Reporting a bug
+
+1. `mod+,` → Feedback. Pick broken or missing, give it a summary.
+2. "Open on GitHub" sends the three fields to main, which builds an
+   `issues/new` URL with the versions appended and opens it in the browser.
+3. The person reads it on GitHub's own form and submits it there. Frodon
+   posts nothing; see ADR-0040.
 
 ## Adding a setting
 

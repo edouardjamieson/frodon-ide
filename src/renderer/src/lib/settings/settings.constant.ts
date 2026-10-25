@@ -46,7 +46,8 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     id: 'user.feedback',
     scope: 'user',
     label: 'Feedback',
-    description: 'Something broken, or something missing.',
+    description:
+      'Something broken, or something missing — filed as an issue on GitHub.',
   },
 ];
 

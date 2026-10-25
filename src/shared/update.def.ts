@@ -29,3 +29,26 @@ export type UpdateState =
   | { kind: 'unsupported'; reason: string }
   /** The last check failed. It is tried again on the next one. */
   | { kind: 'error'; message: string };
+
+/**
+ * The updater's state in a few words.
+ *
+ * Shared because two places print it: the feedback page, where "why have I
+ * not had the new version" gets its answer — the header only ever shows the
+ * restart button — and the issue main writes from that page, where it is the
+ * first thing anyone triaging a report wants to know.
+ */
+export function describeUpdate(state: UpdateState): string {
+  switch (state.kind) {
+    case 'idle':
+      return 'Up to date';
+    case 'downloading':
+      return `Downloading ${state.version}`;
+    case 'ready':
+      return `${state.version} ready — restart to update`;
+    case 'unsupported':
+      return state.reason;
+    case 'error':
+      return `Last check failed: ${state.message}`;
+  }
+}

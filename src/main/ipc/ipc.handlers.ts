@@ -86,6 +86,7 @@ import {
   resizeSession,
   writeSession,
 } from '@main/terminal';
+import { reportIssue } from '@main/feedback';
 import { excludesOf, sanitizeProjectConfig } from '@shared/config.def';
 import type { Platform } from '@shared/ipc.def';
 
@@ -592,6 +593,8 @@ export function registerIpcHandlers(): void {
       node: process.versions.node ?? '',
     },
   }));
+
+  handle('app:report-issue', (report) => reportIssue(report));
 
   handle('update:state', () => getUpdateState());
   handle('update:install', () => installUpdate());

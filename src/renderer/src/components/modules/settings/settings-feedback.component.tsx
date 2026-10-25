@@ -1,34 +1,55 @@
 import { useState } from 'react';
 import { cn } from 'cn';
-import { Bug, Lightbulb, Send } from 'lucide-react';
+import { Bug, ExternalLink, Lightbulb } from 'lucide-react';
 import { Button, Input } from '~/components/ui';
 import { useAppInfo } from '~/lib/app';
 import { useUpdateStore } from '~/lib/update';
-import type { UpdateState } from '@shared/update.def';
+import { describeUpdate } from '@shared/update.def';
+import {
+  MAX_FEEDBACK_DETAILS_LENGTH,
+  MAX_FEEDBACK_TITLE_LENGTH,
+  type FeedbackKind,
+} from '@shared/feedback.def';
 import { Field, FieldGroup } from './settings-field.component';
 
-type FeedbackKind = 'bug' | 'idea';
+/** Where the last press of the button got to. */
+type Handoff = 'idle' | 'opening' | 'opened' | 'failed';
 
 /**
  * Saying something is broken, or missing.
  *
- * The form is real and the send is not: there is nowhere for it to go yet,
- * and inventing an endpoint would be worse than saying so. The button is
- * disabled with the reason written next to it rather than hidden, because a
- * form that silently swallows a bug report is the one outcome worse than no
- * form.
+ * The button opens a GitHub issue in the browser rather than sending
+ * anything. There is no server behind this app, and the repository's issue
+ * tracker is already where a report can be read, answered and closed — see
+ * `main/feedback/`. The form's job is to arrive there with the title, the
+ * details and the versions already in place, so the person's last step is
+ * reading what they are about to post and pressing Submit on it.
  *
- * What it is for in the meantime is the part underneath — the versions a
- * report needs and nobody can be expected to know. They come from `app:info`,
- * which main answers once at startup, and they are selectable so they can be
- * pasted into an issue that *does* have somewhere to go.
+ * The versions underneath stay on screen. They are what goes at the bottom of
+ * the issue, and showing them here is what makes it no surprise when they
+ * turn up there.
  */
 export default function SettingsFeedback() {
   const [kind, setKind] = useState<FeedbackKind>('bug');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
+  const [handoff, setHandoff] = useState<Handoff>('idle');
   const info = useAppInfo();
   const update = useUpdateStore((store) => store.state);
+
+  const open = async () => {
+    setHandoff('opening');
+    try {
+      const { ok } = await window.frodon.app.reportIssue({
+        kind,
+        title: subject,
+        details: body,
+      });
+      setHandoff(ok ? 'opened' : 'failed');
+    } catch {
+      setHandoff('failed');
+    }
+  };
 
   return (
     <div className="flex flex-col gap-7">
@@ -54,6 +75,7 @@ export default function SettingsFeedback() {
           <Input
             id="settings-feedback-subject"
             value={subject}
+            maxLength={MAX_FEEDBACK_TITLE_LENGTH}
             placeholder={
               kind === 'bug'
                 ? 'The terminal loses focus when a window is split'
@@ -76,6 +98,7 @@ export default function SettingsFeedback() {
             id="settings-feedback-body"
             value={body}
             rows={5}
+            maxLength={MAX_FEEDBACK_DETAILS_LENGTH}
             spellCheck={false}
             onChange={(event) => setBody(event.target.value)}
             className="w-full resize-none rounded-md border border-input bg-transparent px-3 py-2 text-sm text-fg shadow-xs outline-none transition-[color,box-shadow] placeholder:text-fg-subtle focus-visible:border-project dark:bg-input/30"
@@ -83,14 +106,15 @@ export default function SettingsFeedback() {
         </Field>
 
         <div className="flex items-center gap-3">
-          <Button size="sm" disabled>
-            <Send />
-            Send
+          <Button
+            size="sm"
+            disabled={!subject.trim() || handoff === 'opening'}
+            onClick={() => void open()}
+          >
+            <ExternalLink />
+            Open on GitHub
           </Button>
-          <p className="text-[11px] text-fg-subtle">
-            Not wired up yet — this is the shape of it, not the thing. Nothing
-            typed here leaves the window.
-          </p>
+          <p className="text-[11px] text-fg-subtle">{HANDOFF_NOTES[handoff]}</p>
         </div>
       </FieldGroup>
 
@@ -107,6 +131,21 @@ export default function SettingsFeedback() {
     </div>
   );
 }
+
+/**
+ * What the line beside the button says.
+ *
+ * The idle sentence is the important one: it says the report is not sent
+ * from here *before* the button is pressed, so nobody presses it expecting a
+ * "thanks" and gets a browser instead.
+ */
+const HANDOFF_NOTES: Record<Handoff, string> = {
+  idle: 'Opens a new issue in your browser with all of this filled in. Nothing is posted until you submit it there.',
+  opening: 'Opening your browser…',
+  opened: 'Opened in your browser. Read it over, then submit it there.',
+  failed:
+    'Could not open your browser. The versions below are selectable, to paste into an issue by hand.',
+};
 
 function KindButton({
   active,
@@ -134,26 +173,6 @@ function KindButton({
       {label}
     </button>
   );
-}
-
-/**
- * The updater's state in a few words. Here and nowhere else: the header only
- * ever shows the restart button, so this is where "why have I not had the
- * new version" gets its answer.
- */
-function describeUpdate(state: UpdateState): string {
-  switch (state.kind) {
-    case 'idle':
-      return 'Up to date';
-    case 'downloading':
-      return `Downloading ${state.version}`;
-    case 'ready':
-      return `${state.version} ready — restart to update`;
-    case 'unsupported':
-      return state.reason;
-    case 'error':
-      return `Last check failed: ${state.message}`;
-  }
 }
 
 function Fact({ label, value }: { label: string; value: string }) {

@@ -57,6 +57,7 @@ import type {
 } from './search.def';
 import type { TerminalData, TerminalExit, TerminalInfo } from './terminal.def';
 import type { UpdateState } from './update.def';
+import type { FeedbackReport } from './feedback.def';
 import type {
   Worktree,
   WorktreeCreateRequest,
@@ -499,6 +500,21 @@ export interface IpcContract {
   'app:info': { req: void; res: AppInfo };
 
   /**
+   * Opens a new GitHub issue in the person's browser, filled in from the
+   * feedback form.
+   *
+   * The renderer hands over the three things a person typed and **main
+   * builds the URL** — the repository, the query string, the version block
+   * appended to the body. A channel that took a URL would be a channel that
+   * opened whatever the page asked it to in the system browser, which is the
+   * same widening `ipc.def.ts` refuses for paths.
+   *
+   * Answers whether the browser was asked. Nothing is posted from here: the
+   * issue exists once the person presses Submit on GitHub, or never.
+   */
+  'app:report-issue': { req: FeedbackReport; res: { ok: boolean } };
+
+  /**
    * Where the updater is, for a window that has just opened.
    *
    * Asked once on mount and then kept current by `update:changed`. A window
@@ -728,6 +744,7 @@ export interface FrodonApi {
   };
   app: {
     info: () => Promise<Res<'app:info'>>;
+    reportIssue: (report: FeedbackReport) => Promise<Res<'app:report-issue'>>;
   };
   update: {
     state: () => Promise<Res<'update:state'>>;

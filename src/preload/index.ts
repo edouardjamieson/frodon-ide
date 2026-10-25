@@ -153,6 +153,7 @@ const api: FrodonApi = {
   },
   app: {
     info: () => ipcRenderer.invoke('app:info'),
+    reportIssue: (report) => ipcRenderer.invoke('app:report-issue', report),
   },
   update: {
     state: () => ipcRenderer.invoke('update:state'),

@@ -327,3 +327,93 @@ body {
     8px -8px,
     -8px 0;
 }
+
+/*
+ * The sidebar cat's animations — see `components/modules/companion`.
+ *
+ * Here rather than in Tailwind's arbitrary-value syntax because the frames
+ * have to agree with each other: the tail's keyframes assume four equal slots
+ * and the component's delays assume the same, and splitting that across a
+ * class string would hide the coupling.
+ */
+
+/* One tail frame visible per quarter of the period; the component staggers
+   the four frames by a quarter each. `opacity: 0` is the resting value, so a
+   frame whose animation is off shows nothing rather than everything. */
+.cat-tail-frame {
+  opacity: 0;
+  animation: cat-tail-slot 2.4s steps(1, end) infinite;
+}
+@keyframes cat-tail-slot {
+  0% {
+    opacity: 1;
+  }
+  25%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* A blink every five seconds, shut for about a fifth of a second. */
+.cat-blink-open {
+  animation: cat-blink-open 5s steps(1, end) infinite;
+}
+.cat-blink-closed {
+  opacity: 0;
+  animation: cat-blink-closed 5s steps(1, end) infinite;
+}
+@keyframes cat-blink-open {
+  0% {
+    opacity: 1;
+  }
+  96%,
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes cat-blink-closed {
+  0% {
+    opacity: 0;
+  }
+  96%,
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Hearts and snores drift up and fade. `backwards` holds the first keyframe
+   through the delay, so a staggered one waits invisible instead of sitting
+   on the cat's head until its turn. */
+.cat-float {
+  animation: cat-float 1.6s ease-out infinite backwards;
+}
+[data-mood='asleep'] .cat-float {
+  animation-duration: 3s;
+}
+@keyframes cat-float {
+  0% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-14px);
+  }
+}
+
+/* With motion reduced the cat holds still: tail curled, eyes open, and the
+   hearts and snores shown where they start rather than rising. */
+@media (prefers-reduced-motion: reduce) {
+  .cat-tail-frame,
+  .cat-blink-open,
+  .cat-blink-closed,
+  .cat-float {
+    animation: none;
+  }
+  .cat-tail-frame[data-frame='0'] {
+    opacity: 1;
+  }
+}

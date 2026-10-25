@@ -157,7 +157,7 @@ export default function Boards() {
       ) : null}
 
       <ScrollArea className="min-h-0 flex-1">
-        <div className="flex flex-col gap-0.5 p-1.5">
+        <div className="flex flex-col gap-0.5 p-1.5 pb-12">
           {/* `listing` is checked so that the empty state doesn't flash
               between the panel mounting and the first read coming back. */}
           {boards.length === 0 && !listing ? (

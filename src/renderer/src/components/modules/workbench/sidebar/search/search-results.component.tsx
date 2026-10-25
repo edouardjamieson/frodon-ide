@@ -163,7 +163,7 @@ export default function SearchResults({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto pt-1">
+    <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto pt-1 pb-12">
       {result.files.map((file) => (
         <FileRow
           key={file.path}

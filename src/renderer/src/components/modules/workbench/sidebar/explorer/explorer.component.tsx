@@ -572,7 +572,7 @@ export default function Explorer({ files }: { files: File[] }) {
     <div className="flex h-full w-full flex-col pb-1.5">
       <Toolbar />
       <div
-        className="flex w-max min-w-full flex-col px-1.5 overflow-auto h-full"
+        className="flex w-max min-w-full flex-col px-1.5 overflow-auto h-full pb-12"
         onClick={() => {
           select(root);
         }}

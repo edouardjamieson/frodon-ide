@@ -136,10 +136,15 @@ handler, so git's own stderr comes back as a value.
 
 ### The header
 
-1. The branch button shows the current branch, with marks for staged and dirty
-   work and the ahead/behind pair.
-2. Its menu lists local branches, read when the menu opens.
-3. Pull, push and fetch are there; each refreshes the snapshot on the way out.
+1. The branch, Pull and Push sit together in one button group, the branch
+   first.
+2. The branch button shows the current branch and how many files are staged
+   and how many are dirty, each in a small square in its git color.
+3. Pull and Push are labelled buttons, each carrying its count — commits
+   behind, commits ahead — in the same kind of square. Every count stops at
+   9+.
+4. The branch menu lists local branches, read when the menu opens.
+5. Pull, push and fetch each refresh the snapshot on the way out.
 
 ### Staging and committing
 

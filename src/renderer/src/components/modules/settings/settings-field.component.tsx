@@ -15,11 +15,18 @@ export function Field({
   label,
   hint,
   htmlFor,
+  aside,
   children,
   className,
 }: {
   label: string;
   hint?: ReactNode;
+  /**
+   * Something small on the label's row, at the far end — a counter, a
+   * status. On the label's line rather than under the control because it
+   * describes the field, and the hint below is already saying what to type.
+   */
+  aside?: ReactNode;
   /** Set when the control is a single input, so the label focuses it. */
   htmlFor?: string;
   children: ReactNode;
@@ -27,12 +34,15 @@ export function Field({
 }) {
   return (
     <div className={cn('flex flex-col gap-1.5', className)}>
-      <label
-        htmlFor={htmlFor}
-        className="text-xs font-medium text-fg select-none"
-      >
-        {label}
-      </label>
+      <div className="flex items-baseline justify-between gap-3">
+        <label
+          htmlFor={htmlFor}
+          className="text-xs font-medium text-fg select-none"
+        >
+          {label}
+        </label>
+        {aside}
+      </div>
       {children}
       {hint ? <p className="text-[11px] text-fg-subtle">{hint}</p> : null}
     </div>

@@ -71,7 +71,16 @@ export default function SettingsFeedback() {
           </div>
         </Field>
 
-        <Field label="Summary" htmlFor="settings-feedback-subject">
+        <Field
+          label="Summary"
+          htmlFor="settings-feedback-subject"
+          aside={
+            <Counter
+              length={subject.length}
+              limit={MAX_FEEDBACK_TITLE_LENGTH}
+            />
+          }
+        >
           <Input
             id="settings-feedback-subject"
             value={subject}
@@ -88,6 +97,9 @@ export default function SettingsFeedback() {
         <Field
           label="Details"
           htmlFor="settings-feedback-body"
+          aside={
+            <Counter length={body.length} limit={MAX_FEEDBACK_DETAILS_LENGTH} />
+          }
           hint={
             kind === 'bug'
               ? 'What you did, what happened, and what you expected instead.'
@@ -146,6 +158,27 @@ const HANDOFF_NOTES: Record<Handoff, string> = {
   failed:
     'Could not open your browser. The versions below are selectable, to paste into an issue by hand.',
 };
+
+/**
+ * How much of a field's limit is used.
+ *
+ * Counted the way `maxLength` counts — UTF-16 units, so an emoji is two —
+ * because that is the limit the field enforces, and a counter that disagreed
+ * with it would say there was room the field will not give. Turns to the
+ * warning color in the last tenth, when the next sentence may not fit.
+ */
+function Counter({ length, limit }: { length: number; limit: number }) {
+  return (
+    <span
+      className={cn(
+        'font-mono text-[10px] tabular-nums',
+        length >= limit * 0.9 ? 'text-fg-warning' : 'text-fg-subtle'
+      )}
+    >
+      {length} / {limit}
+    </span>
+  );
+}
 
 function KindButton({
   active,

@@ -138,6 +138,10 @@ better than a field that always comes back empty.
   window closes. What is *not* acceptable is acting on an event whose id has
   been reused — main checks the session it is reporting on is still the
   registered one before sending.
+- **Keystrokes pass through as xterm encodes them, with one exception.**
+  Shift+Enter has no encoding of its own and would arrive as `\r`, so it is
+  sent as `ESC CR` (Meta+Enter). zsh inserts a newline for that, and so do
+  TUIs with multi-line input. This is the same choice VS Code's terminal made.
 - **`terminal:data` is the one genuinely high-frequency channel in the app.**
   Treat any new per-keystroke or per-frame channel as needing the same
   justification.

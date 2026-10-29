@@ -125,6 +125,29 @@ export function useTerminal({
       void window.frodon.terminal.write(sessionId, data);
     });
 
+    // The one exception. A terminal has no encoding for Shift+Enter — xterm
+    // sends the same `\r` as Enter, so the shell submits the line. Sending
+    // `ESC CR` instead, Meta+Enter, is what VS Code's terminal settled on:
+    // zsh's emacs keymap inserts a newline for it, and the TUIs that take
+    // multi-line input (Claude Code among them) read it the same way. The
+    // kitty keyboard protocol would be the honest answer, but xterm.js does
+    // not speak it. Every event type is swallowed, not only the keydown, so
+    // xterm never gets a keypress to turn into a second `\r`.
+    term.attachCustomKeyEventHandler((event) => {
+      const shiftEnter =
+        event.key === 'Enter' &&
+        event.shiftKey &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        !event.metaKey;
+      if (!shiftEnter) return true;
+      if (event.type === 'keydown') {
+        void window.frodon.terminal.write(sessionId, '\x1b\r');
+      }
+      event.preventDefault();
+      return false;
+    });
+
     // xterm reports its own geometry after a fit, so the PTY is told only
     // when the character grid actually changed — not on every pixel of a drag.
     const resized = term.onResize(({ cols, rows }) => {

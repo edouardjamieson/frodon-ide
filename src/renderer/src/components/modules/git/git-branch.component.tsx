@@ -22,7 +22,7 @@ import {
   TooltipTrigger,
 } from '~/components/ui';
 import { useBranchLabel, useGit, useGitStore, useIsWorktree } from '~/lib/git';
-import { Indicator } from './git-controls.component';
+import Indicator from './git-indicator.component';
 
 /**
  * The branch, and the three things worth doing to it from a title bar:

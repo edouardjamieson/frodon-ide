@@ -43,6 +43,12 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
       'How code is set, in the editor and in the terminal, on this machine.',
   },
   {
+    id: 'user.git',
+    scope: 'user',
+    label: 'Git',
+    description: 'Which way the git view splits its panes, on this machine.',
+  },
+  {
     id: 'user.shortcuts',
     scope: 'user',
     label: 'Shortcuts',

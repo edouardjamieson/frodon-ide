@@ -208,7 +208,39 @@ export interface UserConfig {
   terminalFontFamily?: string;
   /** Absent: the editor's size, for the same reason. */
   terminalFontSize?: number;
+  /**
+   * Whether the history's commit panel opens below the graph or beside it.
+   * Absent: `DEFAULT_PANE_LAYOUT`.
+   *
+   * The three git layouts are user settings for the reason the fonts are:
+   * which way a pane splits depends on how wide *your* git window tends to
+   * be, and that is a fact about your screen, not about the repository.
+   */
+  gitHistoryLayout?: PaneLayout;
+  /** The opened commit's file list against its patch. Absent: the default. */
+  gitCommitDetailLayout?: PaneLayout;
+  /** The staging lists against the diff, in the commit tab. Same. */
+  gitCommitLayout?: PaneLayout;
 }
+
+/**
+ * Which way a split pane divides, in `react-resizable-panels`' own words:
+ * `horizontal` puts the two halves side by side, `vertical` stacks them.
+ *
+ * The library's vocabulary rather than one of our own, because the value is
+ * handed straight to `orientation` — a translation table between "stacked"
+ * and `vertical` would be one more place for the two to come apart.
+ */
+export const PANE_LAYOUTS = ['horizontal', 'vertical'] as const;
+
+export type PaneLayout = (typeof PANE_LAYOUTS)[number];
+
+/**
+ * What an absent layout means: stacked. A git window is often a third of the
+ * workbench, and two columns at that width leave neither readable — the
+ * setting exists for the people whose git window is not.
+ */
+export const DEFAULT_PANE_LAYOUT: PaneLayout = 'vertical';
 
 /**
  * The icons that exist, as keys rather than paths.
@@ -316,6 +348,13 @@ export function isValidAppIcon(value: unknown): value is AppIcon {
   return (
     typeof value === 'string' &&
     (APP_ICONS as readonly string[]).includes(value)
+  );
+}
+
+export function isValidPaneLayout(value: unknown): value is PaneLayout {
+  return (
+    typeof value === 'string' &&
+    (PANE_LAYOUTS as readonly string[]).includes(value)
   );
 }
 
@@ -462,6 +501,16 @@ export function sanitizeUserConfig(value: unknown): UserConfig {
 
   const terminalSize = normalizeFontSize(raw.terminalFontSize);
   if (terminalSize !== null) config.terminalFontSize = terminalSize;
+
+  if (isValidPaneLayout(raw.gitHistoryLayout)) {
+    config.gitHistoryLayout = raw.gitHistoryLayout;
+  }
+  if (isValidPaneLayout(raw.gitCommitDetailLayout)) {
+    config.gitCommitDetailLayout = raw.gitCommitDetailLayout;
+  }
+  if (isValidPaneLayout(raw.gitCommitLayout)) {
+    config.gitCommitLayout = raw.gitCommitLayout;
+  }
 
   return config;
 }

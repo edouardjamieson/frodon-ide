@@ -8,7 +8,7 @@
  * single store that every window on the page shares.
  */
 import { useCallback, useEffect, useMemo } from 'react';
-import { DEFAULT_FONT_SIZE } from '@shared/config.def';
+import { DEFAULT_FONT_SIZE, DEFAULT_PANE_LAYOUT } from '@shared/config.def';
 import { useThemeSwitcher } from '~/lib/theme';
 import { useConfigStore } from './config.store';
 import {
@@ -20,7 +20,7 @@ import {
   sameConfig,
 } from './config.service';
 import { CONFIG_SAVE_MS } from './config.constant';
-import type { TextPreferences } from './config.def';
+import type { GitLayouts, TextPreferences } from './config.def';
 
 /**
  * Reads this machine's settings and puts them on, once. Mount this ONCE near
@@ -219,6 +219,30 @@ export const useTerminalText = (): TextPreferences => {
       wordWrap: false,
     }),
     [fontFamily, fontSize]
+  );
+};
+
+/**
+ * Which way each of the git view's split panes divides.
+ *
+ * Field by field and memoised, for the reason `useEditorText` is: the user
+ * config is replaced whole on every change, and a fresh object here would
+ * re-render the history graph for a theme being picked.
+ */
+export const useGitLayouts = (): GitLayouts => {
+  const history = useConfigStore((state) => state.user.gitHistoryLayout);
+  const commitDetail = useConfigStore(
+    (state) => state.user.gitCommitDetailLayout
+  );
+  const commit = useConfigStore((state) => state.user.gitCommitLayout);
+
+  return useMemo(
+    () => ({
+      history: history ?? DEFAULT_PANE_LAYOUT,
+      commitDetail: commitDetail ?? DEFAULT_PANE_LAYOUT,
+      commit: commit ?? DEFAULT_PANE_LAYOUT,
+    }),
+    [history, commitDetail, commit]
   );
 };
 

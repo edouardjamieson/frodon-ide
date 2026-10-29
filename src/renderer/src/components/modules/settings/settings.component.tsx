@@ -19,6 +19,7 @@ import SettingsAppearance from './settings-appearance.component';
 import SettingsEditor from './settings-editor.component';
 import SettingsFeedback from './settings-feedback.component';
 import SettingsFiles from './settings-files.component';
+import SettingsGit from './settings-git.component';
 import SettingsProject from './settings-project.component';
 import SettingsShortcuts from './settings-shortcuts.component';
 
@@ -163,6 +164,8 @@ function Page({ section }: { section: SettingsSection }) {
       return <SettingsAppearance />;
     case 'user.editor':
       return <SettingsEditor />;
+    case 'user.git':
+      return <SettingsGit />;
     case 'user.shortcuts':
       return <SettingsShortcuts />;
     case 'user.feedback':

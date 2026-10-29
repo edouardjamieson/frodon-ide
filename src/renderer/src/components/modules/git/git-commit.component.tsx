@@ -7,6 +7,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from '~/components/ui';
+import { useGitLayouts } from '~/lib/config';
 import {
   statusColor,
   statusLetter,
@@ -28,16 +29,23 @@ import GitDiff from './git-diff.component';
  * switching to the history tab and back does not discard a half-written
  * commit message.
  *
- * The diff is below rather than beside: a git window is often a third of the
- * workbench, and two columns at that width leave neither of them readable.
+ * The diff is below rather than beside by default: a git window is often a
+ * third of the workbench, and two columns at that width leave neither of
+ * them readable. The Git page in settings puts it beside, for a git window
+ * that is not.
  */
 export default function GitCommit() {
   const { staged, changed } = useGitChanges();
   const { stage, unstage, discard } = useGitStaging();
+  const layouts = useGitLayouts();
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <ResizablePanelGroup orientation="vertical" className="min-h-0 flex-1">
+      <ResizablePanelGroup
+        key={layouts.commit}
+        orientation={layouts.commit}
+        className="min-h-0 flex-1"
+      >
         <ResizablePanel id="git-changes" minSize="20%" defaultSize="45%">
           <div className="flex h-full flex-col overflow-y-auto overflow-x-hidden py-1">
             <Section

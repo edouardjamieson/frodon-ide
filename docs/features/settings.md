@@ -51,10 +51,19 @@ Every field is optional, and that is the model rather than an omission.
 | `wordWrap` (user) | `true` | off — switching it off removes the key |
 | `terminalFontFamily` (user) | as the editor's | **the editor's face** |
 | `terminalFontSize` (user) | 9–32 px | **the editor's size** |
+| `gitHistoryLayout` (user) | `horizontal` | `vertical` — choosing it removes the key |
+| `gitCommitDetailLayout` (user) | `horizontal` | `vertical` |
+| `gitCommitLayout` (user) | `horizontal` | `vertical` |
 
 The two terminal fields derive from the editor's fields, not from the
 built-in defaults: one font for code wherever it is, until somebody says
 otherwise.
+
+The three git layouts are user fields and not project ones: which way a pane
+should split depends on how wide your git window is, and that is a fact about
+your screen. Their values are `react-resizable-panels`' own — `horizontal` is
+side by side — so the stored string goes straight to `orientation` with no
+table in between.
 
 Clearing a field in the dialog **removes the key** rather than writing an empty
 string. Writing a derivation into the file would freeze it at the moment
@@ -123,6 +132,7 @@ the hand edit. The watcher that would fix this is not worth its chattiness yet.
 | `project.files` | `.frodon/config.json` | the exclude list, and what is always hidden whatever it says |
 | `user.appearance` | `~/.frodon/config.json` | the theme, and the app icon |
 | `user.editor` | `~/.frodon/config.json` | the editor's font, size and wrapping; the terminal's font and size |
+| `user.git` | `~/.frodon/config.json` | which way the history, a commit's detail and the commit tab split |
 | `user.shortcuts` | — | the chord table, read-only until the config layer lands |
 | `user.feedback` | — | a report, opened as a GitHub issue in the browser |
 | `user.about` | — | the logo, the version, the updater's state, what it runs on, and the repository |

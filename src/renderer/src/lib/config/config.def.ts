@@ -1,4 +1,4 @@
-import type { ProjectConfig, UserConfig } from '@shared/config.def';
+import type { PaneLayout, ProjectConfig, UserConfig } from '@shared/config.def';
 
 /**
  * The renderer's copy of the two config files.
@@ -58,4 +58,11 @@ export interface TextPreferences {
   fontFamily: string | undefined;
   fontSize: number;
   wordWrap: boolean;
+}
+
+/** How the git view's three split panes divide, with the defaults applied. */
+export interface GitLayouts {
+  history: PaneLayout;
+  commitDetail: PaneLayout;
+  commit: PaneLayout;
 }

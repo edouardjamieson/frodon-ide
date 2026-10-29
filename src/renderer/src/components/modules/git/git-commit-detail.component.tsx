@@ -5,6 +5,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from '~/components/ui';
+import { useGitLayouts } from '~/lib/config';
 import {
   changeColor,
   changeLetter,
@@ -25,15 +26,24 @@ import type { GitCommitFile, GitLogCommit } from '@shared/git.def';
  * on the first frame and the list fills in under it, rather than the whole
  * panel appearing empty for as long as git takes.
  *
- * Files over the patch, the same way the commit tab stacks them, and for the
- * reason written there: a git window is often a third of the workbench, and
- * two columns at that width leave neither readable.
+ * Files over the patch by default, the same way the commit tab stacks them
+ * and for the reason given at `DEFAULT_PANE_LAYOUT`; side by side when the
+ * Git page in settings says so.
  */
 export default function GitCommitDetail({ commit }: { commit: GitLogCommit }) {
   const { detail, loading, close } = useCommitDetail();
+  const layouts = useGitLayouts();
 
   return (
-    <div className="flex h-full min-h-0 flex-col border-t border-pane-border">
+    // The top border only when the panel sits under the graph. Beside it, the
+    // group's own separator is the line, and a border across the top would
+    // draw a second edge the graph does not have.
+    <div
+      className={cn(
+        'flex h-full min-h-0 flex-col',
+        layouts.history === 'vertical' && 'border-t border-pane-border'
+      )}
+    >
       <header className="flex shrink-0 flex-col gap-1 px-2 py-1.5">
         <div className="flex items-center gap-2">
           <span className="shrink-0 font-mono text-[11px] text-fg-muted">
@@ -84,13 +94,14 @@ export default function GitCommitDetail({ commit }: { commit: GitLogCommit }) {
         </pre>
       ) : null}
 
-      <ResizablePanelGroup orientation="vertical" className="min-h-0 flex-1">
-        <ResizablePanel
-          id="commit-files"
-          minSize="20%"
-          defaultSize="40%"
-          className="border-t border-pane-border"
-        >
+      {/* The border is on the group rather than the files panel, so it runs
+          under the header across both halves whichever way they divide. */}
+      <ResizablePanelGroup
+        key={layouts.commitDetail}
+        orientation={layouts.commitDetail}
+        className="min-h-0 flex-1 border-t border-pane-border"
+      >
+        <ResizablePanel id="commit-files" minSize="20%" defaultSize="40%">
           <FileList sha={commit.sha} files={detail?.files} loading={loading} />
         </ResizablePanel>
 

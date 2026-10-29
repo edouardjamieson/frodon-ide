@@ -6,6 +6,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from '~/components/ui';
+import { useGitLayouts } from '~/lib/config';
 import {
   buildGraph,
   relativeTime,
@@ -36,17 +37,19 @@ const SCOPES: { value: GitLogRequest['scope']; label: string }[] = [
  * lands and not when the working tree changes under it — and `useGitLog`
  * makes sure the commits themselves are only re-read when HEAD moves.
  *
- * Clicking a row opens what that commit did, in a panel below the graph. The
- * panel is appended to the same group rather than replacing the graph, which
- * is not a layout preference: the graph's scroll container has to stay the
- * same DOM node, or clicking a commit forty rows down would scroll the
- * history back to the top underneath it.
+ * Clicking a row opens what that commit did, in a panel below the graph — or
+ * beside it, under the Git page in settings. The panel is appended to the
+ * same group rather than replacing the graph, which is not a layout
+ * preference: the graph's scroll container has to stay the same DOM node, or
+ * clicking a commit forty rows down would scroll the history back to the top
+ * underneath it.
  */
 export default function GitHistory() {
   const { commits, loading, scope, setScope, reload } = useGitLog();
   const graph = useMemo(() => buildGraph(commits), [commits]);
   const branch = useGitStore((state) => state.status.branch);
   const { sha, open, close } = useCommitDetail();
+  const layouts = useGitLayouts();
 
   // The row the panel belongs to. Looked up in the log rather than copied into
   // the store, so there is one answer to what a commit's subject is — and so
@@ -100,7 +103,15 @@ export default function GitHistory() {
           {loading ? 'Reading the history…' : 'No commits yet.'}
         </p>
       ) : (
-        <ResizablePanelGroup orientation="vertical" className="min-h-0 flex-1">
+        // Keyed on the direction so a change in settings remounts the group
+        // rather than asking it to re-lay itself out in the other axis. The
+        // scroll position is lost with it, which is a fair price for
+        // something done once from a dialog.
+        <ResizablePanelGroup
+          key={layouts.history}
+          orientation={layouts.history}
+          className="min-h-0 flex-1"
+        >
           <ResizablePanel id="history-graph" minSize="20%">
             <div className="flex h-full flex-col overflow-y-auto overflow-x-hidden py-1">
               {graph.rows.map((row) => (

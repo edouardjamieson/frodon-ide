@@ -182,6 +182,19 @@ handler, so git's own stderr comes back as a value.
    all — and the pane says it above the diff, which keeps "No changes in this
    file" from reading as a bug on a file that was purely moved.
 
+### Changing which way the panes split
+
+1. `mod+,` → Git. Three choices, one per split: the history against an open
+   commit, a commit's files against its patch, and the staging lists against
+   the diff.
+2. Every one is stacked until changed, because a git window is usually a
+   third of the workbench. Horizontal means side by side — the library's
+   meaning, and each choice is drawn as the split it produces.
+3. A git tile behind the dialog rearranges as you click. The group is
+   remounted rather than re-laid out, so the history's scroll position does
+   not survive the change; it is a dialog setting, not something toggled
+   while reading.
+
 ## Rules
 
 - **The git window does not open twice.** One repository, and every tab is a

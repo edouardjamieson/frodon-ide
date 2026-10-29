@@ -14,6 +14,7 @@ import {
 } from '~/components/ui';
 import { useGit, useGitStore, useIsRepo } from '~/lib/git';
 import BranchMenu from './git-branch.component';
+import { cn } from 'cn';
 
 /**
  * The git cluster in the header: the branch, then pull and push, joined into
@@ -101,11 +102,7 @@ function GitAction({
       )}
 
       <span className="text-xs font-semibold">{label}</span>
-      {count > 0 && !busy && (
-        <div className="w-[14px] h-[14px] rounded-sm text-[11px] font-bold text-project border flex items-center justify-center border-project bg-project/30">
-          {count > 9 ? '9+' : count}
-        </div>
-      )}
+      {count > 0 && !busy && <Indicator count={count} />}
     </Button>
   );
 }
@@ -152,5 +149,27 @@ function Hint({ label, children }: { label: ReactNode; children: ReactNode }) {
       <TooltipTrigger asChild>{children}</TooltipTrigger>
       <TooltipContent side="bottom">{label}</TooltipContent>
     </Tooltip>
+  );
+}
+
+export function Indicator({
+  count,
+  className,
+}: {
+  count: number;
+  className?: string;
+}) {
+  const val = count > 9 ? '9+' : count;
+
+  return (
+    <div
+      className={cn(
+        'h-[14px] rounded-sm text-[11px] font-bold text-project border flex items-center justify-center border-project bg-project/30',
+        className,
+        { 'w-[14px]': count < 10, 'w-[18px]': count > 9 }
+      )}
+    >
+      {val}
+    </div>
   );
 }

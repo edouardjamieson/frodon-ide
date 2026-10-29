@@ -22,6 +22,7 @@ import {
   TooltipTrigger,
 } from '~/components/ui';
 import { useBranchLabel, useGit, useGitStore, useIsWorktree } from '~/lib/git';
+import { Indicator } from './git-controls.component';
 
 /**
  * The branch, and the three things worth doing to it from a title bar:
@@ -103,16 +104,8 @@ export default function BranchMenu() {
                 <span className="text-xs font-semibold">{label}</span>
                 {showChangeSet && (
                   <div className="flex items-center gap-1">
-                    {changeSet.staged > 0 && (
-                      <div className="w-[14px] h-[14px] rounded-sm text-[11px] font-bold text-git-staged border flex items-center justify-center border-git-staged bg-git-staged/40">
-                        {changeSet.staged > 9 ? '9+' : changeSet.staged}
-                      </div>
-                    )}
-                    {changeSet.dirty > 0 && (
-                      <div className="w-[14px] h-[14px] rounded-sm text-[11px] font-bold text-git-changed border flex items-center justify-center border-git-changed bg-git-changed/40">
-                        {changeSet.dirty > 9 ? '9+' : changeSet.dirty}
-                      </div>
-                    )}
+                    <StagedChangesIndicator changeSet={changeSet} busy={busy} />
+                    <DirtyChangesIndicator changeSet={changeSet} busy={busy} />
                   </div>
                 )}
               </Button>
@@ -164,16 +157,8 @@ export default function BranchMenu() {
             <span className="text-xs font-semibold font-mono">{label}</span>
             {showChangeSet && (
               <div className="flex items-center gap-1">
-                {changeSet.staged > 0 && (
-                  <div className="w-[14px] h-[14px] rounded-sm text-[11px] font-bold text-git-staged border flex items-center justify-center border-git-staged bg-git-staged/30">
-                    {changeSet.staged > 9 ? '9+' : changeSet.staged}
-                  </div>
-                )}
-                {changeSet.dirty > 0 && (
-                  <div className="w-[14px] h-[14px] rounded-sm text-[11px] font-bold text-git-changed border flex items-center justify-center border-git-changed bg-git-changed/30">
-                    {changeSet.dirty > 9 ? '9+' : changeSet.dirty}
-                  </div>
-                )}
+                <StagedChangesIndicator changeSet={changeSet} busy={busy} />
+                <DirtyChangesIndicator changeSet={changeSet} busy={busy} />
               </div>
             )}
           </Button>
@@ -273,3 +258,31 @@ export default function BranchMenu() {
     </>
   );
 }
+
+interface IndicatorProps {
+  changeSet: {
+    staged: number;
+    dirty: number;
+  };
+  busy: boolean;
+}
+
+const StagedChangesIndicator = ({ changeSet, busy }: IndicatorProps) => {
+  if (changeSet.staged === 0 || busy) return null;
+  return (
+    <Indicator
+      count={changeSet.staged}
+      className="border-git-staged bg-git-staged/40 text-git-staged"
+    />
+  );
+};
+
+const DirtyChangesIndicator = ({ changeSet, busy }: IndicatorProps) => {
+  if (changeSet.dirty === 0 || busy) return null;
+  return (
+    <Indicator
+      count={changeSet.dirty}
+      className="border-git-changed bg-git-changed/40 text-git-changed"
+    />
+  );
+};

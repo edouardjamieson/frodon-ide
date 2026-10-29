@@ -18,6 +18,42 @@ their reasoning is the reasoning recorded at the time, not reconstructed.
 
 ---
 
+### ADR-0041 — Windows are drawn in one flat layer over empty panels
+
+**When** 2026-10-29 · **Status** active · **Touches** workbench
+
+**What.** The resizable panels hold nothing. Every window is a tile in one
+flat layer above them, keyed by id, rendered in store order, and positioned
+over its panel by writing its style. Moving a window changes its coordinates
+and never its place in the DOM.
+
+**Why.** Windows can be moved now — dragged onto each other, or swapped by
+keyboard. Rendered inside its row, a window that changes rows changes parent
+and React remounts it, which kills its shells; even reordering inside a row
+moves the element, which reloads a `<webview>`. Moving a window would cost the
+two things in it most worth keeping. Rejected: a portal into a node created
+once per window and appended to the panel, which only relocates the problem —
+`appendChild` is still a move and the guest still reloads. Rejected too:
+moving only the contents between fixed windows, which remounts the bodies just
+the same. It also fixed an older bug: rows are keyed by position, so closing
+the only window in a row remounted every row below it.
+
+**How.** `window-manager.component.tsx` renders the panel tree with an empty
+slot per window and the tile layer beside it. `useTileLayout` in
+`window-manager.hook.ts` measures the slots in a layout effect after every
+grid change and in a `ResizeObserver` for splitters and window resizes, and
+writes left/top/width/height directly so a splitter drag re-renders nothing.
+`moveWindow` in `window.service.ts` keeps the array's order.
+
+**Cost.** Positioning the browser used to do for free is done by hand, and a
+new thing that changes a slot's place without changing its size or the grid
+would leave a tile behind until the next resize. The tiles sit outside the
+panels, so anything that reaches for a window's panel from inside the window
+will not find it. And the order of `windows` is now load-bearing: sorting it
+anywhere upstream of the tile layer reloads pages.
+
+---
+
 ### ADR-0040 — Feedback becomes a GitHub issue the person submits, not a message Frodon sends
 
 **When** 2026-10-25 · **Status** active · **Touches** settings, feedback

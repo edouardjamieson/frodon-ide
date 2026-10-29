@@ -7,7 +7,12 @@
  * written once, in functions that can be reasoned about without a store.
  */
 import { MAX_COLS, MAX_ROWS } from './window.constant';
-import type { WindowState, WindowType } from './window.def';
+import type {
+  Direction,
+  DropZone,
+  WindowState,
+  WindowType,
+} from './window.def';
 
 /**
  * Ids are a counter, not a UUID.
@@ -185,6 +190,122 @@ export function removeWindow(
 
     return { ...window, row, col };
   });
+}
+
+/**
+ * Moves a window to where it was dropped, or null when that would change
+ * nothing or does not fit.
+ *
+ * `center` trades places with the target, which is the one move that can
+ * never run out of room — the grid keeps its shape and only the occupants
+ * change. The edges put the window *beside* the target (into its row) or on a
+ * row of its own *above* or *below* it, which is how a layout changes shape.
+ *
+ * Written as remove-then-insert rather than as arithmetic of its own: the
+ * window leaves through `removeWindow`, so its old row closes up exactly the
+ * way a close would, and the target is looked up again afterwards because
+ * that repack may have shifted it. The caps are checked against the grid with
+ * the window already gone — taking the only window out of a row frees a row,
+ * and moving within a full row frees a column.
+ *
+ * The result keeps the input's **order**. Only coordinates change, never the
+ * position of a window in the array, because the workbench draws its tiles in
+ * array order and a tile that moves in the DOM reloads its `<webview>`. See
+ * `window-manager.component.tsx`.
+ */
+export function moveWindow(
+  windows: WindowState[],
+  id: string,
+  targetId: string,
+  zone: DropZone
+): WindowState[] | null {
+  if (id === targetId) return null;
+  const moving = windows.find((window) => window.id === id);
+  const target = windows.find((window) => window.id === targetId);
+  if (!moving || !target) return null;
+
+  if (zone === 'center') {
+    return windows.map((window) => {
+      if (window.id === id)
+        return { ...window, row: target.row, col: target.col };
+      if (window.id === targetId)
+        return { ...window, row: moving.row, col: moving.col };
+      return window;
+    });
+  }
+
+  const rest = removeWindow(windows, id);
+  const anchor = rest.find((window) => window.id === targetId);
+  if (!anchor) return null;
+
+  let slot: { row: number; col: number };
+  let shift: (window: WindowState) => { row: number; col: number };
+
+  if (zone === 'left' || zone === 'right') {
+    if (colsInRow(rest, anchor.row) >= MAX_COLS) return null;
+    const col = zone === 'left' ? anchor.col : anchor.col + 1;
+    slot = { row: anchor.row, col };
+    shift = (window) => ({
+      row: window.row,
+      col:
+        window.row === anchor.row && window.col >= col
+          ? window.col + 1
+          : window.col,
+    });
+  } else {
+    if (rowCount(rest) >= MAX_ROWS) return null;
+    const row = zone === 'top' ? anchor.row : anchor.row + 1;
+    slot = { row, col: 0 };
+    shift = (window) => ({
+      row: window.row >= row ? window.row + 1 : window.row,
+      col: window.col,
+    });
+  }
+
+  const placed = new Map(rest.map((window) => [window.id, shift(window)]));
+  placed.set(id, slot);
+
+  const moved = windows.map((window) => {
+    const at = placed.get(window.id);
+    return at ? { ...window, ...at } : window;
+  });
+
+  // Dropping a window on the edge it already sits against — the bottom of
+  // the row above a row it has to itself — lands it where it started.
+  // Reporting that as a move would draw a drop target that does nothing.
+  const unchanged = moved.every(
+    (window, index) =>
+      window.row === windows[index]?.row && window.col === windows[index]?.col
+  );
+  return unchanged ? null : moved;
+}
+
+/**
+ * The window next to this one in a direction, for moving by keyboard.
+ *
+ * Up and down keep the column where the next row has one and fall back to its
+ * last window where it does not, because rows are full width and need not
+ * have the same number of windows: the window above the third of three is
+ * the last of two.
+ */
+export function windowBeside(
+  windows: WindowState[],
+  window: WindowState,
+  direction: Direction
+): WindowState | null {
+  if (direction === 'left' || direction === 'right') {
+    const col = window.col + (direction === 'left' ? -1 : 1);
+    return (
+      windows.find((other) => other.row === window.row && other.col === col) ??
+      null
+    );
+  }
+
+  const row = window.row + (direction === 'up' ? -1 : 1);
+  const inRow = windows.filter((other) => other.row === row).sort(byCol);
+  return (
+    inRow.find((other) => other.col === window.col) ?? inRow.at(-1) ?? null
+  );
 }
 
 /**

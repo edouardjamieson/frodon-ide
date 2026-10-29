@@ -111,6 +111,7 @@ the app is in the background, which is right for a media key and wrong for
 | `mod+,` | `settings.open` | no menu claims it |
 | `mod+shift+right` | `window.splitRight` | the arrow points where it appears |
 | `mod+shift+down` | `window.splitDown` | |
+| `mod+alt+arrow` | `window.moveLeft` … `moveDown` | trades places with the neighbour that way |
 | `mod+shift+n` | `app.newWindow` | an OS window, not a tile |
 
 The four sidebar chords **show** rather than toggle. `mod+b` is how the panel

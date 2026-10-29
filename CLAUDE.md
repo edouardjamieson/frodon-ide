@@ -328,7 +328,7 @@ Early. What works, roughly: opening a folder · the explorer tree, with create,
 rename and delete in the tree itself and a delete that goes to the Trash after
 main asks · live tree sync from a filesystem watcher · the window manager,
 splitting the workbench into tiles that hold an editor, a terminal, the
-repository, a board or a web page · files in tabs in a themed CodeMirror
+repository, a board or a web page, and dragging them into a new arrangement · files in tabs in a themed CodeMirror
 editor, with saving on `mod+s`, a star on a tab that differs from its file, and
 tabs that follow their files when something outside Frodon rewrites them ·
 syntax highlighting for every language CodeMirror ships, fetched per grammar ·

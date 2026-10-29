@@ -7,6 +7,7 @@
  */
 import { useMemo } from 'react';
 import { useWindowStore } from './window.store';
+import { useWindowDragStore } from './window-drag.store';
 import { canSplit, rowsOf } from './window.service';
 import type {
   BoardWindow,
@@ -32,6 +33,14 @@ export const useWindowRows = (): WindowState[][] => {
   return useMemo(() => rowsOf(windows), [windows]);
 };
 
+/**
+ * Every window, in the order they were made — which is the order the
+ * workbench draws their tiles in, and must stay so. See
+ * `window-manager.component.tsx` for why a tile may never move in the DOM.
+ */
+export const useWindowList = (): WindowState[] =>
+  useWindowStore((state) => state.windows);
+
 /** Everything the frame around a window needs. */
 export const useWindow = (window: WindowState) => {
   const focused = useWindowStore((state) => state.focusedId === window.id);
@@ -45,15 +54,25 @@ export const useWindow = (window: WindowState) => {
     canSplit(state.windows, window, 'down')
   );
 
+  // A lone window has nowhere to go, so it has no grip to carry it by.
+  const canMove = useWindowStore((state) => state.windows.length > 1);
+  const dragging = useWindowDragStore(
+    (state) => state.draggingId === window.id
+  );
+
   const focus = useWindowStore((state) => state.focus);
   const close = useWindowStore((state) => state.close);
   const split = useWindowStore((state) => state.split);
   const setType = useWindowStore((state) => state.setType);
+  const startDrag = useWindowDragStore((state) => state.start);
 
   return {
     focused,
     canSplitRight,
     canSplitDown,
+    canMove,
+    dragging,
+    startDrag: () => startDrag(window.id),
     focus: () => focus(window.id),
     close: () => close(window.id),
     splitRight: () => split(window.id, 'right'),

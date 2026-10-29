@@ -52,6 +52,13 @@ export const DEFAULT_KEYBINDINGS: Keybinding[] = [
   // or on a row of its own below it.
   { chord: 'mod+shift+right', command: 'window.splitRight' },
   { chord: 'mod+shift+down', command: 'window.splitDown' },
+  // The focused window trades places with its neighbour. `alt` rather than
+  // `shift`, which the splits already hold on the same arrows; and nothing
+  // above the page claims `opt+cmd+arrow` on macOS.
+  { chord: 'mod+alt+left', command: 'window.moveLeft' },
+  { chord: 'mod+alt+right', command: 'window.moveRight' },
+  { chord: 'mod+alt+up', command: 'window.moveUp' },
+  { chord: 'mod+alt+down', command: 'window.moveDown' },
   // A second OS window, on the launcher. The menu has the same command
   // without an accelerator on it, so that this table stays the only place a
   // chord is written down.
@@ -81,5 +88,9 @@ export const COMMAND_LABELS: Record<CommandId, string> = {
   'settings.open': 'Settings',
   'window.splitRight': 'Split to the right',
   'window.splitDown': 'Split downwards',
+  'window.moveLeft': 'Move the window left',
+  'window.moveRight': 'Move the window right',
+  'window.moveUp': 'Move the window up',
+  'window.moveDown': 'Move the window down',
   'app.newWindow': 'New window',
 };

@@ -14,6 +14,8 @@ import {
   createWindow,
   firstFreeSlot,
   insertSplit,
+  moveWindow,
+  windowBeside,
   nextSessionId,
   nextTabId,
   packWindows,
@@ -91,6 +93,22 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
       windows: remaining,
       focusedId: focusedId === id && heir ? heir.id : focusedId,
     });
+  },
+
+  move: (id, targetId, zone) => {
+    const moved = moveWindow(get().windows, id, targetId, zone);
+    if (!moved) return;
+
+    set({ windows: moved, focusedId: id });
+  },
+
+  swap: (id, direction) => {
+    const { windows } = get();
+    const window = windows.find((candidate) => candidate.id === id);
+    const neighbour = window && windowBeside(windows, window, direction);
+    if (!neighbour) return;
+
+    get().move(id, neighbour.id, 'center');
   },
 
   restore: (windows, focusedId) => {

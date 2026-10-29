@@ -1,5 +1,5 @@
 import { cn } from 'cn';
-import { Columns2, Rows2, X } from 'lucide-react';
+import { Columns2, GripVertical, Rows2, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useWindow, type WindowState } from '~/lib/window';
 import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui';
@@ -40,6 +40,9 @@ export default function Window({ window: win }: { window: WindowState }) {
     splitDown,
     canSplitRight,
     canSplitDown,
+    canMove,
+    dragging,
+    startDrag,
   } = useWindow(win);
 
   return (
@@ -52,7 +55,10 @@ export default function Window({ window: win }: { window: WindowState }) {
       className={cn(
         'group/window flex h-full w-full min-w-0 flex-col overflow-hidden rounded-xl border transition-colors',
         surfaceOf(win),
-        focused ? 'border-project/50' : 'border-pane-border'
+        focused ? 'border-project/50' : 'border-pane-border',
+        // Left where it is while it is carried, faded, so the slot it is
+        // leaving stays readable as the place it came from.
+        dragging && 'opacity-40'
       )}
     >
       <header className="flex h-9 shrink-0 items-stretch gap-1 pr-1">
@@ -71,6 +77,29 @@ export default function Window({ window: win }: { window: WindowState }) {
               : 'opacity-0 group-hover/window:opacity-60 focus-within:opacity-100'
           )}
         >
+          {canMove ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  aria-label="Move window"
+                  // Pointer-down, not click: the drag starts the moment the
+                  // grip is pressed, and the default would start selecting
+                  // whatever text the pointer crosses on its way.
+                  onPointerDown={(event) => {
+                    if (event.button !== 0) return;
+                    event.preventDefault();
+                    startDrag();
+                  }}
+                  className="flex size-6 cursor-grab items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-project/20 hover:text-fg"
+                >
+                  <GripVertical className="size-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" shortcut={['mod', 'alt', 'arrows']}>
+                Move window
+              </TooltipContent>
+            </Tooltip>
+          ) : null}
           {canSplitRight ? (
             <WindowAction
               label="Split right"

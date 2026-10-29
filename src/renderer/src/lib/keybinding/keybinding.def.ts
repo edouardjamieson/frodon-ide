@@ -23,6 +23,10 @@ export type CommandId =
   | 'settings.open'
   | 'window.splitRight'
   | 'window.splitDown'
+  | 'window.moveLeft'
+  | 'window.moveRight'
+  | 'window.moveUp'
+  | 'window.moveDown'
   // `window.*` above means a tile in the workbench. This one means an OS
   // window, which is a different thing entirely and gets a prefix that says
   // so — see ADR-0032.

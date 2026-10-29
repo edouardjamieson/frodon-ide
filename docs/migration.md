@@ -48,9 +48,13 @@ Worth writing down, because the diff is bigger than the table suggests:
   `EditorState` is held beside the view and swapped in on click, so switching
   tabs restores the cursor, scroll and undo history instead of re-reading the
   file and discarding whatever was typed.
-- **Window titles and `swapWindows` did not come over.** Renaming wanted an
-  input dialog and moving wanted the arrow-key overlay; both belong with the
-  keybinding registry and the command palette rather than in the layout code.
+- **Window titles did not come over.** Renaming wanted an input dialog, which
+  belongs with the command palette rather than in the layout code.
+- **`swapWindows` came back as two things.** `mod+alt+arrow` is the TUI's swap
+  without its overlay, since the registry can now name the chord directly. A
+  window can also be dragged by its grip onto another — the middle trades
+  places, an edge puts it beside, above or below — which is new here and is
+  what made the tiles move out of their panels (ADR-0041).
 - **The arrangement now outlives the page.** New here, not ported: the TUI
   rebuilt its workbench on every launch and nobody minded, because a terminal
   session was already something you set up by hand. A desktop app that forgets

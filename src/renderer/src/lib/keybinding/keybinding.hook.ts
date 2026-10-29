@@ -20,6 +20,7 @@ export function useCommands(): Record<CommandId, () => void> {
   const focusedId = useWindowStore((state) => state.focusedId);
   const closeActiveTab = useWindowStore((state) => state.closeActiveTab);
   const split = useWindowStore((state) => state.split);
+  const swap = useWindowStore((state) => state.swap);
   const openGit = useWindowStore((state) => state.openGit);
   const openPicker = useFilePickerStore((state) => state.openPicker);
   const openSettings = useSettingsStore((state) => state.openSettings);
@@ -126,6 +127,11 @@ export function useCommands(): Record<CommandId, () => void> {
       // own answer and not something a shortcut should second-guess.
       'window.splitRight': () => split(focusedId, 'right'),
       'window.splitDown': () => split(focusedId, 'down'),
+      // Also no-ops at the edge of the grid.
+      'window.moveLeft': () => swap(focusedId, 'left'),
+      'window.moveRight': () => swap(focusedId, 'right'),
+      'window.moveUp': () => swap(focusedId, 'up'),
+      'window.moveDown': () => swap(focusedId, 'down'),
       // Main makes the window; there is nothing in a store to update, because
       // the new window is a whole second renderer with stores of its own.
       'app.newWindow': () => void window.frodon.window.open(),
@@ -142,6 +148,7 @@ export function useCommands(): Record<CommandId, () => void> {
       openGit,
       openSettings,
       split,
+      swap,
     ]
   );
 }

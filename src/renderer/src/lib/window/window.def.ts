@@ -143,6 +143,17 @@ export interface EmptyWindow extends WindowBase {
 /** Where a split puts the new window relative to the one being split. */
 export type SplitDirection = 'right' | 'down';
 
+/** A way across the grid, for moving a window by keyboard. */
+export type Direction = 'left' | 'right' | 'up' | 'down';
+
+/**
+ * Where on another window a dragged one was let go.
+ *
+ * The middle trades places with it; an edge puts the dragged window beside
+ * it, or on a row of its own above or below. `moveWindow` is the arithmetic.
+ */
+export type DropZone = 'center' | 'left' | 'right' | 'top' | 'bottom';
+
 /** A position in a file, as a search result reports one. */
 export interface RevealTarget {
   /** 1-based, counted the way every editor and every error message counts. */
@@ -191,6 +202,21 @@ export interface WindowStore {
    * window leaves a fresh empty one: the workbench is never blank.
    */
   close: (id: string) => void;
+
+  /**
+   * Moves a window to where it was dropped on another one, and focuses it —
+   * the window you just carried somewhere is the one you are looking at. A
+   * no-op when the drop would not fit or would change nothing; `canMove` is
+   * what the drop target asks before it lights up.
+   */
+  move: (id: string, targetId: string, zone: DropZone) => void;
+  /**
+   * Trades places with the neighbouring window in a direction, or does
+   * nothing at the edge of the grid. The keyboard's way of moving a window,
+   * and a swap rather than a move because an arrow key has no way to say
+   * "beside" from "instead of".
+   */
+  swap: (id: string, direction: Direction) => void;
 
   /**
    * Replaces the whole workbench — every window and the focus — in one go.

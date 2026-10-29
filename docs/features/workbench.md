@@ -25,9 +25,11 @@ Everything below is about the grid inside one of them.
 | --- | --- |
 | `renderer/src/lib/window/window.def.ts` | `WindowState`, the discriminated union, and the store's contract |
 | `renderer/src/lib/window/window.store.ts` | every mutation: split, close, open, route, re-key |
-| `renderer/src/lib/window/window.service.ts` | `rowsOf`, `canSplit`, `packWindows` — pure functions over the grid |
+| `renderer/src/lib/window/window.service.ts` | `rowsOf`, `canSplit`, `moveWindow`, `packWindows` — pure functions over the grid |
+| `renderer/src/lib/window/window-drag.store.ts` | the window being dragged and where it would land; never saved |
 | `renderer/src/lib/window/window.hook.ts` | narrow selectors, one per thing a component draws |
 | `renderer/src/components/modules/window/` | the frame, and one `window-*.component.tsx` per module |
+| `renderer/src/components/modules/window/window-manager.hook.ts` | placing tiles over their slots, and following a drag |
 | `renderer/src/lib/layout/` | the snapshot that outlives the page |
 | `main/layout/` | `~/.frodon/layouts.json` |
 
@@ -38,10 +40,12 @@ windows: [{ id, row, col, …contents }]      flat, each carrying its coordinate
    ↓ rowsOf()
 rows of windows                              derived, never stored
    ↓
-nested resizable panel groups                the browser sizes them
+nested resizable panel groups                the browser sizes them — empty slots
+   ↓ useTileLayout()
+one flat layer of tiles, in store order      each placed over its slot
 ```
 
-Two rules keep the model small.
+Three rules keep the model small.
 
 **The layout is derived, not stored.** A window knows its row and its column;
 nothing knows a width. Sizing belongs to `react-resizable-panels`, and dragging
@@ -50,6 +54,19 @@ arrangement survives a quit: what is saved is the grid, so a project opens back
 onto the same tiles holding the same things with the splitters at their
 defaults. Remembering a dragged splitter would mean storing a size, which is
 the one thing this model does not do.
+
+**A tile never moves in the DOM.** The panels are empty slots; the windows
+are drawn in a flat layer above them, keyed by id, in the order they were made,
+and positioned over their slots by writing their style. A `<webview>` reloads
+when its element is moved, and a terminal whose component remounts kills its
+shell — so a window that could change rows by being rendered inside its row
+would lose both every time. Moving a window rewrites its `row` and `col`, the
+grid re-renders its empty slots, and the tile is told new coordinates before
+paint. ADR-0041.
+
+The same layer fixed something older. Rows are keyed by position, so closing
+the only window in the top row used to remount every row below it — and every
+shell in them.
 
 **A module owns its contents.** `WindowState` is a discriminated union, so an
 editor's tabs live on the editor window and a terminal's sessions on the
@@ -135,6 +152,27 @@ expensive enough to rebuild by hand that losing it is felt.
    mean deciding what happens to the contents, and closing the window says that
    unambiguously.
 
+### Moving
+
+1. A window's frame shows a grip when there is somewhere else to put it — one
+   window has nowhere to go.
+2. Pressing it starts the drag. A sheet covers the workbench for the length of
+   it, because a pointer over a `<webview>` belongs to the guest and the page
+   stops hearing about it.
+3. Over another window, the middle half trades places with it and an edge puts
+   the dragged window beside it, or on a full-width row of its own above or
+   below. The outline shows that shape — a new row is outlined across the
+   whole row, not half a tile.
+4. A zone lights up only if letting go there would do something: the drop
+   target asks `moveWindow`, the same function the drop runs, so a full row
+   takes no third window and a drop that lands a window where it already is
+   draws nothing.
+5. Letting go moves it and focuses it. Escape, or leaving the app, cancels.
+6. `mod+alt+arrow` trades the focused window with its neighbour that way.
+   Up and down keep the column where the next row has one, else take its last
+   window. A swap, not a move: an arrow key cannot say "beside" from "instead
+   of".
+
 ### Closing
 
 1. `mod+w`, or the tab's close button, closes what the window is showing.
@@ -163,12 +201,17 @@ expensive enough to rebuild by hand that losing it is felt.
   interface, a case in each of the two switches in `window.component.tsx`, and
   a case in `snapshotOf`. TypeScript points at every one of them.
 - **A `<webview>` and an xterm both reload when moved in the DOM.** Anything
-  that re-parents a tile is a bug in this module, not in theirs.
+  that re-parents a tile is a bug in this module, not in theirs. That is why
+  the tile layer renders `windows` in store order and never sorts it, and why
+  `moveWindow` returns the array in the order it was given.
 
 ## Not there yet
 
-- Window titles and `swapWindows`, both of which came from the TUI and want the
-  command palette rather than the layout code.
+- Window titles, which came from the TUI and want the command palette rather
+  than the layout code.
+- Remembering splitter positions across a move. A moved window takes the size
+  of the slot it lands in, because sizes belong to the panels and the panels
+  are positional.
 - A dialog before a tab with unsaved work is closed. `dirty` already knows; see
   [editor.md](editor.md).
 

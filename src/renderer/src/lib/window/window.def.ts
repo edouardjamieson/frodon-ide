@@ -28,7 +28,8 @@
  * interface below, and a case to the two switches in `window.component.tsx` —
  * TypeScript will point at both of them.
  */
-export type WindowType = 'editor' | 'terminal' | 'git' | 'board' | 'browser';
+export type WindowType =
+  'editor' | 'terminal' | 'git' | 'board' | 'browser' | 'agent';
 
 /**
  * Named `WindowState` and not `Window` on purpose: the renderer is a browser
@@ -41,6 +42,7 @@ export type WindowState =
   | GitWindow
   | BoardWindow
   | BrowserWindow
+  | AgentWindow
   | EmptyWindow;
 
 interface WindowBase {
@@ -133,6 +135,24 @@ export interface BrowserWindow extends WindowBase {
   tabs: string[];
   /** The tab on screen. The others stay mounted and keep their pages alive. */
   activeTab: string | null;
+}
+
+/**
+ * A window holding conversations with coding agents, tabbed the way a
+ * terminal holds shells.
+ *
+ * The ids name live conversations in main's registry, as session ids name
+ * shells — and like a shell, a conversation is a process: closing its tab
+ * ends it, and nothing about it survives a quit. Which agent each one talks
+ * to, and everything it has said, lives in `lib/agent/`; the window only
+ * knows which tabs it has.
+ */
+export interface AgentWindow extends WindowBase {
+  type: 'agent';
+  /** Conversation ids, in tab order. */
+  conversations: string[];
+  /** The conversation on screen. The others stay mounted and keep working. */
+  activeConversation: string | null;
 }
 
 /** A window that has been spawned but not yet told what it is. */
@@ -329,6 +349,16 @@ export interface WindowStore {
   openBrowser: (windowId?: string) => void;
   closeBrowserTab: (windowId: string, tabId: string) => void;
   setActiveBrowserTab: (windowId: string, tabId: string) => void;
+
+  /**
+   * Opens a conversation with an agent, routing the way `openTerminal` does
+   * — the window asked for, else the focused one, else any agent window,
+   * else a newly spawned one. Always a *new* conversation: two tabs on one
+   * conversation would be two people typing into the same agent.
+   */
+  openAgent: (windowId?: string) => void;
+  closeConversation: (windowId: string, conversationId: string) => void;
+  setActiveConversation: (windowId: string, conversationId: string) => void;
 
   closeSession: (windowId: string, sessionId: string) => void;
   setActiveSession: (windowId: string, sessionId: string) => void;

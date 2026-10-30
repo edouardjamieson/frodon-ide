@@ -17,6 +17,7 @@ import {
   BrowserWindowBody,
   BrowserWindowHeader,
 } from './window-browser.component';
+import { AgentWindowBody, AgentWindowHeader } from './window-agent.component';
 import { EmptyWindowBody, EmptyWindowHeader } from './window-welcome.component';
 
 /**
@@ -152,6 +153,8 @@ function WindowHeader({ window: win }: { window: WindowState }) {
       return <BoardWindowHeader window={win} />;
     case 'browser':
       return <BrowserWindowHeader window={win} />;
+    case 'agent':
+      return <AgentWindowHeader window={win} />;
     default:
       return <EmptyWindowHeader />;
   }
@@ -177,6 +180,8 @@ function WindowBody({
       return <BoardWindowBody window={win} />;
     case 'browser':
       return <BrowserWindowBody window={win} />;
+    case 'agent':
+      return <AgentWindowBody window={win} />;
     default:
       return <EmptyWindowBody window={win} />;
   }
@@ -200,6 +205,11 @@ function surfaceOf(win: WindowState): string {
     // address bar and in the matte around a page pinned to a device size.
     case 'browser':
       return 'bg-browser';
+    // A conversation reads like a document, and sits on the editor's surface
+    // rather than a role of its own: nothing about it needs a theme to tell
+    // it apart from the code it is talking about.
+    case 'agent':
+      return 'bg-editor';
     default:
       return 'bg-app';
   }

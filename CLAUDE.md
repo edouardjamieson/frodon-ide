@@ -328,7 +328,7 @@ Early. What works, roughly: opening a folder · the explorer tree, with create,
 rename and delete in the tree itself and a delete that goes to the Trash after
 main asks · live tree sync from a filesystem watcher · the window manager,
 splitting the workbench into tiles that hold an editor, a terminal, the
-repository, a board or a web page, and dragging them into a new arrangement · files in tabs in a themed CodeMirror
+repository, a board, a web page or a coding agent, and dragging them into a new arrangement · files in tabs in a themed CodeMirror
 editor, with saving on `mod+s`, a star on a tab that differs from its file, and
 tabs that follow their files when something outside Frodon rewrites them ·
 syntax highlighting for every language CodeMirror ships, fetched per grammar ·
@@ -340,7 +340,9 @@ diffs, and what a commit did · project-wide search with find and replace,
 walked in main and jumped to in the editor · a file picker on `mod+p` that
 ranks the whole project as you type · boards, saved into the project or
 privately · a browser with tabs that can be pinned to a device size,
-and bookmarks in groups saved with the project or kept privately · a
+and bookmarks in groups saved with the project or kept privately ·
+conversations with Claude Code in a tile, driven through the copy you
+installed, with edits drawn as diffs and questions answered with a click · a
 launcher offering the last five projects · a workbench that reopens onto the
 tiles it was left on · several windows at once, each on its own project, with
 the Dock wearing the one you are looking at · worktrees, so two branches of

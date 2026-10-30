@@ -20,6 +20,12 @@
  * from either side — no `electron`, no `node:*`, no React. Types and plain
  * data only.
  */
+import type {
+  AgentAvailability,
+  AgentEvents,
+  AgentKind,
+  AgentStartResult,
+} from './agent.def';
 import type { ProjectConfig, UserConfig } from './config.def';
 import type {
   BoardDocument,
@@ -413,6 +419,37 @@ export interface IpcContract {
   'terminal:kill': { req: { id: string }; res: void };
 
   /**
+   * Whether an agent is installed, and which version. Asked before anything
+   * is typed, so a tile can say "not installed" instead of failing on send.
+   */
+  'agent:availability': { req: { kind: AgentKind }; res: AgentAvailability };
+  /**
+   * Starts a conversation, named by the renderer the way a shell is. No
+   * directory crosses: the agent starts in the asking window's project,
+   * resolved from the sender — see `startConversation`.
+   */
+  'agent:start': {
+    req: { id: string; kind: AgentKind };
+    res: AgentStartResult;
+  };
+  /** The next message. One call per message, not per keystroke. */
+  'agent:send': { req: { id: string; text: string }; res: void };
+  /** A yes or a no to an open approval. */
+  'agent:respond': {
+    req: { id: string; requestId: string; allow: boolean };
+    res: void;
+  };
+  /** Stops the turn in progress. The conversation stays open. */
+  'agent:interrupt': { req: { id: string }; res: void };
+  /**
+   * Switches the model for the replies that follow. `model` is an id from
+   * the conversation's own `models` event, never one the renderer made up.
+   */
+  'agent:set-model': { req: { id: string; model: string }; res: void };
+  /** Ends the conversation and the process behind it. */
+  'agent:stop': { req: { id: string }; res: void };
+
+  /**
    * Every board in both scopes, newest first.
    *
    * One channel for the pair rather than one per scope: the sidebar draws
@@ -575,6 +612,12 @@ export interface IpcEvents {
   'terminal:exit': TerminalExit;
 
   /**
+   * What a conversation did, batched a frame at a time — see `FLUSH_MS` in
+   * `main/agent/`. Sent only to the window that started it.
+   */
+  'agent:events': AgentEvents;
+
+  /**
    * The updater moved — a download started, finished, or failed. Sent to
    * every window, and only when the state actually changed.
    */
@@ -721,6 +764,23 @@ export interface FrodonApi {
      */
     onData: (id: string, listener: (data: string) => void) => () => void;
     onExit: (id: string, listener: (exit: TerminalExit) => void) => () => void;
+  };
+  agent: {
+    availability: (kind: AgentKind) => Promise<Res<'agent:availability'>>;
+    start: (id: string, kind: AgentKind) => Promise<Res<'agent:start'>>;
+    send: (id: string, text: string) => Promise<void>;
+    respond: (id: string, requestId: string, allow: boolean) => Promise<void>;
+    interrupt: (id: string) => Promise<void>;
+    setModel: (id: string, model: string) => Promise<void>;
+    stop: (id: string) => Promise<void>;
+    /**
+     * Subscribes to one conversation's events, filtered in the preload for
+     * the same reason a terminal's output is. Returns an unsubscribe function.
+     */
+    onEvents: (
+      id: string,
+      listener: (events: AgentEvents['events']) => void
+    ) => () => void;
   };
   board: {
     list: () => Promise<Res<'board:list'>>;

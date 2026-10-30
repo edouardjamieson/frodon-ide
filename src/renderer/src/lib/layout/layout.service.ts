@@ -24,6 +24,7 @@
  * someone has decided what, if anything, is worth remembering about it.
  */
 import {
+  nextConversationId,
   nextSessionId,
   nextTabId,
   nextWindowId,
@@ -68,6 +69,9 @@ function windowSnapshot(
     // write down. See `TerminalLayout` for the argument.
     case 'terminal':
       return { type: 'terminal', row, col };
+    // A conversation is a process, like a shell. See `AgentLayout`.
+    case 'agent':
+      return { type: 'agent', row, col };
     case 'browser':
       return {
         type: 'browser',
@@ -140,6 +144,15 @@ function windowFrom(
         type: 'terminal',
         sessions: [session],
         activeSession: session,
+      };
+    }
+    case 'agent': {
+      const conversation = nextConversationId();
+      return {
+        ...base,
+        type: 'agent',
+        conversations: [conversation],
+        activeConversation: conversation,
       };
     }
     case 'browser': {

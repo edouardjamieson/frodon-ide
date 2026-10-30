@@ -93,7 +93,7 @@ Re-opening a file that is already a tab keeps its **position** in the bar and
 only moves the active tab. Reordering the bar because someone clicked a file
 they already had open loses the place they were working in.
 
-`openTerminal`, `openBoard` and `openBrowser` route the same way, with the
+`openTerminal`, `openBoard`, `openBrowser` and `openAgent` route the same way, with the
 differences each module earns:
 
 | | Opening the same thing twice |
@@ -102,6 +102,7 @@ differences each module earns:
 | **Terminal** | always a new session — a terminal window is a stack of shells |
 | **Browser** | always a new tab — where it goes is the address bar's question |
 | **Board** | focuses the window that already holds it; two tiles on one drawing would share a session anyway |
+| **Agent** | always a new conversation — two tabs on one would be two people typing into the same agent |
 | **Git** | focuses the one git window that exists; there is one repository and every tab is a view of it |
 
 ### `closeActiveTab` belongs to the store
@@ -130,7 +131,8 @@ expensive enough to rebuild by hand that losing it is felt.
 - The contents that are strings come back; the ones that are processes do not.
   Editor tabs are paths, board tabs are keys, browser tabs are urls. A shell is
   a process, it is gone, and the window returns as its tile with one fresh
-  shell.
+  shell. A conversation with an agent is a process too, and comes back the
+  same way.
 - Main prunes before it answers. A layout saved in March can name files deleted
   in April, and a tab pointing at a file that is gone is worse than no tab. A
   window whose contents all vanished keeps its place as an empty one of its

@@ -51,6 +51,18 @@ export function nextTabId(): string {
   return `b${lastTabId}`;
 }
 
+/**
+ * Conversation ids, on the same terms as session ids: they leave the
+ * renderer, because main keys its agent registry by them, and only have to be
+ * unique within this page, because a conversation belongs to the window that
+ * started it.
+ */
+let lastConversationId = 0;
+export function nextConversationId(): string {
+  lastConversationId += 1;
+  return `c${lastConversationId}`;
+}
+
 /** A window of the requested kind, at the given slot. */
 export function createWindow(
   row: number,
@@ -78,6 +90,17 @@ export function createWindow(
       // question its own address bar asks.
       const tab = nextTabId();
       return { ...base, type, tabs: [tab], activeTab: tab };
+    }
+    // Like a terminal: an agent window with nothing to talk to would be a
+    // box with a button, so it arrives with its first conversation named.
+    case 'agent': {
+      const conversation = nextConversationId();
+      return {
+        ...base,
+        type,
+        conversations: [conversation],
+        activeConversation: conversation,
+      };
     }
     default:
       return { ...base, type: null };

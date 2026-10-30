@@ -87,6 +87,15 @@ import {
   writeSession,
 } from '@main/terminal';
 import { reportIssue } from '@main/feedback';
+import {
+  agentAvailability,
+  interruptConversation,
+  setConversationModel,
+  respondTo,
+  sendMessage,
+  startConversation,
+  stopConversation,
+} from '@main/agent';
 import { excludesOf, sanitizeProjectConfig } from '@shared/config.def';
 import type { Platform } from '@shared/ipc.def';
 
@@ -541,6 +550,28 @@ export function registerIpcHandlers(): void {
   );
 
   handle('terminal:kill', ({ id }) => killSession(id));
+
+  // Agents. Owned by the window that started them, like shells — and unlike
+  // a shell, started in a directory main chooses: the asking window's
+  // project. An agent edits files where it runs, so this is the one channel
+  // where taking a directory from the renderer would matter most.
+  handle('agent:availability', ({ kind }) => agentAvailability(kind));
+
+  handle('agent:start', ({ id, kind }, event) =>
+    startConversation(id, kind, askingRoot(event), event.sender.id)
+  );
+
+  handle('agent:send', ({ id, text }) => sendMessage(id, text));
+
+  handle('agent:respond', ({ id, requestId, allow }) =>
+    respondTo(id, requestId, allow)
+  );
+
+  handle('agent:interrupt', ({ id }) => interruptConversation(id));
+
+  handle('agent:set-model', ({ id, model }) => setConversationModel(id, model));
+
+  handle('agent:stop', ({ id }) => stopConversation(id));
 
   // Boards. The only channels in the app that take a *name* from the
   // renderer rather than a path main produced itself, which is why the

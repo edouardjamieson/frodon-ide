@@ -112,6 +112,19 @@ export interface BrowserLayout extends LayoutWindowBase {
   activeTab: number;
 }
 
+/**
+ * An agent window, and nothing about its conversations — the same argument
+ * as `TerminalLayout`. A conversation is a process in main, and the tile is
+ * the half that can honestly come back: as one fresh conversation in the same
+ * place. Resuming the old ones is possible in principle — Claude Code keeps
+ * its sessions on disk — but it would mean a driver-specific id in this file
+ * and a transcript replayed from the agent's own storage; see
+ * `docs/features/agent.md`.
+ */
+export interface AgentLayout extends LayoutWindowBase {
+  type: 'agent';
+}
+
 /** A tile that was spawned but never told what it is. */
 export interface EmptyLayout extends LayoutWindowBase {
   type: null;
@@ -123,6 +136,7 @@ export type LayoutWindow =
   | GitLayout
   | BoardLayout
   | BrowserLayout
+  | AgentLayout
   | EmptyLayout;
 
 /**

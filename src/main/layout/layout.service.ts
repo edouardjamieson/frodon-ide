@@ -122,6 +122,7 @@ function isLayoutWindow(value: unknown): value is LayoutWindow {
         Number.isInteger(window.activeTab)
       );
     case 'terminal':
+    case 'agent':
     case null:
       return true;
     default:

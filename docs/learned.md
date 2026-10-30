@@ -17,6 +17,18 @@ architecture, write the ADR too and link them.
 
 ## The platform
 
+### A spawned Claude Code needs the user's environment to find its login
+`code` · 2026-10-29 · `src/main/agent/agent-environment.service.ts`
+
+Claude Code keeps its login in the macOS Keychain. Started through the Agent
+SDK with a scrubbed environment (`env -i HOME=… PATH=…`) it runs, initialises,
+and answers every prompt with "Not logged in · Please run /login" as an
+ordinary assistant message — no error, no exit code. With the rest of the
+environment intact it is logged in. So `loginEnvironment` replaces `PATH`
+with the login shell's and passes everything else through. The general form:
+when a CLI's credentials live in an OS store, the environment it inherits is
+part of its configuration.
+
 ### Squirrel.Mac cannot update an ad-hoc signed app
 `code` · 2026-10-24 · `src/main/update/update.service.ts`
 
@@ -312,6 +324,28 @@ Packaging will also need `prebuilds/` unpacked from the asar.
 
 ## The libraries
 
+### Claude Code in stream-json mode says nothing until it is spoken to
+`code` · 2026-10-30 · `src/main/agent/agent.service.ts`
+
+Started with a streamed prompt and no message queued, Claude Code emits no
+`system` `init` — not after a second, not after eight. The tile waited for
+that message to leave "Starting…", so a conversation nobody had typed into
+yet never looked ready, and nothing told the person they could type. The
+headless test missed it because it sent a message the moment the driver
+started. Main now says `started` itself once `locate` and the driver
+succeed, and the driver's own `started` fills in the model later. Ready is
+the host's statement to make, not the agent's.
+
+### The Agent SDK's abort error is not an `AbortError`
+`code` · 2026-10-29 · `src/main/agent/agent-claude.service.ts`
+
+Closing a conversation through its `AbortController` makes the SDK's
+iterator throw "Operation aborted" from a minified class of its own, with no
+`name` of `AbortError`. A check on the error's name reported every deliberate
+close as a crash. `pump` now asks its own signal whether it was aborted, which
+needs nothing from the library. Ask the controller you own, not the error
+something else threw.
+
 ### electron-builder's native rebuild leaves a build that shadows node-pty's prebuilds
 `code` · 2026-10-24 · `electron-builder.yml`
 
@@ -471,6 +505,16 @@ happens when the cursor changes *block*.
 ---
 
 ## Measurements and performance
+
+### An agent's first turn costs mostly the cache write of its own prompt
+`product` · 2026-10-29 · `src/main/agent/agent-claude.service.ts`
+
+Measured through the SDK against Claude Code 2.1.308: "reply pong" cost
+$0.19 on its own, and a two-turn conversation cost $0.18 and $0.19 cold, then
+$0.01 and $0.03 when run again a minute later. Claude Code's system prompt and
+tool definitions dominate a short turn, and the second run read them from the
+cache. The status line shows a conversation's running cost for this reason:
+the first message after a pause is the expensive one, whatever it says.
 
 ### Copy-on-write makes copying a 626MB `node_modules` free
 `code` · 2026-10-23 · `src/main/worktree/worktree.service.ts`

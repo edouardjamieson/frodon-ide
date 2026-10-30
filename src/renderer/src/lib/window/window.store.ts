@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { isAtOrUnder, reparentPath } from '@shared/fs.def';
 import type {
+  AgentWindow,
   BoardWindow,
   BrowserWindow,
   EditorWindow,
@@ -16,6 +17,7 @@ import {
   insertSplit,
   moveWindow,
   windowBeside,
+  nextConversationId,
   nextSessionId,
   nextTabId,
   packWindows,
@@ -453,6 +455,73 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
     }));
   },
 
+  openAgent: (windowId) => {
+    const { windows, focusedId } = get();
+    const target = agentTargetFor(windows, windowId ?? focusedId);
+
+    // The same answer `openTerminal` gives when the grid is full of things
+    // that cannot hold a conversation.
+    if (!target) return;
+
+    if ('spawn' in target) {
+      set({ windows: [...windows, target.spawn], focusedId: target.spawn.id });
+      return;
+    }
+
+    const conversation = nextConversationId();
+
+    set({
+      windows: windows.map((window) => {
+        if (window.id !== target.id) return window;
+        const agent = asAgent(window);
+        return {
+          ...agent,
+          conversations: [...agent.conversations, conversation],
+          activeConversation: conversation,
+        };
+      }),
+      focusedId: target.id,
+    });
+  },
+
+  setActiveConversation: (windowId, conversationId) => {
+    set((state) => ({
+      windows: state.windows.map((window) =>
+        window.id === windowId &&
+        window.type === 'agent' &&
+        window.conversations.includes(conversationId)
+          ? { ...window, activeConversation: conversationId }
+          : window
+      ),
+    }));
+  },
+
+  closeConversation: (windowId, conversationId) => {
+    // Dropping the id unmounts the conversation, and unmounting is what ends
+    // the agent — see `useConversation`. Nothing to stop from here.
+    set((state) => ({
+      windows: state.windows.map((window) => {
+        if (window.id !== windowId || window.type !== 'agent') return window;
+
+        const conversations = window.conversations.filter(
+          (id) => id !== conversationId
+        );
+        if (conversations.length === window.conversations.length) {
+          return window;
+        }
+
+        return {
+          ...window,
+          conversations,
+          activeConversation:
+            window.activeConversation === conversationId
+              ? neighbourOf(window.conversations, conversationId)
+              : window.activeConversation,
+        };
+      }),
+    }));
+  },
+
   setActiveSession: (windowId, sessionId) => {
     set((state) => ({
       windows: state.windows.map((window) =>
@@ -563,6 +632,11 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
           return get().closeBrowserTab(windowId, target.activeTab);
         }
         break;
+      case 'agent':
+        if (target.activeConversation) {
+          return get().closeConversation(windowId, target.activeConversation);
+        }
+        break;
       default:
         // A git window's tabs are views, and an empty window has nothing at
         // all. Both fall through to closing the window.
@@ -654,6 +728,19 @@ function typed(window: WindowState, type: WindowType): WindowState {
       const tab = nextTabId();
       return { id, row, col, type, tabs: [tab], activeTab: tab };
     }
+    case 'agent': {
+      // Choosing an agent window starts a conversation, for the reason
+      // choosing a terminal starts a shell.
+      const conversation = nextConversationId();
+      return {
+        id,
+        row,
+        col,
+        type,
+        conversations: [conversation],
+        activeConversation: conversation,
+      };
+    }
     default: {
       // A terminal is useless without a shell, so choosing it starts one.
       const session = nextSessionId();
@@ -704,6 +791,23 @@ function asBrowser(window: WindowState): BrowserWindow {
   if (window.type === 'browser') return window;
   const { id, row, col } = window;
   return { id, row, col, type: 'browser', tabs: [], activeTab: null };
+}
+
+/**
+ * The same window as an agent window. The empty case starts with no
+ * conversations because the caller is about to add the one it came for.
+ */
+function asAgent(window: WindowState): AgentWindow {
+  if (window.type === 'agent') return window;
+  const { id, row, col } = window;
+  return {
+    id,
+    row,
+    col,
+    type: 'agent',
+    conversations: [],
+    activeConversation: null,
+  };
 }
 
 /**
@@ -780,6 +884,28 @@ function browserTargetFor(
   if (!slot) return null;
 
   return { spawn: createWindow(slot.row, slot.col, 'browser') };
+}
+
+/** The same question for a conversation with an agent. */
+function agentTargetFor(
+  windows: WindowState[],
+  preferredId: string
+): WindowState | { spawn: WindowState } | null {
+  const preferred = windows.find((window) => window.id === preferredId);
+  if (preferred && (preferred.type === 'agent' || preferred.type === null)) {
+    return preferred;
+  }
+
+  const agent = windows.find((window) => window.type === 'agent');
+  if (agent) return agent;
+
+  const empty = windows.find((window) => window.type === null);
+  if (empty) return empty;
+
+  const slot = firstFreeSlot(windows);
+  if (!slot) return null;
+
+  return { spawn: createWindow(slot.row, slot.col, 'agent') };
 }
 
 /** The same question for a shell. An editor window cannot host one. */

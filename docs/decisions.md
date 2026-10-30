@@ -18,6 +18,81 @@ their reasoning is the reasoning recorded at the time, not reconstructed.
 
 ---
 
+### ADR-0043 — An agent is found on the machine, never shipped with the app
+
+**When** 2026-10-29 · **Status** active · **Touches** agent, updates
+
+**What.** Frodon drives the agent the person already installed — `claude` on
+their login shell's `PATH` — and packages no agent binary of its own. The
+Agent SDK is a devDependency, bundled into main as JavaScript, and is pointed
+at the installed executable with `pathToClaudeCodeExecutable`.
+
+**Why.** The SDK's own binary is 276 MB on arm64 and 287 MB on x64, against
+an app of roughly 250 MB; Codex's is 363 MB. Bundling would double the app,
+and because the updater downloads the whole zip, every Frodon release would
+re-download the agent too. It would also tie the agent's version to Frodon's
+release cadence — the SDK was at 0.3.312 when this was written — and the
+release job cross-packages x64 on an arm64 runner, where pnpm installs only
+the host's optional binary. Using the installed copy means the tile runs the
+same agent, login and settings as `claude` in a terminal tile. Rejected for
+now rather than forever: a copy Frodon downloads into
+`~/.frodon/agents/<kind>/<version>/` from the npm platform package, verified
+against its sha512 and pinned to the SDK's version — which would also fix the
+version-drift cost below. The resolution order planned for it is an explicit
+user setting, then `PATH` if compatible, then the managed copy.
+
+**How.** `locate` in each driver, over `findExecutable` and the
+`loginEnvironment` probe in `main/agent/agent-environment.service.ts`. The SDK
+sits in `devDependencies`, so `externalizeDepsPlugin` leaves it to Vite and
+electron-builder never sees its optional binaries. Main's bundle grows from
+120 KB to 1.2 MB.
+
+**Cost.** Without `claude` installed, the tile can only say so — a fork of
+Frodon needs Claude Code to use it. The SDK and the installed CLI are
+versioned separately and talk a protocol, so an update on either side can
+break the other; nothing checks compatibility yet. Installing an agent into a
+directory new to `PATH` needs a restart, because the shell is asked once.
+
+---
+
+### ADR-0042 — The chat tile speaks one vocabulary; each agent gets a driver
+
+**When** 2026-10-29 · **Status** active · **Touches** agent, workbench
+
+**What.** Conversations with coding agents cross the boundary as
+`AgentEvent`s from `shared/agent.def.ts`, which describe what happened — text,
+an action and its result, an approval, a turn ending — and never which agent
+did it. Each agent has a driver in `main/agent/` that translates its protocol
+into that vocabulary, and nothing else in the app knows an agent's names.
+
+**Why.** Claude Code is the first agent and Codex is the obvious second, and
+they disagree on everything a tile would draw: Claude edits with `Edit` and
+`Write` and asks per call, Codex applies patches under an approval policy.
+Rendering either protocol directly means a tile per agent or a tile full of
+`if (kind === …)`. Rejected: calling a model API directly and owning the tool
+loop, which would make Frodon a coding agent rather than a host for one —
+every tool, context management and transcript storage to build — and would
+drift from the `claude` people already run in a terminal tile. Rejected too:
+carrying each protocol's events through "in case", which makes every future
+driver fill in fields nothing reads.
+
+**How.** `AgentDriver` (`locate`, `start`) and `AgentHost` (`emit`, `ask`) in
+`main/agent/agent.def.ts`; `DRIVERS: Record<AgentKind, AgentDriver>` in
+`agent.service.ts`, which owns everything driver-independent — the registry,
+window ownership, 16 ms batching, approvals as promises. The Claude driver is
+`agent-claude.service.ts`, over the Agent SDK. The renderer reduces events
+into a transcript in `lib/agent/` and never imports a driver's types.
+
+**Cost.** The vocabulary is a lowest common denominator by construction.
+Anything one agent does that the five action kinds cannot express is shown as
+`other` until the vocabulary grows, and growing it is a change to every
+driver. A change is two strings rather than a diff, because that is what
+every agent can produce without parsing. Claude-specific features —
+subagent transcripts, slash commands, permission modes — have nowhere to go
+without first being given a name every agent could fill.
+
+---
+
 ### ADR-0041 — Windows are drawn in one flat layer over empty panels
 
 **When** 2026-10-29 · **Status** active · **Touches** workbench

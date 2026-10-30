@@ -19,6 +19,7 @@
  * holding a reference to the emitter.
  */
 import { contextBridge, ipcRenderer } from 'electron';
+import type { AgentEvents } from '@shared/agent.def';
 import type { BoardDocument, BoardRef, BoardScope } from '@shared/board.def';
 import type { Bookmark, BookmarkScope } from '@shared/bookmark.def';
 import type { File, FileChange } from '@shared/fs.def';
@@ -120,6 +121,26 @@ const api: FrodonApi = {
       };
       ipcRenderer.on('terminal:exit', handler);
       return () => ipcRenderer.removeListener('terminal:exit', handler);
+    },
+  },
+  agent: {
+    availability: (kind) => ipcRenderer.invoke('agent:availability', { kind }),
+    start: (id, kind) => ipcRenderer.invoke('agent:start', { id, kind }),
+    send: (id, text) => ipcRenderer.invoke('agent:send', { id, text }),
+    respond: (id, requestId, allow) =>
+      ipcRenderer.invoke('agent:respond', { id, requestId, allow }),
+    interrupt: (id) => ipcRenderer.invoke('agent:interrupt', { id }),
+    setModel: (id, model) =>
+      ipcRenderer.invoke('agent:set-model', { id, model }),
+    stop: (id) => ipcRenderer.invoke('agent:stop', { id }),
+    // Filtered here, like a terminal's output: one channel carries every
+    // conversation, and a reply streaming in one tile must not wake the rest.
+    onEvents: (id, listener) => {
+      const handler = (_event: unknown, payload: AgentEvents) => {
+        if (payload.id === id) listener(payload.events);
+      };
+      ipcRenderer.on('agent:events', handler);
+      return () => ipcRenderer.removeListener('agent:events', handler);
     },
   },
   board: {

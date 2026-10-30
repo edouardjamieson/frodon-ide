@@ -10,6 +10,7 @@ import { useWindowStore } from './window.store';
 import { useWindowDragStore } from './window-drag.store';
 import { canSplit, rowsOf } from './window.service';
 import type {
+  AgentWindow,
   BoardWindow,
   BrowserWindow,
   EditorWindow,
@@ -106,6 +107,21 @@ export const useTerminalWindow = (window: TerminalWindow) => {
     activate: (sessionId: string) => setActiveSession(window.id, sessionId),
     close: (sessionId: string) => closeSession(window.id, sessionId),
     open: () => openTerminal(window.id),
+  };
+};
+
+/** Everything an agent window's tabs need. */
+export const useAgentWindow = (window: AgentWindow) => {
+  const setActive = useWindowStore((state) => state.setActiveConversation);
+  const closeConversation = useWindowStore((state) => state.closeConversation);
+  const openAgent = useWindowStore((state) => state.openAgent);
+
+  return {
+    conversations: window.conversations,
+    activeConversation: window.activeConversation,
+    activate: (id: string) => setActive(window.id, id),
+    close: (id: string) => closeConversation(window.id, id),
+    open: () => openAgent(window.id),
   };
 };
 

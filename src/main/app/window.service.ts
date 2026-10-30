@@ -23,6 +23,7 @@ import { is } from '@electron-toolkit/utils';
 import { hardenWebviews } from '@main/browser';
 import { detachWindow, rootOf, windowForRoot } from '@main/session';
 import { killSessionsOf } from '@main/terminal';
+import { stopConversationsOf } from '@main/agent';
 import { refreshAppIcon, resetAppIcon } from '@main/icon';
 
 /**
@@ -117,13 +118,15 @@ export function createWindow(root?: string): BrowserWindow {
   //
   //   - the session, which also releases the watcher and the git poller when
   //     this was the *last* window on that project
-  //   - the shells, which must die with the window that spawned them and must
-  //     survive the ones that didn't — `disposeTerminals` is for quitting
+  //   - the shells and the agents, which must die with the window that
+  //     started them and must survive the ones that didn't — `dispose*` is
+  //     for quitting
   //
   // `closed` rather than `close`, so a close that something vetoes does not
   // tear down a window that is still open.
   window.on('closed', () => {
     killSessionsOf(contentsId);
+    stopConversationsOf(contentsId);
     detachWindow(contents);
     openedFor.delete(contents);
 

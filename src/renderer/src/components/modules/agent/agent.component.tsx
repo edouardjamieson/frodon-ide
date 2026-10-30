@@ -156,9 +156,11 @@ export default function Agent({ conversationId, active }: AgentProps) {
             ) : (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  {/* Wrapped so the tooltip still shows while the button is
-                    disabled — an empty draft is exactly when someone is
-                    wondering how to send. */}
+                  {/* The button is the trigger itself, so the tooltip only
+                    opens while it is enabled — a disabled button receives
+                    no pointer events. With an empty draft the shortcut goes
+                    unannounced, though the "Send" label still says what the
+                    button does. */}
                   <Button
                     onClick={submit}
                     disabled={ended || !draft.trim()}

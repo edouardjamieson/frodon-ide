@@ -42,6 +42,11 @@ export interface AgentRun {
    * itself offered in a `models` event.
    */
   setModel: (model: string) => Promise<void>;
+  /**
+   * Switches how much the agent asks before acting, to an id the driver
+   * itself offered in a `modes` event.
+   */
+  setMode: (mode: string) => Promise<void>;
   /** Ends the conversation and the process behind it. */
   close: () => void;
 }

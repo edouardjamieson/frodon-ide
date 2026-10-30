@@ -6,7 +6,7 @@
  * agent keeps its own, and the only thing worth having on this side is what is
  * on screen. See `reduce` in `agent.service.ts`.
  */
-import type { AgentAction, AgentKind, AgentModel } from '@shared/agent.def';
+import type { AgentAction, AgentChoice, AgentKind } from '@shared/agent.def';
 
 /** Where a conversation is, for the status line and the composer. */
 export type ConversationStatus =
@@ -40,9 +40,9 @@ export interface Conversation {
   /** The model the agent says it is running, once it has said. */
   model: string | null;
   /** What it can be switched to. Empty until the driver has asked. */
-  models: AgentModel[];
+  models: AgentChoice[];
   /**
-   * The model picked in this tile, by `AgentModel.id`, or null for the
+   * The model picked in this tile, by `AgentChoice.id`, or null for the
    * agent's own default.
    *
    * Kept apart from `model` because the two speak different languages:
@@ -52,6 +52,17 @@ export interface Conversation {
    * and in the words the menu used.
    */
   chosenModel: string | null;
+  /**
+   * How much the agent asks before acting, by `AgentChoice.id` — what it
+   * last reported, or what was picked since. Null until either happens.
+   *
+   * One field where the model needs two, because an agent reports its mode
+   * in the same ids it offers them in: a pick can stand in for the report
+   * until the next turn confirms it.
+   */
+  mode: string | null;
+  /** The modes it can be switched to. Empty if the driver offers none. */
+  modes: AgentChoice[];
   entries: TranscriptEntry[];
   /**
    * Approvals waiting on a click, by request id, oldest first.

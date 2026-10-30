@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { cn } from 'cn';
-import { ArrowUp, Square } from 'lucide-react';
+import { ArrowUp, Brain, ShieldCheck, Square } from 'lucide-react';
 import { AGENT_LABELS } from '@shared/agent.def';
 import {
   resolvePath,
@@ -17,7 +17,7 @@ import {
 } from '~/components/ui';
 import { TranscriptRow } from './agent-entry.component';
 import { AgentIcon } from './agent-icon.component';
-import { ModelPicker } from './agent-model.component';
+import { ChoicePicker } from './agent-choice.component';
 
 interface AgentProps {
   conversationId: string;
@@ -35,7 +35,7 @@ interface AgentProps {
  */
 export default function Agent({ conversationId, active }: AgentProps) {
   useConversationLifetime(conversationId);
-  const { conversation, send, interrupt, respond, chooseModel } =
+  const { conversation, send, interrupt, respond, chooseModel, chooseMode } =
     useConversation(conversationId);
 
   const root = useProjectStore((state) => state.root);
@@ -194,12 +194,31 @@ export default function Agent({ conversationId, active }: AgentProps) {
             {conversation.models.length > 0 && (
               <>
                 <div className="h-[stretch] bg-border w-[1px] mx-1.5 shrink-0" />
-                <ModelPicker
-                  models={conversation.models}
-                  chosen={conversation.chosenModel}
-                  reported={conversation.model}
+                <ChoicePicker
+                  icon={<Brain className="size-4" />}
+                  choices={conversation.models}
+                  selected={conversation.chosenModel}
+                  fallback={conversation.model}
+                  placeholder="Model"
                   disabled={ended}
                   onChoose={chooseModel}
+                />
+              </>
+            )}
+            {conversation.modes.length > 0 && (
+              <>
+                <div className="h-[stretch] bg-border w-[1px] mx-1.5 shrink-0" />
+                {/* Unknown until the first turn: the agent's own settings
+                    pick its starting mode, and it says which only once it
+                    is spoken to. */}
+                <ChoicePicker
+                  icon={<ShieldCheck className="size-4" />}
+                  choices={conversation.modes}
+                  selected={conversation.mode}
+                  fallback={conversation.mode}
+                  placeholder="Permissions"
+                  disabled={ended}
+                  onChoose={chooseMode}
                 />
               </>
             )}

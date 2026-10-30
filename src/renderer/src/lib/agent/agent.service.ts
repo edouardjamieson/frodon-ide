@@ -20,15 +20,16 @@ export function reduce(
 function step(conversation: Conversation, event: AgentEvent): Conversation {
   switch (event.type) {
     case 'started':
-      // Said twice: once by main when the agent is running, without a model,
-      // and again by the driver when the agent first speaks. The second must
-      // not wipe what the first knew, nor the first what the second did.
+      // Said more than once: by main when the agent is running, without a
+      // model or a mode, and by the driver whenever the agent reports itself.
+      // A later one must not wipe what an earlier one knew.
       return {
         ...conversation,
         status:
           conversation.status === 'starting' ? 'idle' : conversation.status,
         version: event.version ?? conversation.version,
         model: event.model ?? conversation.model,
+        mode: event.mode ?? conversation.mode,
       };
 
     case 'text': {
@@ -108,6 +109,9 @@ function step(conversation: Conversation, event: AgentEvent): Conversation {
 
     case 'models':
       return { ...conversation, models: event.models };
+
+    case 'modes':
+      return { ...conversation, modes: event.modes };
 
     case 'turn-ended':
       return {

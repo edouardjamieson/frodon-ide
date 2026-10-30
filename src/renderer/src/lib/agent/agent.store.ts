@@ -24,6 +24,8 @@ export const useAgentStore = create<AgentStore>((set) => ({
           model: null,
           models: [],
           chosenModel: null,
+          mode: null,
+          modes: [],
           entries: [],
           approvals: [],
           costUsd: 0,

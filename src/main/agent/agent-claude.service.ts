@@ -17,6 +17,7 @@
 import { execFile } from 'node:child_process';
 import {
   query,
+  type PermissionMode,
   type SDKMessage,
   type SDKUserMessage,
 } from '@anthropic-ai/claude-agent-sdk';
@@ -24,6 +25,7 @@ import { createLogger } from '@main/logger';
 import type {
   AgentAction,
   AgentChange,
+  AgentChoice,
   AgentQuestion,
 } from '@shared/agent.def';
 import { OUTPUT_LIMIT, VERSION_TIMEOUT_MS } from './agent.constant';
@@ -89,6 +91,40 @@ function versionOf(
   });
 }
 
+/**
+ * The permission modes the picker offers, in Claude's own ids.
+ *
+ * Fixed here rather than asked for: the SDK lists models but not modes. Two
+ * of Claude's are left out. `bypassPermissions` never asks about anything,
+ * which is a choice to make in a settings file, not by a slip of the mouse
+ * in a status line; `dontAsk` refuses whatever is not already allowed,
+ * which in a tile built to answer questions reads as the agent being
+ * broken. Either one set in the person's settings is still honoured, and
+ * shown by its id.
+ */
+const MODES: (AgentChoice & { id: PermissionMode })[] = [
+  {
+    id: 'default',
+    label: 'Ask',
+    description: 'Asks before editing files or running commands',
+  },
+  {
+    id: 'acceptEdits',
+    label: 'Accept edits',
+    description: 'Edits files without asking; still asks for commands',
+  },
+  {
+    id: 'auto',
+    label: 'Auto',
+    description: 'Decides for itself, and asks only about risky actions',
+  },
+  {
+    id: 'plan',
+    label: 'Plan',
+    description: 'Reads and plans, and changes nothing',
+  },
+];
+
 function startClaude({ cwd, path, env, host }: StartOptions): AgentRun {
   const inbox = new Inbox<SDKUserMessage>();
   const abort = new AbortController();
@@ -137,6 +173,15 @@ function startClaude({ cwd, path, env, host }: StartOptions): AgentRun {
 
   void pump(conversation, host, abort.signal);
 
+  host.emit({
+    type: 'modes',
+    modes: MODES.map(({ id, label, description }) => ({
+      id,
+      label,
+      description,
+    })),
+  });
+
   // The models are answered by the handshake the SDK makes on its own, so
   // they arrive in a fraction of a second — before the first message, which
   // is what lets a model be chosen before anything has been said. Everything
@@ -175,6 +220,13 @@ function startClaude({ cwd, path, env, host }: StartOptions): AgentRun {
       // say "whatever the settings say" is no model at all — so the row is
       // sent as that, rather than trusting the alias to round-trip.
       await conversation.setModel(model === 'default' ? undefined : model);
+    },
+    async setMode(mode) {
+      // Checked against the list, because the id came from the renderer and
+      // the SDK's own type is the only thing that would otherwise vouch for
+      // it.
+      const known = MODES.find((offered) => offered.id === mode);
+      if (known) await conversation.setPermissionMode(known.id);
     },
     close() {
       inbox.close();
@@ -238,6 +290,9 @@ class Translator {
             type: 'started',
             version: message.claude_code_version,
             model: message.model ?? null,
+            // Reported at the start of every turn, so a switch made in the
+            // picker is confirmed by the next one.
+            mode: message.permissionMode ?? null,
           });
         }
         return;

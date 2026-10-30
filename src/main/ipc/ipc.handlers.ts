@@ -91,6 +91,7 @@ import {
   agentAvailability,
   interruptConversation,
   setConversationModel,
+  setConversationMode,
   respondTo,
   sendMessage,
   startConversation,
@@ -570,6 +571,8 @@ export function registerIpcHandlers(): void {
   handle('agent:interrupt', ({ id }) => interruptConversation(id));
 
   handle('agent:set-model', ({ id, model }) => setConversationModel(id, model));
+
+  handle('agent:set-mode', ({ id, mode }) => setConversationMode(id, mode));
 
   handle('agent:stop', ({ id }) => stopConversation(id));
 

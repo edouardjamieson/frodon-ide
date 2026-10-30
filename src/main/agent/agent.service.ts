@@ -118,6 +118,7 @@ export async function startConversation(
       send: () => {},
       interrupt: async () => {},
       setModel: async () => {},
+      setMode: async () => {},
       close: () => {},
     },
     buffer: [],
@@ -142,7 +143,12 @@ export async function startConversation(
   // on "Starting…" with nothing to tell the person they could type. The
   // model is unknown until the agent does speak; the driver's own `started`
   // fills it in then.
-  emit(conversation, { type: 'started', version: found.version, model: null });
+  emit(conversation, {
+    type: 'started',
+    version: found.version,
+    model: null,
+    mode: null,
+  });
 
   log.info(`conversation ${id} with ${kind} ${found.version} in ${cwd}`);
   return { ok: true };
@@ -194,6 +200,13 @@ export async function setConversationModel(
   model: string
 ): Promise<void> {
   await conversations.get(id)?.run.setModel(model);
+}
+
+export async function setConversationMode(
+  id: string,
+  mode: string
+): Promise<void> {
+  await conversations.get(id)?.run.setMode(mode);
 }
 
 /** Ends a conversation and the process behind it. */

@@ -27,7 +27,7 @@ and a member on `AgentKind`. ADR-0042.
 | `main/agent/agent-environment.service.ts` | the login shell's `PATH`, and finding an executable on it |
 | `main/agent/agent.constant.ts` | `FLUSH_MS`, `OUTPUT_LIMIT`, the probe timeouts |
 | `renderer/src/lib/agent/` | the transcript store, `reduce`, and `useConversationLifetime` |
-| `components/modules/agent/` | the transcript and composer, one row per entry, the model picker, and each agent's logo |
+| `components/modules/agent/` | the transcript and composer, one row per entry, the pickers for model and permission mode, and each agent's logo |
 | `components/modules/window/window-agent.component.tsx` | the tab bar and the tile body |
 
 ## How it works
@@ -48,7 +48,8 @@ agent:respond {requestId}─> pending approval resolves ─> canUseTool answers
 Every agent speaks its own protocol, and the tile speaks none of them. A
 driver's whole job is translation into `AgentEvent`: text arrived, an action
 started, an action finished, an approval is open, a turn ended, the agent
-exited — and, once, which models it can be switched to. An `AgentAction` is
+exited — and, once each, which models and which permission modes it can be
+switched to. An `AgentAction` is
 described by what it *does* — `change`, `command`, `read`, `search`,
 `question`, `other` — because those are the six things the tile draws
 differently. Claude's `Edit` and a Codex patch both become a `change` with a
@@ -121,9 +122,34 @@ in `withAnswers`. A bare yes is not an answer — Claude then reports that the
 person did not answer. The reply crosses from the renderer, so `respondTo`
 rebuilds it from a boolean and strings before any driver sees it.
 
-Which actions are asked about is the agent's own business. No
-`permissionMode` is passed, so Claude Code applies the person's settings
-exactly as it would in a terminal.
+Which actions are asked about is the agent's own business. A conversation
+starts with no `permissionMode`, so Claude Code begins in whatever the
+person's settings say, exactly as it would in a terminal; the mode picker
+changes it from there, for that conversation only.
+
+### Models and modes are choices the tile cannot read
+
+Both pickers are one `ChoicePicker` over a list of `AgentChoice` — an id, a
+label, a description — that the driver offers and gets ids back from. The
+tile never asks whether a mode is the one that edits without asking or a
+model the expensive one: that knowledge would be Claude's, and an agent
+that draws its lines elsewhere — Codex's sandbox levels and approval
+policies — would need a second tile. A driver that offers no list gets no
+picker.
+
+Claude's models come from the SDK's handshake; its modes do not, so
+`MODES` in the driver lists them. Two are left out on purpose:
+`bypassPermissions`, which never asks about anything and is a choice for a
+settings file rather than a status line, and `dontAsk`, which refuses
+whatever is not already allowed and in this tile would read as the agent
+being broken. Either one set in the person's settings is still honoured and
+shown by its id.
+
+A model and a mode are tracked differently for one reason. Claude reports
+its model under another name than the menu's (`claude-sonnet-5-5` for
+`sonnet`), so the pick is kept beside the report in `chosenModel`. It
+reports its mode in the same ids it offers, so a pick stands in for the
+report in `mode` until the next turn confirms it.
 
 ### The transcript is a view
 
@@ -177,6 +203,16 @@ in" — arrives whole and is shown whole.
 3. **Skip** declines; the agent is told the question was dismissed and
    carries on without it. The answer it was given shows under the card's
    Output.
+
+### Choosing how much it asks
+
+1. The shield in the status line is the permission mode: **Ask**, **Accept
+   edits**, **Auto** or **Plan**, each described in the menu.
+2. It reads "Permissions" until the first turn: the starting mode comes
+   from the person's Claude Code settings, and Claude says which only once
+   spoken to. A pick made before then applies to the first message.
+3. A switch applies from the agent's next action, and the next turn
+   confirms it.
 
 ### Choosing a model
 
@@ -243,9 +279,10 @@ in" — arrives whole and is shown whole.
 - **Choosing the agent.** One driver, so `DEFAULT_AGENT` is a constant. With
   two, the `+` becomes a choice and the default a user setting.
 - **A keyboard shortcut** to open one.
-- **A default model.** A pick lasts as long as its conversation. Remembering
-  it means a user setting, and a model id from one agent is meaningless to
-  another, so it would have to be kept per kind.
+- **A default model or mode.** A pick lasts as long as its conversation.
+  Remembering it means a user setting, and an id from one agent is
+  meaningless to another, so it would have to be kept per kind. Until then,
+  Claude Code's own `permissions.defaultMode` sets the starting mode.
 
 ## See also
 

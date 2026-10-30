@@ -447,6 +447,11 @@ export interface IpcContract {
    * the conversation's own `models` event, never one the renderer made up.
    */
   'agent:set-model': { req: { id: string; model: string }; res: void };
+  /**
+   * Switches how much the agent asks before acting, from the next action
+   * on. `mode` is an id from the conversation's own `modes` event.
+   */
+  'agent:set-mode': { req: { id: string; mode: string }; res: void };
   /** Ends the conversation and the process behind it. */
   'agent:stop': { req: { id: string }; res: void };
 
@@ -777,6 +782,7 @@ export interface FrodonApi {
     ) => Promise<void>;
     interrupt: (id: string) => Promise<void>;
     setModel: (id: string, model: string) => Promise<void>;
+    setMode: (id: string, mode: string) => Promise<void>;
     stop: (id: string) => Promise<void>;
     /**
      * Subscribes to one conversation's events, filtered in the preload for

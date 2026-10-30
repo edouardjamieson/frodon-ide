@@ -83,7 +83,15 @@ export function useConversation(id: string) {
     [id]
   );
 
-  return { conversation, send, interrupt, respond, chooseModel };
+  const chooseMode = useCallback(
+    (mode: string) => {
+      useAgentStore.getState().update(id, (current) => ({ ...current, mode }));
+      void window.frodon.agent.setMode(id, mode);
+    },
+    [id]
+  );
+
+  return { conversation, send, interrupt, respond, chooseModel, chooseMode };
 }
 
 /**

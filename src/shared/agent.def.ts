@@ -134,11 +134,20 @@ export type AgentReply = { allow: false } | { allow: true; answers?: string[] };
 export type AgentEvent =
   /**
    * The agent is up. Sent by main as soon as the driver is running, with the
-   * version `locate` found and no model, and again by a driver once the
-   * agent reports itself — a later `started` updates what it knows and
-   * leaves the rest alone.
+   * version `locate` found and no model or mode, and again by a driver
+   * whenever the agent reports itself — a later `started` updates what it
+   * knows and leaves the rest alone.
+   *
+   * `model` and `mode` are the agent's own ids, matched against the
+   * `models` and `modes` it offered; one that matches nothing is shown as
+   * it came.
    */
-  | { type: 'started'; version: string; model: string | null }
+  | {
+      type: 'started';
+      version: string;
+      model: string | null;
+      mode: string | null;
+    }
   /**
    * More text for one message. Appended, never replaced: the driver streams
    * deltas, and a message is the concatenation of every delta sharing its id.
@@ -174,19 +183,28 @@ export type AgentEvent =
    * agent that cannot be switched never sends it and the tile shows no
    * picker.
    */
-  | { type: 'models'; models: AgentModel[] }
+  | { type: 'models'; models: AgentChoice[] }
+  /**
+   * The permission modes this agent offers — how much it asks before
+   * acting. Sent once, like `models`, and with the same consequence when it
+   * is not: no picker.
+   */
+  | { type: 'modes'; modes: AgentChoice[] }
   /** The agent is gone — it crashed, or could not start. Nothing follows. */
   | { type: 'exited'; error: string | null };
 
 /**
- * A model the agent can be switched to, as its picker draws it.
+ * Something the agent can be switched to — a model, a permission mode — as
+ * its picker draws it.
  *
- * `id` is the agent's own word for it — `sonnet`, `default`, a full model
- * id — handed back unchanged on `agent:set-model`. The renderer never
- * interprets it, so a driver whose agent names models differently has
- * nothing to translate.
+ * `id` is the agent's own word for it — `sonnet`, `acceptEdits` — handed
+ * back unchanged on `agent:set-model` or `agent:set-mode`. The renderer
+ * never interprets it: it never asks whether a mode is the one that edits
+ * without asking, so a driver whose agent draws its lines elsewhere — a
+ * sandbox level, an approval policy — offers its own and nothing in the
+ * tile changes.
  */
-export interface AgentModel {
+export interface AgentChoice {
   id: string;
   label: string;
   description: string;

@@ -132,6 +132,7 @@ const api: FrodonApi = {
     interrupt: (id) => ipcRenderer.invoke('agent:interrupt', { id }),
     setModel: (id, model) =>
       ipcRenderer.invoke('agent:set-model', { id, model }),
+    setMode: (id, mode) => ipcRenderer.invoke('agent:set-mode', { id, mode }),
     stop: (id) => ipcRenderer.invoke('agent:stop', { id }),
     // Filtered here, like a terminal's output: one channel carries every
     // conversation, and a reply streaming in one tile must not wake the rest.

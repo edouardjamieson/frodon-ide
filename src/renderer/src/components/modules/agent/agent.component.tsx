@@ -9,7 +9,12 @@ import {
 } from '~/lib/agent';
 import { useProjectStore } from '~/lib/project';
 import { useOpenFile } from '~/lib/window';
-import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui';
+import {
+  Button,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '~/components/ui';
 import { TranscriptRow } from './agent-entry.component';
 import { AgentIcon } from './agent-icon.component';
 import { ModelPicker } from './agent-model.component';
@@ -129,7 +134,7 @@ export default function Agent({ conversationId, active }: AgentProps) {
       </div>
 
       <div className="shrink-0 border-t border-pane-border p-2">
-        <div className="flex items-end gap-2 rounded-lg border border-pane-border bg-input px-2 py-1.5 focus-within:border-project/50">
+        <div className="flex flex-col gap-2 rounded-lg border border-pane-border bg-input px-2 py-1.5 focus-within:border-project/50">
           <textarea
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
@@ -139,36 +144,36 @@ export default function Agent({ conversationId, active }: AgentProps) {
             placeholder={ended ? 'This conversation has ended.' : 'Message'}
             className="min-w-0 flex-1 resize-none bg-transparent text-[14px] text-fg outline-none placeholder:text-fg-subtle"
           />
-          {working ? (
-            <button
-              aria-label="Stop"
-              onClick={interrupt}
-              className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md bg-button text-button-fg transition-colors hover:bg-button-hover"
-            >
-              <Square className="size-3" />
-            </button>
-          ) : (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                {/* Wrapped so the tooltip still shows while the button is
+          <div className="flex items-center justify-end gap-2">
+            {working ? (
+              <button
+                aria-label="Stop"
+                onClick={interrupt}
+                className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md bg-button text-button-fg transition-colors hover:bg-button-hover"
+              >
+                <Square className="size-3" />
+              </button>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  {/* Wrapped so the tooltip still shows while the button is
                     disabled — an empty draft is exactly when someone is
                     wondering how to send. */}
-                <span className="shrink-0">
-                  <button
-                    aria-label="Send"
+                  <Button
                     onClick={submit}
                     disabled={ended || !draft.trim()}
-                    className="flex size-7 cursor-pointer items-center justify-center rounded-md bg-button-accent text-button-accent-fg transition-colors hover:bg-button-accent-hover disabled:cursor-default disabled:opacity-40"
+                    size={'xs'}
                   >
                     <ArrowUp className="size-3.5" />
-                  </button>
-                </span>
-              </TooltipTrigger>
-              <TooltipContent side="top" shortcut={['shift', 'enter']}>
-                Send
-              </TooltipContent>
-            </Tooltip>
-          )}
+                    Send
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" shortcut={['shift', 'enter']}>
+                  Send
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </div>
         </div>
 
         <div className="flex gap-1 pt-1 text-[11px] text-fg-subtle items-center">

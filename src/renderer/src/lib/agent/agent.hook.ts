@@ -7,6 +7,7 @@
  * unmounts this, and this is what tells main.
  */
 import { useCallback, useEffect } from 'react';
+import type { AgentReply } from '@shared/agent.def';
 import { useAgentStore } from './agent.store';
 import { DEFAULT_AGENT } from './agent.constant';
 import { reduce, withMessage, withNotice } from './agent.service';
@@ -66,8 +67,8 @@ export function useConversation(id: string) {
   }, [id]);
 
   const respond = useCallback(
-    (requestId: string, allow: boolean) => {
-      void window.frodon.agent.respond(id, requestId, allow);
+    (requestId: string, reply: AgentReply) => {
+      void window.frodon.agent.respond(id, requestId, reply);
     },
     [id]
   );

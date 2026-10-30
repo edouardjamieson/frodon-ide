@@ -21,7 +21,11 @@ import {
   type SDKUserMessage,
 } from '@anthropic-ai/claude-agent-sdk';
 import { createLogger } from '@main/logger';
-import type { AgentAction, AgentChange } from '@shared/agent.def';
+import type {
+  AgentAction,
+  AgentChange,
+  AgentQuestion,
+} from '@shared/agent.def';
 import { OUTPUT_LIMIT, VERSION_TIMEOUT_MS } from './agent.constant';
 import type {
   AgentDriver,
@@ -106,13 +110,26 @@ function startClaude({ cwd, path, env, host }: StartOptions): AgentRun {
       // they would for `claude` in a terminal. Whatever that mode decides to
       // ask about arrives here.
       canUseTool: async (toolName, input, { signal, toolUseID }) => {
-        const allowed = await host.ask(
+        const reply = await host.ask(
           actionOf(toolUseID, toolName, input),
           signal
         );
-        return allowed
-          ? { behavior: 'allow', updatedInput: input }
-          : { behavior: 'deny', message: 'Declined in Frodon.' };
+        if (!reply.allow) {
+          return {
+            behavior: 'deny',
+            message:
+              toolName === 'AskUserQuestion'
+                ? 'The user dismissed the question without answering.'
+                : 'Declined in Frodon.',
+          };
+        }
+        return {
+          behavior: 'allow',
+          updatedInput:
+            toolName === 'AskUserQuestion'
+              ? withAnswers(input, reply.answers ?? [])
+              : input,
+        };
       },
       stderr: (data) => log.info(`claude: ${data.trimEnd()}`),
     },
@@ -387,6 +404,18 @@ function actionOf(
         title: `${name} ${str('pattern') ?? ''}`.trim(),
         path: str('path'),
       };
+    case 'AskUserQuestion': {
+      const questions = questionsOf(input);
+      return {
+        id,
+        kind: 'question',
+        title:
+          questions.length === 1
+            ? (questions[0] as AgentQuestion).question
+            : `${questions.length} questions`,
+        questions,
+      };
+    }
     case 'WebFetch':
       return { id, kind: 'other', title: `Fetch ${str('url') ?? 'a page'}` };
     case 'WebSearch':
@@ -398,6 +427,58 @@ function actionOf(
     default:
       return { id, kind: 'other', title: name, path };
   }
+}
+
+/** `AskUserQuestion`'s input, as questions. Anything malformed is skipped. */
+function questionsOf(input: Record<string, unknown>): AgentQuestion[] {
+  const raw = Array.isArray(input['questions']) ? input['questions'] : [];
+  return raw.flatMap((item): AgentQuestion[] => {
+    const q = item as Record<string, unknown>;
+    if (typeof q['question'] !== 'string') return [];
+    const options = Array.isArray(q['options']) ? q['options'] : [];
+    return [
+      {
+        question: q['question'],
+        header: typeof q['header'] === 'string' ? q['header'] : '',
+        multiple: q['multiSelect'] === true,
+        options: options.flatMap((option) => {
+          const o = option as Record<string, unknown>;
+          return typeof o['label'] === 'string'
+            ? [
+                {
+                  label: o['label'],
+                  description:
+                    typeof o['description'] === 'string'
+                      ? o['description']
+                      : '',
+                },
+              ]
+            : [];
+        }),
+      },
+    ];
+  });
+}
+
+/**
+ * The answers, put where Claude reads them.
+ *
+ * Allowing `AskUserQuestion` is not enough: the tool answers with whatever
+ * it finds in `answers` on its own input, keyed by question text, and with
+ * none it reports "The user did not answer the questions" — which is what a
+ * bare Allow produced. The tile answers in order; the keys are added here,
+ * from the same input the questions were read from.
+ */
+function withAnswers(
+  input: Record<string, unknown>,
+  answers: string[]
+): Record<string, unknown> {
+  const keyed: Record<string, string> = {};
+  questionsOf(input).forEach(({ question }, index) => {
+    const answer = answers[index]?.trim();
+    if (answer) keyed[question] = answer;
+  });
+  return { ...input, answers: keyed };
 }
 
 /** A tool result's content, flattened to text. Images are named, not sent. */

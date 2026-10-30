@@ -324,6 +324,19 @@ Packaging will also need `prebuilds/` unpacked from the asar.
 
 ## The libraries
 
+### Allowing `AskUserQuestion` is not answering it
+`code` · 2026-10-30 · `src/main/agent/agent-claude.service.ts`
+
+Claude's question tool goes through `canUseTool` like any other, so it
+arrived as an approval card, and Allow returned the input unchanged. The
+tool then answered itself "The user did not answer the questions", and
+Claude told the person the session must not be interactive. The answers go
+back *in the allow*: `updatedInput` with an `answers` map from question
+text to the chosen label, several joined with ", ". The driver now turns
+the tool into a `question` action and the card into a form. When an
+agent's tool is one the host is meant to perform rather than permit, the
+permission callback is where the work happens.
+
 ### Claude Code in stream-json mode says nothing until it is spoken to
 `code` · 2026-10-30 · `src/main/agent/agent.service.ts`
 

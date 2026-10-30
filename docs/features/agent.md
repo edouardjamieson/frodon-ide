@@ -48,8 +48,9 @@ agent:respond {requestId}─> pending approval resolves ─> canUseTool answers
 Every agent speaks its own protocol, and the tile speaks none of them. A
 driver's whole job is translation into `AgentEvent`: text arrived, an action
 started, an action finished, an approval is open, a turn ended, the agent
-exited — and, once, which models it can be switched to. An `AgentAction` is described by what it *does* — `change`, `command`,
-`read`, `search`, `other` — because those are the five things the tile draws
+exited — and, once, which models it can be switched to. An `AgentAction` is
+described by what it *does* — `change`, `command`, `read`, `search`,
+`question`, `other` — because those are the six things the tile draws
 differently. Claude's `Edit` and a Codex patch both become a `change` with a
 before and an after.
 
@@ -110,6 +111,16 @@ The question is drawn on the action card it is about, not in a dialog. Claude
 asks *before* it reports the call, so `reduce` adds the action to the
 transcript when the approval arrives if it is not there yet.
 
+**A question is an approval with something to say.** An agent asking the
+person something — Claude's `AskUserQuestion` — comes through the same
+`ask`, as a `question` action carrying its options, and is answered with an
+`AgentReply` rather than a yes: `answers`, one string per question, in the
+order asked. Order and not keys, because how an agent keys its answers is
+its own business; the Claude driver puts them back under the question texts
+in `withAnswers`. A bare yes is not an answer — Claude then reports that the
+person did not answer. The reply crosses from the renderer, so `respondTo`
+rebuilds it from a boolean and strings before any driver sees it.
+
 Which actions are asked about is the agent's own business. No
 `permissionMode` is passed, so Claude Code applies the person's settings
 exactly as it would in a terminal.
@@ -147,13 +158,25 @@ in" — arrives whole and is shown whole.
 4. While a turn runs, the send button becomes a stop button, which interrupts
    the turn and answers every open question no.
 
-### Answering a question
+### Allowing an action
 
 1. The card being asked about takes the accent and shows **Allow** and
    **Deny**. The tab's logo gets an accent dot, so a question in a tab
    behind another is visible from the tab bar.
 2. Either answer goes to main, the card's buttons go away, and the agent
    carries on — or is told it was declined.
+
+### Answering the agent
+
+1. When the agent asks something, its card shows the question, a chip
+   naming it, the options it suggests as buttons — a hover shows what each
+   means — and a line to write an answer of one's own.
+2. One question with one answer to pick is answered by clicking the
+   option. Several questions, several picks, or a written answer wait for
+   **Answer**, or Enter in the line.
+3. **Skip** declines; the agent is told the question was dismissed and
+   carries on without it. The answer it was given shows under the card's
+   Output.
 
 ### Choosing a model
 

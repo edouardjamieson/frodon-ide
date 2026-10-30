@@ -563,8 +563,8 @@ export function registerIpcHandlers(): void {
 
   handle('agent:send', ({ id, text }) => sendMessage(id, text));
 
-  handle('agent:respond', ({ id, requestId, allow }) =>
-    respondTo(id, requestId, allow)
+  handle('agent:respond', ({ id, requestId, reply }) =>
+    respondTo(id, requestId, reply)
   );
 
   handle('agent:interrupt', ({ id }) => interruptConversation(id));

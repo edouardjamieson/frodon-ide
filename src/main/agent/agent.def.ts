@@ -12,6 +12,7 @@ import type {
   AgentAction,
   AgentAvailability,
   AgentEvent,
+  AgentReply,
 } from '@shared/agent.def';
 
 /** What a driver can do to the conversation it is running. */
@@ -19,13 +20,15 @@ export interface AgentHost {
   /** Reports something that happened. Batched before it crosses. */
   emit: (event: AgentEvent) => void;
   /**
-   * Asks the person whether an action may go ahead, and waits for them.
+   * Asks the person whether an action may go ahead — or, for a `question`,
+   * what they answer — and waits for them.
    *
-   * Resolves `false` when they decline, and also when `signal` aborts — the
-   * agent gave up on the question, or the conversation is being stopped — so
-   * a driver awaiting this never hangs on a tile that has gone away.
+   * Resolves `{ allow: false }` when they decline, and also when `signal`
+   * aborts — the agent gave up on the question, or the conversation is being
+   * stopped — so a driver awaiting this never hangs on a tile that has gone
+   * away.
    */
-  ask: (action: AgentAction, signal: AbortSignal) => Promise<boolean>;
+  ask: (action: AgentAction, signal: AbortSignal) => Promise<AgentReply>;
 }
 
 /** A running agent, as the registry holds it. */

@@ -5,6 +5,7 @@ import {
   FileSearch,
   FileText,
   LoaderCircle,
+  MessageCircleQuestion,
   SquareTerminal,
   Wrench,
   X,
@@ -14,8 +15,10 @@ import type {
   AgentAction,
   AgentActionKind,
   AgentChange,
+  AgentReply,
 } from '@shared/agent.def';
 import type { TranscriptEntry } from '~/lib/agent';
+import { QuestionForm } from './agent-question.component';
 
 /**
  * One row of a transcript.
@@ -34,7 +37,7 @@ export function TranscriptRow({
   entry: TranscriptEntry;
   /** The open question about this action, if there is one. */
   approval: string | null;
-  onRespond: (requestId: string, allow: boolean) => void;
+  onRespond: (requestId: string, reply: AgentReply) => void;
   onOpenFile: (path: string) => void;
 }) {
   switch (entry.kind) {
@@ -79,6 +82,7 @@ const ICONS: Record<AgentActionKind, ReactNode> = {
   command: <SquareTerminal className="size-3.5 shrink-0" />,
   read: <FileText className="size-3.5 shrink-0" />,
   search: <FileSearch className="size-3.5 shrink-0" />,
+  question: <MessageCircleQuestion className="size-3.5 shrink-0" />,
   other: <Wrench className="size-3.5 shrink-0" />,
 };
 
@@ -100,7 +104,7 @@ function ActionCard({
   action: AgentAction;
   result: { ok: boolean; output: string } | null;
   approval: string | null;
-  onRespond: (requestId: string, allow: boolean) => void;
+  onRespond: (requestId: string, reply: AgentReply) => void;
   onOpenFile: (path: string) => void;
 }) {
   const { path } = action;
@@ -153,17 +157,22 @@ function ActionCard({
         </details>
       ) : null}
 
-      {approval ? (
+      {approval && action.questions ? (
+        <QuestionForm
+          questions={action.questions}
+          onReply={(reply) => onRespond(approval, reply)}
+        />
+      ) : approval ? (
         <div className="flex items-center gap-2 border-t border-pane-border px-2.5 py-1.5">
           <span className="text-fg-muted">Allow this?</span>
           <button
-            onClick={() => onRespond(approval, true)}
+            onClick={() => onRespond(approval, { allow: true })}
             className="ml-auto cursor-pointer rounded-md bg-button-accent px-2.5 py-1 text-button-accent-fg transition-colors hover:bg-button-accent-hover"
           >
             Allow
           </button>
           <button
-            onClick={() => onRespond(approval, false)}
+            onClick={() => onRespond(approval, { allow: false })}
             className="cursor-pointer rounded-md border border-pane-border bg-button px-2.5 py-1 text-button-fg transition-colors hover:bg-button-hover"
           >
             Deny

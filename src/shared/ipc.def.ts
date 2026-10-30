@@ -24,6 +24,7 @@ import type {
   AgentAvailability,
   AgentEvents,
   AgentKind,
+  AgentReply,
   AgentStartResult,
 } from './agent.def';
 import type { ProjectConfig, UserConfig } from './config.def';
@@ -434,9 +435,9 @@ export interface IpcContract {
   };
   /** The next message. One call per message, not per keystroke. */
   'agent:send': { req: { id: string; text: string }; res: void };
-  /** A yes or a no to an open approval. */
+  /** A yes, a no, or the answers to an open approval. */
   'agent:respond': {
-    req: { id: string; requestId: string; allow: boolean };
+    req: { id: string; requestId: string; reply: AgentReply };
     res: void;
   };
   /** Stops the turn in progress. The conversation stays open. */
@@ -769,7 +770,11 @@ export interface FrodonApi {
     availability: (kind: AgentKind) => Promise<Res<'agent:availability'>>;
     start: (id: string, kind: AgentKind) => Promise<Res<'agent:start'>>;
     send: (id: string, text: string) => Promise<void>;
-    respond: (id: string, requestId: string, allow: boolean) => Promise<void>;
+    respond: (
+      id: string,
+      requestId: string,
+      reply: AgentReply
+    ) => Promise<void>;
     interrupt: (id: string) => Promise<void>;
     setModel: (id: string, model: string) => Promise<void>;
     stop: (id: string) => Promise<void>;

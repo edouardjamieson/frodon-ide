@@ -56,14 +56,15 @@ export type AgentAvailability =
 /**
  * What a tool call *does*, as far as the tile is concerned.
  *
- * Five shapes, because those are the five things the tile draws differently:
+ * Six shapes, because those are the six things the tile draws differently:
  * a change is a diff, a command is a monospace line, a read and a search are
- * one-line receipts, and anything else is a name and a summary. A driver maps
- * its own tools onto these — Claude's `Edit` and Codex's patch both become a
- * `change` — and the mapping is the only place either name is spelled.
+ * one-line receipts, a question is a form, and anything else is a name and a
+ * summary. A driver maps its own tools onto these — Claude's `Edit` and
+ * Codex's patch both become a `change` — and the mapping is the only place
+ * either name is spelled.
  */
 export type AgentActionKind =
-  'change' | 'command' | 'read' | 'search' | 'other';
+  'change' | 'command' | 'read' | 'search' | 'question' | 'other';
 
 /**
  * One file, before and after.
@@ -80,6 +81,21 @@ export interface AgentChange {
   after: string;
 }
 
+/**
+ * Something the agent asks the person, with the answers it suggests.
+ *
+ * The person can always write their own instead — every agent that asks
+ * questions allows it, and Claude's tool says so in as many words.
+ */
+export interface AgentQuestion {
+  question: string;
+  /** A word or two naming the question, drawn as a chip. */
+  header: string;
+  options: { label: string; description: string }[];
+  /** Whether several options can be picked at once. */
+  multiple: boolean;
+}
+
 /** A tool call, translated. */
 export interface AgentAction {
   /** The driver's id for the call, echoed by its result and its approval. */
@@ -93,7 +109,20 @@ export interface AgentAction {
   command?: string;
   /** For `change`: every file it touches. */
   changes?: AgentChange[];
+  /** For `question`: what is asked, in order. */
+  questions?: AgentQuestion[];
 }
+
+/**
+ * The person's reply to an open approval.
+ *
+ * A question is an approval with something to say: the agent cannot go on
+ * with a bare yes, it needs the answer, so `answers` carries one string per
+ * question, in the order asked — several picks joined with ", ". Order
+ * rather than keys, because how an agent keys its answers is its own
+ * business and the driver knows the questions it asked.
+ */
+export type AgentReply = { allow: false } | { allow: true; answers?: string[] };
 
 /**
  * Everything a conversation can report, in the order it happened.

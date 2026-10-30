@@ -19,6 +19,7 @@ import type {
   AgentAvailability,
   AgentEvent,
   AgentKind,
+  AgentReply,
   AgentStartResult,
 } from '@shared/agent.def';
 import { FLUSH_MS } from './agent.constant';
@@ -45,7 +46,7 @@ interface Conversation {
   buffer: AgentEvent[];
   timer: NodeJS.Timeout | null;
   /** Approvals waiting on a click, by request id. */
-  pending: Map<string, (allowed: boolean) => void>;
+  pending: Map<string, (reply: AgentReply) => void>;
 }
 
 const conversations = new Map<string, Conversation>();
@@ -151,9 +152,31 @@ export function sendMessage(id: string, text: string): void {
   conversations.get(id)?.run.send(text);
 }
 
-/** Answers an approval. A request that is no longer open is ignored. */
-export function respondTo(id: string, requestId: string, allow: boolean): void {
-  conversations.get(id)?.pending.get(requestId)?.(allow);
+/** The answer every way out of a question that is not a click gives. */
+const DECLINED: AgentReply = { allow: false };
+
+/**
+ * Answers an approval. A request that is no longer open is ignored.
+ *
+ * The reply is rebuilt from its parts rather than passed on: it came from
+ * the renderer, and what reaches a driver should be exactly the shape the
+ * driver was promised — a boolean, and strings.
+ */
+export function respondTo(
+  id: string,
+  requestId: string,
+  reply: AgentReply
+): void {
+  const settle = conversations.get(id)?.pending.get(requestId);
+  if (!settle) return;
+  if (reply.allow !== true) {
+    settle(DECLINED);
+    return;
+  }
+  const answers = Array.isArray(reply.answers)
+    ? reply.answers.map((answer) => (typeof answer === 'string' ? answer : ''))
+    : undefined;
+  settle({ allow: true, answers });
 }
 
 export async function interruptConversation(id: string): Promise<void> {
@@ -162,7 +185,7 @@ export async function interruptConversation(id: string): Promise<void> {
   // Every open question is answered no first. An interrupted turn would
   // otherwise leave its approval cards on screen, waiting on a turn that is
   // no longer listening.
-  for (const settle of [...conversation.pending.values()]) settle(false);
+  for (const settle of [...conversation.pending.values()]) settle(DECLINED);
   await conversation.run.interrupt();
 }
 
@@ -181,7 +204,7 @@ export function stopConversation(id: string): void {
 
   conversations.delete(id);
   if (conversation.timer) clearTimeout(conversation.timer);
-  for (const settle of [...conversation.pending.values()]) settle(false);
+  for (const settle of [...conversation.pending.values()]) settle(DECLINED);
   conversation.run.close();
 }
 
@@ -205,23 +228,23 @@ function ask(
   conversation: Conversation,
   action: AgentAction,
   signal: AbortSignal
-): Promise<boolean> {
+): Promise<AgentReply> {
   const requestId = randomUUID();
 
   return new Promise((resolve) => {
     // One way out, however the question ends — a click, an interrupt, the
     // agent withdrawing it, the tile closing — so the card always goes away
     // and the driver is never left awaiting a promise nobody will settle.
-    const settle = (allowed: boolean): void => {
+    const settle = (reply: AgentReply): void => {
       if (!conversation.pending.delete(requestId)) return;
       signal.removeEventListener('abort', onAbort);
       emit(conversation, { type: 'approval-closed', requestId });
-      resolve(allowed);
+      resolve(reply);
     };
-    const onAbort = (): void => settle(false);
+    const onAbort = (): void => settle(DECLINED);
 
     if (signal.aborted) {
-      resolve(false);
+      resolve(DECLINED);
       return;
     }
     signal.addEventListener('abort', onAbort);

@@ -29,6 +29,7 @@ import type { AgentDriver, AgentRun } from './agent.def';
 import { claudeDriver } from './agent-claude.service';
 import { loginEnvironment } from './agent-environment.service';
 import { readFavorites } from './agent-favorite.service';
+import { cleanAttachments } from './agent-attachment.service';
 
 const log = createLogger('agent');
 
@@ -186,8 +187,23 @@ export async function startConversation(
   return { ok: true };
 }
 
-export function sendMessage(id: string, text: string): void {
-  conversations.get(id)?.run.send(text);
+/**
+ * Sends a message, with whatever was attached to it checked first — see
+ * `cleanAttachments`. `cwd` is the asking window's project, which is what
+ * an attached path has to resolve inside.
+ */
+export async function sendMessage(
+  id: string,
+  text: string,
+  attachments: unknown,
+  cwd: string | null
+): Promise<void> {
+  const conversation = conversations.get(id);
+  if (!conversation) return;
+  const cleaned = await cleanAttachments(attachments, cwd);
+  const message = typeof text === 'string' ? text : '';
+  if (!message.trim() && cleaned.length === 0) return;
+  conversation.run.send(message, cleaned);
 }
 
 /** The answer every way out of a question that is not a click gives. */

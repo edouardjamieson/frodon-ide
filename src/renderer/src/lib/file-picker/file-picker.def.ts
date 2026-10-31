@@ -18,6 +18,8 @@ export interface PickerFile {
   relative: string;
   /** `relative` lowercased once, rather than once per keystroke per file. */
   lower: string;
+  /** Only ever true when folders were asked for — see `collectFiles`. */
+  isDir: boolean;
 }
 
 /** A file the query matched, and how well. */

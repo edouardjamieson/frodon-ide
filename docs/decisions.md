@@ -18,6 +18,41 @@ their reasoning is the reasoning recorded at the time, not reconstructed.
 
 ---
 
+### ADR-0045 — A message attaches project paths, or images handed over, and nothing else
+
+**When** 2026-10-31 · **Status** active · **Touches** agent
+
+**What.** An agent message can carry two kinds of attachment: a file or
+folder inside the project, sent as a path for the agent to read, and an
+image pasted or dropped into the composer, sent as base64 in an image
+block. Paths outside the project are never attached, and there is no
+system file dialog.
+
+**Why.** A native picker was the first plan and was dropped before it was
+built: it offers the whole disk, it reads as a different app's window, and
+reading a file main was told about by the renderer would have needed tokens
+minted in main to keep the rule that the renderer never names a path main
+reads. Limiting paths to the project removes that problem — main reads
+nothing, it only checks the path resolves inside the project and passes it
+on — and matches what an agent working in the project can use. Images are
+the exception that earns its own shape: a screenshot has no path, and the
+agent seeing it is the point. Inlining file contents was rejected because
+the agent already reads files with its own tools, and a folder cannot be
+inlined at all.
+
+**How.** `AgentAttachment` in `shared/agent.def.ts`; `agent:send` carries a
+list, cleaned by `cleanAttachments` in `main/agent/agent-attachment.service.ts`
+against the asking window's root; `AgentRun.send` takes the cleaned list,
+and Claude's `contentOf` turns it into a text block and image blocks. The
+composer's picker is `AttachPicker`, over `collectFiles` with folders.
+
+**Cost.** Something outside the project — a log in `/tmp`, a design export
+in Downloads — can only be shown as an image or copied in first. Images
+cross IPC as base64, up to 5 MB each and twenty attachments a message, and
+are held in the transcript store for the life of the tab.
+
+---
+
 ### ADR-0044 — A favorite conversation is a pointer into the agent's own store
 
 **When** 2026-10-31 · **Status** active · **Touches** agent, workbench

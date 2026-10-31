@@ -26,9 +26,10 @@ and a member on `AgentKind`. ADR-0042.
 | `main/agent/agent-claude.service.ts` | the Claude driver — the only file that imports the Agent SDK or spells a Claude tool name |
 | `main/agent/agent-environment.service.ts` | the login shell's `PATH`, and finding an executable on it |
 | `main/agent/agent-favorite.service.ts` | the favorites, `~/.frodon/agent-favorites.json` |
+| `main/agent/agent-attachment.service.ts` | `cleanAttachments`: what a message carries, checked before a driver sees it |
 | `main/agent/agent.constant.ts` | `FLUSH_MS`, `OUTPUT_LIMIT`, the probe timeouts, how many sessions are listed |
 | `renderer/src/lib/agent/` | the transcript store, `reduce`, and `useConversationLifetime` |
-| `components/modules/agent/` | the transcript and composer, one row per entry, the pickers for model and permission mode, the favorite button, and each agent's logo |
+| `components/modules/agent/` | the transcript and composer, one row per entry, the pickers for model and permission mode, the favorite button, attachment chips and the project picker, and each agent's logo |
 | `components/modules/window/window-agent.component.tsx` | the tab bar and the tile body |
 | `components/modules/workbench/sidebar/favorites/` | the Favorites view: open, rename, remove |
 | `renderer/src/lib/window/window.hook.ts` | `useOpenFavorite` and `useConversationRevealEffect`: the tab already on a favorite, in any window, or a new one |
@@ -153,6 +154,31 @@ its model under another name than the menu's (`claude-sonnet-5-5` for
 `sonnet`), so the pick is kept beside the report in `chosenModel`. It
 reports its mode in the same ids it offers, so a pick stands in for the
 report in `mode` until the next turn confirms it.
+
+### Attachments are project paths, or images handed over
+
+A message can carry files and folders from the project, and images. They
+reach the agent two ways, because they are two different things to it. A
+**path** goes as a list under the text — "Attached from the project — read
+these" — for the agent to open with its own tools: it reads the project
+that way already, and a folder cannot be pasted into a message anyway. An
+**image** goes as the image, an image block after the text, because the
+point of a screenshot is that the agent sees it, and a screenshot has no
+path to read.
+
+**Nothing outside the project is named.** The picker behind **Add** is the
+project's tree, ranked the way go-to-file ranks it (`collectFiles` with
+folders, `rankFiles`), not the system's open dialog — which also offered the
+whole disk and looked unfinished beside everything else. Images arrive as
+bytes from a paste or a drop, so a file elsewhere on the machine reaches the
+agent only by somebody handing it over. `cleanAttachments` in main checks
+both again: a path must resolve inside the asking window's project and
+exist, and whether it is a folder is asked of the disk; an image must be
+PNG, JPEG, GIF or WebP and at most 5 MB, the API's own limit.
+
+The list's wording is load-bearing. With a bare "Attached:", a message
+holding a screenshot and a file had the agent take "the attached file" to
+mean the image, and never read the file.
 
 ### Favorites are a choice; the agent already stores everything
 
@@ -290,6 +316,18 @@ in" — arrives whole and is shown whole.
 4. The choice belongs to the conversation: each tab can run on a different
    model, and a new conversation starts on the agent's own default.
 
+### Attaching files and screenshots
+
+1. **Add**, beside Send, opens a search over the project's files and
+   folders — with nothing typed, the files most recently looked at. Arrows
+   and Enter, or a click, attach one; it appears as a chip above the
+   message.
+2. Paste a screenshot into the message, or drop images onto the composer,
+   and each appears as a thumbnail. Anything that is not an image, or is
+   over 5 MB, is refused with a line saying why.
+3. A chip's × takes it off. A message can be only attachments.
+4. On the sent message, the chips stay: a file's opens it in the editor.
+
 ### Marking a favorite
 
 1. Once something has been said, **Add to favorites** appears under the
@@ -347,6 +385,10 @@ in" — arrives whole and is shown whole.
   window is using.
 - **A session token is the driver's to read.** The renderer compares it and
   hands it back; only the driver that issued it knows its format.
+- **An attached path is checked in main, not trusted.** It must resolve
+  inside the asking window's project; an image is checked against the
+  formats and size the API takes, so a bad paste fails in the composer and
+  not as a failed turn.
 - **`prompt` is for replay only.** A driver that echoed live messages as
   `prompt` would draw every message twice.
 
@@ -372,6 +414,11 @@ in" — arrives whole and is shown whole.
   agent's store, and nothing here needs it yet.
 - **A shortcut for the Favorites view.** Every other sidebar module has a
   `mod+shift` chord; this one has only its rail button so far.
+- **Attachments in a reopened conversation.** A replayed message shows its
+  text, with the attached paths as the list the agent was sent; its images
+  are not drawn.
+- **Dragging a file from the explorer** onto the composer, and an `@`
+  in the message that offers the same picker.
 - **An approval open when the app quit.** It comes back as a card without
   buttons, closed as not finished; the agent asks again if it still needs
   to.
@@ -393,5 +440,5 @@ in" — arrives whole and is shown whole.
 ## See also
 
 [terminal.md](terminal.md) · [workbench.md](workbench.md) ·
-[decisions.md](../decisions.md) (ADR-0042, ADR-0043, ADR-0044) ·
+[decisions.md](../decisions.md) (ADR-0042, ADR-0043, ADR-0044, ADR-0045) ·
 [ipc.md](../ipc.md)

@@ -580,7 +580,9 @@ export function registerIpcHandlers(): void {
     )
   );
 
-  handle('agent:send', ({ id, text }) => sendMessage(id, text));
+  handle('agent:send', ({ id, text, attachments }, event) =>
+    sendMessage(id, text, attachments, askingRoot(event))
+  );
 
   handle('agent:respond', ({ id, requestId, reply }) =>
     respondTo(id, requestId, reply)

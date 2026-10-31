@@ -21,6 +21,7 @@
  * data only.
  */
 import type {
+  AgentAttachment,
   AgentAvailability,
   AgentEvents,
   AgentKind,
@@ -438,8 +439,14 @@ export interface IpcContract {
     req: { id: string; kind: AgentKind; resume: string | null };
     res: AgentStartResult;
   };
-  /** The next message. One call per message, not per keystroke. */
-  'agent:send': { req: { id: string; text: string }; res: void };
+  /**
+   * The next message, and what is attached to it. One call per message, not
+   * per keystroke. Attachments are checked in main — see `cleanAttachments`.
+   */
+  'agent:send': {
+    req: { id: string; text: string; attachments: AgentAttachment[] };
+    res: void;
+  };
   /** A yes, a no, or the answers to an open approval. */
   'agent:respond': {
     req: { id: string; requestId: string; reply: AgentReply };
@@ -815,7 +822,11 @@ export interface FrodonApi {
       kind: AgentKind,
       resume: string | null
     ) => Promise<Res<'agent:start'>>;
-    send: (id: string, text: string) => Promise<void>;
+    send: (
+      id: string,
+      text: string,
+      attachments: AgentAttachment[]
+    ) => Promise<void>;
     respond: (
       id: string,
       requestId: string,

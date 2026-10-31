@@ -8,7 +8,7 @@
  */
 import { useCallback, useEffect, useMemo } from 'react';
 import { useProjectStore } from '~/lib/project';
-import type { AgentKind, AgentReply } from '@shared/agent.def';
+import type { AgentAttachment, AgentKind, AgentReply } from '@shared/agent.def';
 import { useAgentStore } from './agent.store';
 import { DEFAULT_AGENT } from './agent.constant';
 import { reduce, withMessage, withNotice } from './agent.service';
@@ -59,13 +59,13 @@ export function useConversation(id: string) {
   const conversation = useAgentStore((state) => state.conversations[id]);
 
   const send = useCallback(
-    (text: string) => {
+    (text: string, attachments: AgentAttachment[] = []) => {
       const message = text.trim();
-      if (!message) return;
+      if (!message && attachments.length === 0) return;
       useAgentStore
         .getState()
-        .update(id, (current) => withMessage(current, message));
-      void window.frodon.agent.send(id, message);
+        .update(id, (current) => withMessage(current, message, attachments));
+      void window.frodon.agent.send(id, message, attachments);
     },
     [id]
   );

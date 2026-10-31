@@ -206,6 +206,52 @@ export type AgentEvent =
   | { type: 'exited'; error: string | null };
 
 /**
+ * Something sent along with a message.
+ *
+ * Two shapes, because they reach an agent two ways. A **path** is a file or
+ * folder in the project, and goes as a reference the agent reads with its
+ * own tools — it can read the project anyway, and inlining a folder is not a
+ * thing a message can do. An **image** goes as the image itself, because the
+ * point of pasting a screenshot is that the agent sees it, and a screenshot
+ * has no path to read.
+ *
+ * Nothing outside the project is attached by path: the picker only offers
+ * the project's tree, and main drops any path that resolves outside it.
+ * Images come in as bytes, pasted or dropped, so a file anywhere on the
+ * machine can be shown to the agent only by somebody handing it over.
+ */
+export type AgentAttachment =
+  | { kind: 'path'; path: string; isDir: boolean }
+  | {
+      kind: 'image';
+      name: string;
+      mediaType: AgentImageType;
+      /** Base64, without a `data:` prefix. */
+      data: string;
+    };
+
+/**
+ * The image formats an agent is sent, which are the four the model reads.
+ * Anything else pasted or dropped is refused in the composer.
+ */
+export const AGENT_IMAGE_TYPES = [
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+] as const;
+export type AgentImageType = (typeof AGENT_IMAGE_TYPES)[number];
+
+/**
+ * The largest image an agent is sent, in bytes before encoding. The API's
+ * own limit per image; a bigger one would fail the whole turn.
+ */
+export const AGENT_IMAGE_LIMIT = 5 * 1024 * 1024;
+
+/** How many attachments one message may carry. */
+export const AGENT_ATTACHMENT_LIMIT = 20;
+
+/**
  * Something the agent can be switched to — a model, a permission mode — as
  * its picker draws it.
  *

@@ -127,7 +127,8 @@ const api: FrodonApi = {
     availability: (kind) => ipcRenderer.invoke('agent:availability', { kind }),
     start: (id, kind, resume) =>
       ipcRenderer.invoke('agent:start', { id, kind, resume }),
-    send: (id, text) => ipcRenderer.invoke('agent:send', { id, text }),
+    send: (id, text, attachments) =>
+      ipcRenderer.invoke('agent:send', { id, text, attachments }),
     respond: (id, requestId, reply) =>
       ipcRenderer.invoke('agent:respond', { id, requestId, reply }),
     interrupt: (id) => ipcRenderer.invoke('agent:interrupt', { id }),

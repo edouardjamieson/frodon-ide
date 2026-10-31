@@ -1,8 +1,19 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { cn } from 'cn';
-import { ArrowUp, Brain, ShieldCheck, Square } from 'lucide-react';
-import { AGENT_LABELS } from '@shared/agent.def';
 import {
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent,
+  type KeyboardEvent,
+} from 'react';
+import { cn } from 'cn';
+import { ArrowUp, Brain, Plus, ShieldCheck, Square } from 'lucide-react';
+import {
+  AGENT_ATTACHMENT_LIMIT,
+  AGENT_LABELS,
+  type AgentAttachment,
+} from '@shared/agent.def';
+import {
+  imageAttachment,
   resolvePath,
   useConversation,
   useConversationLifetime,
@@ -20,6 +31,7 @@ import { TranscriptRow } from './agent-entry.component';
 import { AgentIcon } from './agent-icon.component';
 import { ChoicePicker } from './agent-choice.component';
 import { FavoriteButton } from './agent-favorite.component';
+import { AttachmentChip, AttachPicker } from './agent-attach.component';
 
 interface AgentProps {
   conversationId: string;
@@ -44,6 +56,13 @@ export default function Agent({ conversationId, active }: AgentProps) {
   const root = useProjectStore((state) => state.root);
   const openFile = useOpenFile();
   const [draft, setDraft] = useState('');
+  // Local, like the draft: what is attached to a message not yet sent
+  // belongs to this composer and to nothing else.
+  const [attachments, setAttachments] = useState<AgentAttachment[]>([]);
+  const [picking, setPicking] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  /** Why the last paste or drop was refused, until the next one. */
+  const [refusal, setRefusal] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   /**
@@ -68,11 +87,55 @@ export default function Agent({ conversationId, active }: AgentProps) {
   const working = status === 'working';
   const ended = status === 'ended';
 
+  const sendable = !ended && (draft.trim() !== '' || attachments.length > 0);
+
   const submit = () => {
-    if (!draft.trim() || ended) return;
-    send(draft);
+    if (!sendable) return;
+    send(draft, attachments);
     setDraft('');
+    setAttachments([]);
+    setRefusal(null);
     following.current = true;
+  };
+
+  const attach = (next: AgentAttachment[]) => {
+    const merged = [...attachments];
+    for (const attachment of next) {
+      const duplicate =
+        attachment.kind === 'path' &&
+        merged.some(
+          (existing) =>
+            existing.kind === 'path' && existing.path === attachment.path
+        );
+      if (!duplicate) merged.push(attachment);
+    }
+    if (merged.length > AGENT_ATTACHMENT_LIMIT) {
+      setRefusal(
+        `A message can carry ${AGENT_ATTACHMENT_LIMIT} attachments at most.`
+      );
+    }
+    setAttachments(merged.slice(0, AGENT_ATTACHMENT_LIMIT));
+  };
+
+  /**
+   * Images from a paste or a drop. Files that are not images are refused
+   * with a reason rather than ignored: a dropped file that silently did
+   * nothing reads as a broken drop.
+   */
+  const takeImages = async (files: File[]) => {
+    const read = await Promise.all(files.map(imageAttachment));
+    const images = read.filter(
+      (item): item is AgentAttachment => typeof item !== 'string'
+    );
+    setRefusal(read.find((item) => typeof item === 'string') ?? null);
+    attach(images);
+  };
+
+  const onDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setDragging(false);
+    if (ended) return;
+    void takeImages([...event.dataTransfer.files]);
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -140,14 +203,68 @@ export default function Agent({ conversationId, active }: AgentProps) {
       </div>
 
       <div className="shrink-0 border-t border-pane-border p-2">
-        <div className="flex flex-col gap-2 rounded-lg border border-pane-border bg-input px-2 py-1.5 focus-within:border-project/50">
+        <div
+          // Dropping a file anywhere else in the window would navigate the
+          // page to it, so the composer claims every drag that carries
+          // files, and only the composer.
+          onDragOver={(event) => {
+            if (!event.dataTransfer.types.includes('Files')) return;
+            event.preventDefault();
+            setDragging(true);
+          }}
+          onDragLeave={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node))
+              setDragging(false);
+          }}
+          onDrop={onDrop}
+          className={cn(
+            'relative flex flex-col gap-2 rounded-lg border border-pane-border bg-input px-2 py-1.5 focus-within:border-project/50',
+            { 'border-dashed border-project/70': dragging }
+          )}
+        >
+          {attachments.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+              {attachments.map((attachment, index) => (
+                <AttachmentChip
+                  key={
+                    attachment.kind === 'path'
+                      ? attachment.path
+                      : `${index}:${attachment.name}`
+                  }
+                  attachment={attachment}
+                  onRemove={() =>
+                    setAttachments((current) =>
+                      current.filter((_, at) => at !== index)
+                    )
+                  }
+                />
+              ))}
+            </div>
+          ) : null}
+          {refusal ? (
+            <p className="text-[11px] text-fg-danger">{refusal}</p>
+          ) : null}
           <textarea
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={onKeyDown}
+            onPaste={(event) => {
+              // Only a paste that carries images is taken over; text pastes
+              // as text, which is nearly every paste.
+              const images = [...event.clipboardData.files].filter((file) =>
+                file.type.startsWith('image/')
+              );
+              if (images.length === 0) return;
+              event.preventDefault();
+              void takeImages(images);
+            }}
             disabled={ended}
             rows={Math.min(8, Math.max(1, draft.split('\n').length))}
-            placeholder={ended ? 'This conversation has ended.' : 'Message'}
+            placeholder={
+              ended
+                ? 'This conversation has ended.'
+                : 'Message — paste or drop a screenshot to show it'
+            }
             className="min-w-0 flex-1 resize-none bg-transparent text-[14px] text-fg outline-none placeholder:text-fg-subtle"
           />
           <div className="flex items-center justify-between gap-2">
@@ -161,36 +278,62 @@ export default function Agent({ conversationId, active }: AgentProps) {
                   : null
               }
             />
-            {working ? (
-              <button
-                aria-label="Stop"
-                onClick={interrupt}
-                className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md bg-button text-button-fg transition-colors hover:bg-button-hover"
+            <div className="ml-auto flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="xs"
+                disabled={ended}
+                onClick={() => setPicking((open) => !open)}
+                className="text-fg-subtle hover:text-fg"
               >
-                <Square className="size-3" />
-              </button>
-            ) : (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  {/* The button is the trigger itself, so the tooltip only
+                <Plus className="size-3.5" />
+                Add
+              </Button>
+              {picking ? (
+                <AttachPicker
+                  attached={
+                    new Set(
+                      attachments.flatMap((attachment) =>
+                        attachment.kind === 'path' ? [attachment.path] : []
+                      )
+                    )
+                  }
+                  onPick={(file) => {
+                    attach([
+                      { kind: 'path', path: file.path, isDir: file.isDir },
+                    ]);
+                    setPicking(false);
+                  }}
+                  onClose={() => setPicking(false)}
+                />
+              ) : null}
+              {working ? (
+                <button
+                  aria-label="Stop"
+                  onClick={interrupt}
+                  className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md bg-button text-button-fg transition-colors hover:bg-button-hover"
+                >
+                  <Square className="size-3" />
+                </button>
+              ) : (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    {/* The button is the trigger itself, so the tooltip only
                     opens while it is enabled — a disabled button receives
                     no pointer events. With an empty draft the shortcut goes
                     unannounced, though the "Send" label still says what the
                     button does. */}
-                  <Button
-                    onClick={submit}
-                    disabled={ended || !draft.trim()}
-                    size={'xs'}
-                  >
-                    <ArrowUp className="size-3.5" />
+                    <Button onClick={submit} disabled={!sendable} size={'xs'}>
+                      <ArrowUp className="size-3.5" />
+                      Send
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" shortcut={['shift', 'enter']}>
                     Send
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top" shortcut={['shift', 'enter']}>
-                  Send
-                </TooltipContent>
-              </Tooltip>
-            )}
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </div>
           </div>
         </div>
 

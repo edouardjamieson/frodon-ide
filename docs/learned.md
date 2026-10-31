@@ -661,6 +661,18 @@ runtime, in a payload, which is why the contract is types-only and plain data.
 
 ## Product
 
+### A path list under a screenshot reads as one attachment
+`product` · 2026-10-31 · `src/main/agent/agent-claude.service.ts`
+
+A message with an image block and a file listed under "Attached:" asked
+for something from "the attached file". Claude answered about the image,
+said it held no such thing, and never opened the file; it also saved the
+image under its session directory and read it back as a file, which is
+how Claude Code takes images. Labelling the list "Attached from the
+project — read these" made the same question read the file first. The
+words around a list of references are instructions to the agent whether
+they are meant as one or not.
+
 ### Every prefix of a new name is also a name that does not exist
 `product` · 2026-10-24 · `src/renderer/src/components/modules/git/branch-select.component.tsx`
 

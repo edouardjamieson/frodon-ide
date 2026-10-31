@@ -6,7 +6,12 @@
  * entry except `withMessage`, for what the person typed. Driver-agnostic by
  * construction — it reads `AgentEvent`, which has no agent in it.
  */
-import type { AgentEvent } from '@shared/agent.def';
+import {
+  AGENT_IMAGE_LIMIT,
+  AGENT_IMAGE_TYPES,
+  type AgentAttachment,
+  type AgentEvent,
+} from '@shared/agent.def';
 import type { Conversation, TranscriptEntry } from './agent.def';
 
 /** Applies a batch of events, in order. */
@@ -154,16 +159,65 @@ function step(conversation: Conversation, event: AgentEvent): Conversation {
 /** The person's message, added the moment it is sent. */
 export function withMessage(
   conversation: Conversation,
-  text: string
+  text: string,
+  attachments: AgentAttachment[]
 ): Conversation {
   return {
     ...conversation,
     status: 'working',
     entries: [
       ...conversation.entries,
-      { kind: 'user', id: nextEntryId(), text },
+      {
+        kind: 'user',
+        id: nextEntryId(),
+        text,
+        ...(attachments.length > 0 ? { attachments } : {}),
+      },
     ],
   };
+}
+
+/**
+ * A pasted or dropped file, as an image attachment — or why it cannot be one.
+ *
+ * Checked here as well as in main, because here is where the person can be
+ * told: a screenshot over the limit is refused in the composer with a
+ * reason, not dropped in main without one.
+ */
+export async function imageAttachment(
+  file: Blob & { name?: string }
+): Promise<AgentAttachment | string> {
+  const mediaType = AGENT_IMAGE_TYPES.find((type) => type === file.type);
+  if (!mediaType) {
+    return 'Only images can be attached this way — PNG, JPEG, GIF or WebP. Use Add for files in the project.';
+  }
+  if (file.size > AGENT_IMAGE_LIMIT) {
+    return `That image is ${(file.size / 1024 / 1024).toFixed(1)} MB; the limit is ${AGENT_IMAGE_LIMIT / 1024 / 1024} MB.`;
+  }
+  const url = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+  return {
+    kind: 'image',
+    // A pasted screenshot has no name of its own — the clipboard calls every
+    // one `image.png` — so it is named by when it arrived.
+    name:
+      file.name && file.name !== 'image.png'
+        ? file.name
+        : `Screenshot ${new Date().toLocaleTimeString()}`,
+    mediaType,
+    data: url.slice(url.indexOf(',') + 1),
+  };
+}
+
+/** An image attachment as something an `<img>` can draw. */
+export function imageSource(
+  attachment: Extract<AgentAttachment, { kind: 'image' }>
+): string {
+  return `data:${attachment.mediaType};base64,${attachment.data}`;
 }
 
 /** A line from Frodon itself — a failed start, a stop. */

@@ -10,6 +10,7 @@
  */
 import type {
   AgentAction,
+  AgentAttachment,
   AgentAvailability,
   AgentEvent,
   AgentReply,
@@ -40,7 +41,7 @@ export interface AgentRun {
    */
   session: string | null;
   /** Sends the next message. Queued by the agent if a turn is under way. */
-  send: (text: string) => void;
+  send: (text: string, attachments: AgentAttachment[]) => void;
   /** Stops the turn in progress. The conversation stays open. */
   interrupt: () => Promise<void>;
   /**

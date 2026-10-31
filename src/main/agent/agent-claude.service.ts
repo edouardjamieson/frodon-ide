@@ -28,6 +28,7 @@ import {
 import { createLogger } from '@main/logger';
 import type {
   AgentAction,
+  AgentAttachment,
   AgentChange,
   AgentChoice,
   AgentEvent,
@@ -253,10 +254,10 @@ function startClaude({ cwd, path, env, host, resume }: StartOptions): AgentRun {
 
   return {
     session,
-    send(text) {
+    send(text, attachments) {
       inbox.push({
         type: 'user',
-        message: { role: 'user', content: text },
+        message: { role: 'user', content: contentOf(text, attachments, cwd) },
         parent_tool_use_id: null,
       });
     },
@@ -281,6 +282,64 @@ function startClaude({ cwd, path, env, host, resume }: StartOptions): AgentRun {
       abort.abort();
     },
   };
+}
+
+/**
+ * A message and what is attached to it, as Claude reads a user turn.
+ *
+ * Files and folders are listed under the text by their path from the
+ * project root, for Claude to open with its own tools — that is how it
+ * reads the project already, and a list it can act on beats a file pasted
+ * whole into the turn. Images go as image blocks after the text, so Claude
+ * sees them without a tool call. A message with neither stays a string,
+ * which is what it was before attachments existed.
+ */
+function contentOf(
+  text: string,
+  attachments: AgentAttachment[],
+  cwd: string
+): SDKUserMessage['message']['content'] {
+  if (attachments.length === 0) return text;
+
+  const paths = attachments.flatMap((attachment) => {
+    if (attachment.kind !== 'path') return [];
+    const relative = relativePath(cwd, attachment.path);
+    return [attachment.isDir ? `- ${relative}/ (folder)` : `- ${relative}`];
+  });
+  const images = attachments.flatMap((attachment) =>
+    attachment.kind === 'image'
+      ? [
+          {
+            type: 'image' as const,
+            source: {
+              type: 'base64' as const,
+              media_type: attachment.mediaType,
+              data: attachment.data,
+            },
+          },
+        ]
+      : []
+  );
+
+  const written = [
+    text,
+    paths.length > 0
+      ? `Attached from the project — read these:\n${paths.join('\n')}`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+
+  return [
+    ...(written ? [{ type: 'text' as const, text: written }] : []),
+    ...images,
+  ];
+}
+
+/** `path` from `root`, or `.` for the root itself. */
+function relativePath(root: string, path: string): string {
+  if (path === root) return '.';
+  return path.startsWith(`${root}/`) ? path.slice(root.length + 1) : path;
 }
 
 /** Reads the conversation to its end, translating as it goes. */

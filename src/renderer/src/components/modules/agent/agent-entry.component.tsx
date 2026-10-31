@@ -19,6 +19,7 @@ import type {
 } from '@shared/agent.def';
 import type { TranscriptEntry } from '~/lib/agent';
 import { QuestionForm } from './agent-question.component';
+import { AttachmentChip } from './agent-attach.component';
 
 /**
  * One row of a transcript.
@@ -43,8 +44,23 @@ export function TranscriptRow({
   switch (entry.kind) {
     case 'user':
       return (
-        <div className="ml-8 self-end rounded-lg bg-tab-active px-3 py-2 whitespace-pre-wrap text-fg select-text">
-          {entry.text}
+        <div className="ml-8 flex flex-col items-end gap-1.5 self-end">
+          {entry.text ? (
+            <div className="rounded-lg bg-tab-active px-3 py-2 whitespace-pre-wrap text-fg select-text">
+              {entry.text}
+            </div>
+          ) : null}
+          {entry.attachments ? (
+            <div className="flex flex-wrap justify-end gap-1.5">
+              {entry.attachments.map((attachment, index) => (
+                <AttachmentChip
+                  key={index}
+                  attachment={attachment}
+                  onOpen={onOpenFile}
+                />
+              ))}
+            </div>
+          ) : null}
         </div>
       );
     case 'assistant':

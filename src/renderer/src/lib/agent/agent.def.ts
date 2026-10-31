@@ -8,6 +8,7 @@
  */
 import type {
   AgentAction,
+  AgentAttachment,
   AgentChoice,
   AgentKind,
   FavoriteEntry,
@@ -26,7 +27,13 @@ export type ConversationStatus =
 
 /** One thing in the transcript, in the order it happened. */
 export type TranscriptEntry =
-  | { kind: 'user'; id: string; text: string }
+  | {
+      kind: 'user';
+      id: string;
+      text: string;
+      /** What was sent with it. Absent on a message replayed from history. */
+      attachments?: AgentAttachment[];
+    }
   | { kind: 'assistant'; id: string; text: string }
   | {
       kind: 'action';

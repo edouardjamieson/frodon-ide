@@ -30,6 +30,16 @@ function step(conversation: Conversation, event: AgentEvent): Conversation {
         version: event.version ?? conversation.version,
         model: event.model ?? conversation.model,
         mode: event.mode ?? conversation.mode,
+        session: event.session ?? conversation.session,
+      };
+
+    case 'prompt':
+      return {
+        ...conversation,
+        entries: [
+          ...conversation.entries,
+          { kind: 'user', id: nextEntryId(), text: event.text },
+        ],
       };
 
     case 'text': {

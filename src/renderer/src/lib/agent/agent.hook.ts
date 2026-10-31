@@ -6,16 +6,20 @@
  * window store's `closeConversation` signals nothing — dropping the id
  * unmounts this, and this is what tells main.
  */
-import { useCallback, useEffect } from 'react';
-import type { AgentReply } from '@shared/agent.def';
+import { useCallback, useEffect, useMemo } from 'react';
+import { useProjectStore } from '~/lib/project';
+import type { AgentKind, AgentReply } from '@shared/agent.def';
 import { useAgentStore } from './agent.store';
 import { DEFAULT_AGENT } from './agent.constant';
 import { reduce, withMessage, withNotice } from './agent.service';
 
 export function useConversationLifetime(id: string): void {
   useEffect(() => {
-    const { open, update, forget } = useAgentStore.getState();
-    open(id, DEFAULT_AGENT);
+    const { open, update, forget, resumes, dropResume } =
+      useAgentStore.getState();
+    const resume = resumes[id] ?? null;
+    const kind = resume?.kind ?? DEFAULT_AGENT;
+    open(id, kind);
 
     // Subscribed before the start is asked for, so the `started` event —
     // which can arrive before the invoke resolves — has somewhere to go.
@@ -29,13 +33,17 @@ export function useConversationLifetime(id: string): void {
     // "closed" would end the conversation that replaced it.
     let disposed = false;
 
-    void window.frodon.agent.start(id, DEFAULT_AGENT).then((result) => {
-      if (result.ok || disposed) return;
-      update(id, (conversation) => ({
-        ...withNotice(conversation, result.error, 'danger'),
-        status: 'ended',
-      }));
-    });
+    void window.frodon.agent
+      .start(id, kind, resume?.session ?? null)
+      .then((result) => {
+        if (disposed) return;
+        dropResume(id);
+        if (result.ok) return;
+        update(id, (conversation) => ({
+          ...withNotice(conversation, result.error, 'danger'),
+          status: 'ended',
+        }));
+      });
 
     return () => {
       disposed = true;
@@ -118,4 +126,100 @@ export function useConversationWaiting(id: string): boolean {
   return useAgentStore(
     (state) => (state.conversations[id]?.approvals.length ?? 0) > 0
   );
+}
+
+/** Lists the project's favorites again, into the store. */
+async function refreshFavorites(): Promise<void> {
+  useAgentStore.getState().setFavorites(await window.frodon.agent.favorites());
+}
+
+/**
+ * Keeps the favorites current, for the whole window. Mounted once, in `App`.
+ *
+ * Listed when a project opens, and again whenever main says any window
+ * changed them — including this one, which is how a heart clicked under the
+ * composer reaches the tab and the sidebar without either asking. Read from
+ * the store everywhere else, so a tab can show its heart without anything
+ * having opened the sidebar.
+ */
+export function useFavoritesSyncEffect(): void {
+  const root = useProjectStore((state) => state.root);
+
+  useEffect(() => {
+    useAgentStore.getState().setFavorites(null);
+    if (!root) return;
+    void refreshFavorites();
+    return window.frodon.agent.onFavoritesChanged(
+      () => void refreshFavorites()
+    );
+  }, [root]);
+}
+
+/**
+ * The project's favorites, and what changes them. Each change is followed by
+ * `agent:favorites-changed`, so none of these update the store themselves.
+ */
+export function useFavorites() {
+  const favorites = useAgentStore((state) => state.favorites);
+
+  const add = useCallback(
+    (kind: AgentKind, session: string, name: string) =>
+      window.frodon.agent.addFavorite(kind, session, name),
+    []
+  );
+  const rename = useCallback(
+    (kind: AgentKind, session: string, name: string) =>
+      window.frodon.agent.renameFavorite(kind, session, name),
+    []
+  );
+  const remove = useCallback(
+    (kind: AgentKind, session: string) =>
+      window.frodon.agent.removeFavorite(kind, session),
+    []
+  );
+
+  return { favorites, add, rename, remove };
+}
+
+/**
+ * The name a conversation is a favorite under, or null if it is not one.
+ *
+ * A string out of the selector, so a tab re-renders when it is marked or
+ * renamed and not when anything else in the list moves.
+ */
+export function useFavoriteName(id: string): string | null {
+  return useAgentStore((state) => {
+    const conversation = state.conversations[id];
+    if (!conversation?.session) return null;
+    return (
+      state.favorites?.find(
+        (entry) =>
+          entry.kind === conversation.kind &&
+          entry.session === conversation.session
+      )?.name ?? null
+    );
+  });
+}
+
+/**
+ * Every session open in a tab of this window, as `kind:session`. For the
+ * sidebar to mark which favorites are on screen — one set for the list, not
+ * a lookup per row.
+ *
+ * Selected as one joined string, not as the conversations: a reply
+ * streaming in a tab changes its conversation many times a second and its
+ * session never, and the sidebar must not re-render with every delta.
+ */
+export function useOpenSessions(): Set<string> {
+  const joined = useAgentStore((state) =>
+    Object.values(state.conversations)
+      .flatMap((conversation) =>
+        conversation.session && conversation.status !== 'ended'
+          ? [`${conversation.kind}:${conversation.session}`]
+          : []
+      )
+      .sort()
+      .join('\n')
+  );
+  return useMemo(() => new Set(joined ? joined.split('\n') : []), [joined]);
 }

@@ -15,6 +15,8 @@ import { useRecentFilesEffect } from '~/lib/file-picker';
 import { useConfigSaveEffect, useUserConfigEffect } from '~/lib/config';
 import { useKeybindingEffect } from '~/lib/keybinding';
 import { useUpdateSync } from '~/lib/update';
+import { useFavoritesSyncEffect } from '~/lib/agent';
+import { useConversationRevealEffect } from '~/lib/window';
 import { Header, Sidebar, Welcome } from '~/components/modules/workbench';
 import WindowManager from '~/components/modules/window';
 import FilePicker from '~/components/modules/file-picker';
@@ -38,6 +40,10 @@ import Backdrop from './components/ui/backdrop';
  * `useUserConfigEffect` (reads this machine's settings and puts the chosen
  * theme on, before the launcher draws),
  * `useConfigSaveEffect` (writes a changed setting down once it settles),
+ * `useFavoritesSyncEffect` (lists the project's favorite conversations, and
+ * again whenever any window changes them),
+ * `useConversationRevealEffect` (shows a conversation's tab when another
+ * window, or the sidebar, asks for it),
  * `useUpdateSync` (hears from main when a new version is ready to restart
  * into) and `useKeybindingEffect` (the one keydown listener the whole app
  * shares).
@@ -59,6 +65,8 @@ export default function App() {
   useUserConfigEffect();
   useConfigSaveEffect();
   useUpdateSync();
+  useFavoritesSyncEffect();
+  useConversationRevealEffect();
   useKeybindingEffect();
 
   const { isOpen, open } = useProject();

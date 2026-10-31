@@ -25,3 +25,13 @@ export const SHELL_TIMEOUT_MS = 5000;
 
 /** How long an agent may take to report its own version. */
 export const VERSION_TIMEOUT_MS = 10_000;
+
+/**
+ * Where favorite conversations are listed: `~/.frodon/agent-favorites.json`,
+ * a map from project root to that project's list.
+ *
+ * In the home directory, never the project's `.frodon/`, because a favorite
+ * is a token pointing into this machine's `~/.claude`. Committed, it would
+ * point a teammate at nothing.
+ */
+export const FAVORITES_FILENAME = 'agent-favorites.json';

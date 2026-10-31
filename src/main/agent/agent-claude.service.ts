@@ -15,10 +15,14 @@
  * ADR-0043.
  */
 import { execFile } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import {
+  getSessionInfo,
+  getSessionMessages,
   query,
   type PermissionMode,
   type SDKMessage,
+  type SessionMessage,
   type SDKUserMessage,
 } from '@anthropic-ai/claude-agent-sdk';
 import { createLogger } from '@main/logger';
@@ -26,6 +30,7 @@ import type {
   AgentAction,
   AgentChange,
   AgentChoice,
+  AgentEvent,
   AgentQuestion,
 } from '@shared/agent.def';
 import { OUTPUT_LIMIT, VERSION_TIMEOUT_MS } from './agent.constant';
@@ -66,7 +71,42 @@ export const claudeDriver: AgentDriver = {
   start(options) {
     return startClaude(options);
   },
+
+  async lastActive(cwd, session) {
+    if (!SESSION_ID.test(session)) return null;
+    try {
+      // Looked for in `cwd` only. Claude files a session under the folder
+      // it was had in, and one from elsewhere — a worktree, another project
+      // — would not be found by `--resume` from here either.
+      const info = await getSessionInfo(session, { dir: cwd });
+      return info ? info.lastModified : null;
+    } catch (error) {
+      log.error(`could not look up claude session ${session}`, error);
+      return null;
+    }
+  },
+
+  async history(cwd, session) {
+    if (!SESSION_ID.test(session)) return null;
+    try {
+      // Asked first, because a session that is not there reads back as no
+      // messages — the same answer as one that is there and empty.
+      if (!(await getSessionInfo(session, { dir: cwd }))) return null;
+      return replay(await getSessionMessages(session, { dir: cwd }));
+    } catch (error) {
+      log.error(`could not read claude session ${session}`, error);
+      return null;
+    }
+  },
 };
+
+/**
+ * What a Claude session id looks like. Narrower than `isSessionToken`,
+ * because this driver knows its own format and nothing else should reach
+ * `--resume`.
+ */
+const SESSION_ID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** `2.1.308 (Claude Code)` → `2.1.308`, or null if it would not say. */
 function versionOf(
@@ -125,9 +165,15 @@ const MODES: (AgentChoice & { id: PermissionMode })[] = [
   },
 ];
 
-function startClaude({ cwd, path, env, host }: StartOptions): AgentRun {
+function startClaude({ cwd, path, env, host, resume }: StartOptions): AgentRun {
   const inbox = new Inbox<SDKUserMessage>();
   const abort = new AbortController();
+
+  // Picked here rather than learnt from Claude's `init`, which only arrives
+  // with the first reply: a conversation that knows its own id from the
+  // start can be kept, and found again, without waiting on the agent. A
+  // resumed conversation carries on under the id it already had.
+  const session = resume && SESSION_ID.test(resume) ? resume : randomUUID();
 
   const conversation = query({
     // A stream rather than a string: one process for the whole conversation,
@@ -138,6 +184,7 @@ function startClaude({ cwd, path, env, host }: StartOptions): AgentRun {
       cwd,
       env,
       pathToClaudeCodeExecutable: path,
+      ...(session === resume ? { resume: session } : { sessionId: session }),
       abortController: abort,
       // Deltas, so the reply is drawn as it is written rather than appearing
       // whole once the turn is over.
@@ -205,6 +252,7 @@ function startClaude({ cwd, path, env, host }: StartOptions): AgentRun {
     });
 
   return {
+    session,
     send(text) {
       inbox.push({
         type: 'user',
@@ -293,6 +341,7 @@ class Translator {
             // Reported at the start of every turn, so a switch made in the
             // picker is confirmed by the next one.
             mode: message.permissionMode ?? null,
+            session: message.session_id,
           });
         }
         return;
@@ -373,6 +422,95 @@ class Translator {
         return;
     }
   }
+}
+
+/**
+ * A stored session, as the events a live one would have sent.
+ *
+ * Claude stores the same messages it streams, less the deltas, so the live
+ * `Translator` reads them unchanged — the assistant's text then arrives
+ * whole, the way a message that never streamed does. What it does not
+ * handle is the person's own words, which live never come back from the
+ * agent: those are picked out here and sent as `prompt`.
+ *
+ * Some of what Claude stores as the person speaking is Claude talking to
+ * itself — the output of a slash command, a reminder it injected — and is
+ * left out, by the markers it wraps those in.
+ *
+ * A call with no result is one the conversation was stopped in the middle
+ * of. Live, its card would wait for a result; here, nothing is coming, so
+ * it is closed as not finished rather than left spinning.
+ */
+function replay(messages: SessionMessage[]): AgentEvent[] {
+  const events: AgentEvent[] = [];
+  const translator = new Translator({
+    emit: (event) => events.push(event),
+    // A stored conversation asks nothing. The question it asked, if it was
+    // left open, is answered no by the agent itself when it resumes.
+    ask: async () => ({ allow: false }),
+  });
+
+  for (const stored of messages) {
+    if (stored.parent_tool_use_id) continue;
+    if (stored.type === 'user') {
+      const text = promptOf(stored.message);
+      if (text) events.push({ type: 'prompt', text });
+    }
+    if (stored.type === 'user' || stored.type === 'assistant') {
+      translator.read({
+        type: stored.type,
+        message: stored.message,
+        parent_tool_use_id: null,
+      } as unknown as SDKMessage);
+    }
+  }
+
+  const finished = new Set(
+    events.flatMap((event) =>
+      event.type === 'action-result' ? [event.actionId] : []
+    )
+  );
+  for (const event of [...events]) {
+    if (event.type === 'action' && !finished.has(event.action.id)) {
+      events.push({
+        type: 'action-result',
+        actionId: event.action.id,
+        ok: false,
+        output: 'Did not finish.',
+      });
+    }
+  }
+  return events;
+}
+
+/** What Claude wraps its own words in when it stores them as the person's. */
+const INJECTED = [
+  '<command-',
+  '<local-command-',
+  '<system-reminder>',
+  '<user-prompt-submit-hook>',
+  'Caveat: ',
+];
+
+/** The person's words in a stored user message, or '' when it has none. */
+function promptOf(message: unknown): string {
+  const content = (message as { content?: unknown } | null)?.content;
+  const text =
+    typeof content === 'string'
+      ? content
+      : Array.isArray(content)
+        ? content
+            .flatMap((part) => {
+              const block = part as { type?: string; text?: unknown };
+              return block.type === 'text' && typeof block.text === 'string'
+                ? [block.text]
+                : [];
+            })
+            .join('\n')
+        : '';
+  const trimmed = text.trim();
+  if (INJECTED.some((marker) => trimmed.startsWith(marker))) return '';
+  return trimmed;
 }
 
 /**

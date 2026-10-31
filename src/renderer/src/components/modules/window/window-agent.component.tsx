@@ -1,9 +1,10 @@
 import { cn } from 'cn';
-import { LoaderCircle, Plus, X } from 'lucide-react';
+import { Heart, LoaderCircle, Plus, X } from 'lucide-react';
 import {
   useConversationKind,
   useConversationStatus,
   useConversationWaiting,
+  useFavoriteName,
 } from '~/lib/agent';
 import { useAgentWindow, type AgentWindow } from '~/lib/window';
 import Agent, { AgentIcon } from '~/components/modules/agent';
@@ -68,6 +69,7 @@ function ConversationTab({
   const kind = useConversationKind(id);
   const status = useConversationStatus(id);
   const waiting = useConversationWaiting(id);
+  const favoriteName = useFavoriteName(id);
 
   return (
     <div
@@ -95,8 +97,17 @@ function ConversationTab({
         </span>
       )}
       {/* Numbered by position, like shells, so closing the first of three
-          does not leave "2" and "3" behind. */}
-      <span>Agent {index + 1}</span>
+          does not leave "2" and "3" behind — unless it is a favorite, and so
+          has a name of its own, with the heart that says why. */}
+      <span className="max-w-40 truncate">
+        {favoriteName ?? `Agent ${index + 1}`}
+      </span>
+      {favoriteName !== null ? (
+        <Heart
+          aria-label="Favorite"
+          className="size-3 shrink-0 fill-current text-project"
+        />
+      ) : null}
       <button
         aria-label={`Close agent ${index + 1}`}
         onMouseDown={(event) => {

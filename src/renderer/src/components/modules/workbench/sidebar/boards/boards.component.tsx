@@ -305,8 +305,11 @@ function Row({
   );
 }
 
-/** The inline rename field. Commits on Enter or blur, abandons on Escape. */
-function NameField({
+/**
+ * The inline rename field. Commits on Enter or blur, abandons on Escape.
+ * Shared with the favorites list, which renames a row the same way.
+ */
+export function NameField({
   initial,
   onCommit,
   onCancel,

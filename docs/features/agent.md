@@ -25,10 +25,13 @@ and a member on `AgentKind`. ADR-0042.
 | `main/agent/agent.service.ts` | the registry: who owns which conversation, batching, approvals waiting on a click |
 | `main/agent/agent-claude.service.ts` | the Claude driver — the only file that imports the Agent SDK or spells a Claude tool name |
 | `main/agent/agent-environment.service.ts` | the login shell's `PATH`, and finding an executable on it |
-| `main/agent/agent.constant.ts` | `FLUSH_MS`, `OUTPUT_LIMIT`, the probe timeouts |
+| `main/agent/agent-favorite.service.ts` | the favorites, `~/.frodon/agent-favorites.json` |
+| `main/agent/agent.constant.ts` | `FLUSH_MS`, `OUTPUT_LIMIT`, the probe timeouts, how many sessions are listed |
 | `renderer/src/lib/agent/` | the transcript store, `reduce`, and `useConversationLifetime` |
-| `components/modules/agent/` | the transcript and composer, one row per entry, the pickers for model and permission mode, and each agent's logo |
+| `components/modules/agent/` | the transcript and composer, one row per entry, the pickers for model and permission mode, the favorite button, and each agent's logo |
 | `components/modules/window/window-agent.component.tsx` | the tab bar and the tile body |
+| `components/modules/workbench/sidebar/favorites/` | the Favorites view: open, rename, remove |
+| `renderer/src/lib/window/window.hook.ts` | `useOpenFavorite` and `useConversationRevealEffect`: the tab already on a favorite, in any window, or a new one |
 
 ## How it works
 
@@ -151,6 +154,65 @@ its model under another name than the menu's (`claude-sonnet-5-5` for
 reports its mode in the same ids it offers, so a pick stands in for the
 report in `mode` until the next turn confirms it.
 
+### Favorites are a choice; the agent already stores everything
+
+Claude Code writes every conversation to `~/.claude/projects/` whether or not
+anything asks it to, so Frodon stores no transcript. What it stores is the
+choice: a conversation the person marked a **favorite**, under a name, as a
+pointer — the agent's kind and its `session` token — in
+`~/.frodon/agent-favorites.json`, filed by project root. In the home
+directory and not the project, because the token points into this
+machine's `~/.claude` and would point a teammate at nothing. ADR-0044.
+
+Nothing is a favorite until somebody says so, and nothing else is offered.
+The agent's own list of past conversations was tried as a "Recent" half of
+the menu and dropped: it is long and mostly throwaway — every terminal
+`claude` in the project is on it — and listing it is the clutter favorites
+exist to avoid. A conversation never marked can still be reached with
+`claude --resume` in a terminal.
+
+The token is the driver's and opaque to everyone else. Claude's driver
+**picks it before spawning** — `sessionId` on a new conversation, `resume` on
+an old one — so `AgentRun.session` is known when `start` returns and main
+puts it on its own `started`. Waiting for Claude's `init` would mean waiting
+for the first reply. A resumed conversation carries on under the id it had,
+so a favorite stays valid however many times it is reopened.
+
+Each listing asks the driver when the agent last wrote to each favorite
+(`lastActive`), because the agent deletes conversations on its own schedule
+and a favorite that has gone should say so. Every change is broadcast as
+`agent:favorites-changed` to every window, which re-reads its own project's
+list — so a heart clicked in one window shows on the tab and in the sidebar
+of another.
+
+### Reopening, and never twice
+
+Reopening is `agent:start` with `resume`. Main asks the driver for the
+conversation's `history` *in the asking window's project* — a token from
+another project finds nothing — and refuses the start if there is none.
+Otherwise the history is emitted as ordinary events ahead of `started`, and
+the tile draws it through the same `reduce` as a live turn. Claude's
+`replay` runs stored messages through the live `Translator`, adds the
+person's own words as `prompt` events — which are never sent live, since
+the renderer draws a typed message itself — skips what Claude stored as the
+person but wrote itself (slash-command output, injected reminders), and
+closes any call that never got a result as not finished.
+
+**One session, one tab, across every window.** Two tabs on one session
+would be two agents writing one conversation, each overwriting what the
+other said next. Only main sees every window's conversations, so the
+sidebar asks it first: `agent:reveal` finds the live conversation holding
+the session, sends `agent:reveal` to the window that has it — whose
+`useConversationRevealEffect` shows the tab and focuses its tile — and
+raises that window. Only when nobody has it does the sidebar open a tab.
+`startConversation` refuses a resume whose session is already held, which
+covers the race between the question and the start.
+
+A token crosses from the renderer, so it is checked three times: by
+`isSessionToken` in `shared/` (short, letters, digits, `-` and `_`), by
+`startConversation`, and by the driver against its own format — a Claude
+id is a UUID or it never reaches `--resume`.
+
 ### The transcript is a view
 
 Main keeps no copy of what was said; the agent keeps its own. The renderer's
@@ -228,6 +290,29 @@ in" — arrives whole and is shown whole.
 4. The choice belongs to the conversation: each tab can run on a different
    model, and a new conversation starts on the agent's own default.
 
+### Marking a favorite
+
+1. Once something has been said, **Add to favorites** appears under the
+   message box, beside Send. Before that it is disabled, and its tooltip
+   says why.
+2. One click marks it, named after the first message — usually what the
+   conversation is about. The heart fills, and the tab shows the name with
+   a heart in place of "Agent 2".
+3. Clicking the filled heart takes it off the favorites. The agent's copy
+   is untouched either way.
+
+### Reopening one
+
+1. The heart in the sidebar's rail opens **Favorites**: each conversation
+   by name, with when it was last active.
+2. Clicking one brings forward the tab already on it — in this window or
+   another, which is raised — or opens a new tab that draws the
+   conversation as it was and carries on from there.
+3. Double-click, or the row's `…` menu, renames it. **Remove from
+   favorites** takes it off the list.
+4. A favorite the agent no longer has is greyed and says "No longer
+   available"; it cannot be opened, only removed.
+
 ### Several at once
 
 1. `+` in the tab bar starts another conversation in the same tile. Splitting
@@ -255,6 +340,15 @@ in" — arrives whole and is shown whole.
   not the thrown error — the SDK's abort error is a minified class of its own.
 - **Never bundle an agent's binary.** The SDK stays a devDependency; moving it
   to `dependencies` would package 276 MB per architecture.
+- **Frodon stores no transcript.** A favorite is a token; a copy of what was
+  said would be a second store disagreeing with the agent's.
+- **Ask main before opening a favorite.** `useOpenFavorite` reveals first;
+  a tab opened without asking can put a second agent on a session another
+  window is using.
+- **A session token is the driver's to read.** The renderer compares it and
+  hands it back; only the driver that issued it knows its format.
+- **`prompt` is for replay only.** A driver that echoed live messages as
+  `prompt` would draw every message twice.
 
 ## Not there yet
 
@@ -265,10 +359,22 @@ in" — arrives whole and is shown whole.
   then `PATH` if the version is compatible, then a copy Frodon fetches into
   `~/.frodon/agents/<kind>/<version>/` from the npm platform package, checked
   against its sha512 and pinned to the SDK's version.
-- **Resuming a conversation after a restart.** Claude Code keeps sessions on
-  disk and the SDK takes `resume`, but restoring means a driver-specific id in
-  the layout file and replaying the transcript from the agent's storage. A
-  saved agent tile comes back as one fresh conversation, like a terminal.
+- **Open tabs after a restart.** A saved agent tile still comes back as one
+  fresh conversation, like a terminal; only favorites can be reopened.
+  Restoring the tabs that were open would put tokens in the layout file, and
+  start an agent per tab on launch unless they waited for a first message.
+- **A favorite surviving the agent's cleanup.** It does not: Claude deletes
+  sessions after 30 days by default (`cleanupPeriodDays`), and a favorite
+  then reads as gone. Preventing that means copying transcripts, which is
+  the storage this design set out not to own.
+- **The name in Claude's own list.** `renameSession` could write a
+  favorite's name where `claude --resume` shows it. Left out: it writes into the
+  agent's store, and nothing here needs it yet.
+- **A shortcut for the Favorites view.** Every other sidebar module has a
+  `mod+shift` chord; this one has only its rail button so far.
+- **An approval open when the app quit.** It comes back as a card without
+  buttons, closed as not finished; the agent asks again if it still needs
+  to.
 - **Markdown.** Replies are drawn as pre-wrapped text. A renderer is a new
   dependency and gets its own decision.
 - **Workbench context.** An in-process MCP server in the driver could give the
@@ -287,4 +393,5 @@ in" — arrives whole and is shown whole.
 ## See also
 
 [terminal.md](terminal.md) · [workbench.md](workbench.md) ·
-[decisions.md](../decisions.md) (ADR-0042, ADR-0043) · [ipc.md](../ipc.md)
+[decisions.md](../decisions.md) (ADR-0042, ADR-0043, ADR-0044) ·
+[ipc.md](../ipc.md)

@@ -342,7 +342,8 @@ ranks the whole project as you type · boards, saved into the project or
 privately · a browser with tabs that can be pinned to a device size,
 and bookmarks in groups saved with the project or kept privately ·
 conversations with Claude Code in a tile, driven through the copy you
-installed, with edits drawn as diffs and questions answered with a click · a
+installed, with edits drawn as diffs, questions answered with a click, and
+favorites reopened from the sidebar · a
 launcher offering the last five projects · a workbench that reopens onto the
 tiles it was left on · several windows at once, each on its own project, with
 the Dock wearing the one you are looking at · worktrees, so two branches of

@@ -6,7 +6,12 @@
  * agent keeps its own, and the only thing worth having on this side is what is
  * on screen. See `reduce` in `agent.service.ts`.
  */
-import type { AgentAction, AgentChoice, AgentKind } from '@shared/agent.def';
+import type {
+  AgentAction,
+  AgentChoice,
+  AgentKind,
+  FavoriteEntry,
+} from '@shared/agent.def';
 
 /** Where a conversation is, for the status line and the composer. */
 export type ConversationStatus =
@@ -74,6 +79,17 @@ export interface Conversation {
   approvals: { requestId: string; action: AgentAction }[];
   /** What the conversation has cost so far, when the agent reports it. */
   costUsd: number;
+  /**
+   * The agent's token for this conversation, which keeps it and reopens it.
+   * Null until the agent is up, and for an agent that cannot be reopened.
+   */
+  session: string | null;
+}
+
+/** A conversation a tab was opened to carry on, rather than to begin. */
+export interface ResumeRequest {
+  kind: AgentKind;
+  session: string;
 }
 
 export interface AgentStore {
@@ -87,4 +103,24 @@ export interface AgentStore {
     id: string,
     change: (conversation: Conversation) => Conversation
   ) => void;
+
+  /**
+   * What tabs about to mount should resume, by conversation id.
+   *
+   * Outside the conversation entry because it has to outlive `forget`:
+   * StrictMode mounts a tab, unmounts it and mounts it again, and the second
+   * mount has to resume the same thing the first one would have. Removed by
+   * the mount whose start went through.
+   */
+  resumes: Record<string, ResumeRequest>;
+  requestResume: (id: string, request: ResumeRequest) => void;
+  dropResume: (id: string) => void;
+
+  /**
+   * The project's favorite conversations, as main last listed them. Null
+   * until the first listing comes back, so the sidebar can tell "none" from
+   * "not asked yet".
+   */
+  favorites: FavoriteEntry[] | null;
+  setFavorites: (favorites: FavoriteEntry[] | null) => void;
 }

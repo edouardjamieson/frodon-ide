@@ -324,6 +324,21 @@ Packaging will also need `prebuilds/` unpacked from the asar.
 
 ## The libraries
 
+### Claude Code takes a session id up front, and keeps it on resume
+`code` · 2026-10-31 · `src/main/agent/agent-claude.service.ts`
+
+A conversation's session id arrives on Claude's `init`, and `init` waits for
+the first message — so a tile could not know which conversation it was
+holding until someone typed. The SDK's `sessionId` option sets the id
+instead, and `resume` carries on under the same one rather than forking a
+new id, as a headless run with a word to remember confirmed. The driver now
+picks the id before spawning. `getSessionMessages` reads a missing session
+back as `[]`, the same as an empty one, so existence is asked with
+`getSessionInfo`; both look only in the project directory they are given,
+which is what keeps a window from reopening another project's conversation.
+When an agent lets the host name a thing, naming it is cheaper than waiting
+to be told.
+
 ### Allowing `AskUserQuestion` is not answering it
 `code` · 2026-10-30 · `src/main/agent/agent-claude.service.ts`
 

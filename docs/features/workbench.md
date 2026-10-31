@@ -132,7 +132,8 @@ expensive enough to rebuild by hand that losing it is felt.
   Editor tabs are paths, board tabs are keys, browser tabs are urls. A shell is
   a process, it is gone, and the window returns as its tile with one fresh
   shell. A conversation with an agent is a process too, and comes back the
-  same way.
+  same way; one worth having back is marked a favorite and reopened from
+  the sidebar instead — see [agent.md](agent.md).
 - Main prunes before it answers. A layout saved in March can name files deleted
   in April, and a tab pointing at a file that is gone is worse than no tab. A
   window whose contents all vanished keeps its place as an empty one of its

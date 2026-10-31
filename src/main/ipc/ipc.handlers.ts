@@ -8,7 +8,13 @@
  */
 import { basename } from 'node:path';
 import { arch, homedir, release } from 'node:os';
-import { app, dialog, BrowserWindow, type IpcMainInvokeEvent } from 'electron';
+import {
+  app,
+  dialog,
+  BrowserWindow,
+  webContents,
+  type IpcMainInvokeEvent,
+} from 'electron';
 import { handle } from './ipc.service';
 import { getFiles } from '@main/project';
 import {
@@ -19,7 +25,7 @@ import {
   setProjectExcludes,
   windowForRoot,
 } from '@main/session';
-import { initialRootOf, openProjectWindow } from '@main/app';
+import { initialRootOf, openProjectWindow, raise } from '@main/app';
 import { refreshAppIcon } from '@main/icon';
 import {
   forgetRecentProject,
@@ -88,8 +94,14 @@ import {
 } from '@main/terminal';
 import { reportIssue } from '@main/feedback';
 import {
+  addFavorite,
   agentAvailability,
   interruptConversation,
+  isAgentKind,
+  listFavorites,
+  removeFavorite,
+  renameFavorite,
+  revealConversation,
   setConversationModel,
   setConversationMode,
   respondTo,
@@ -558,8 +570,14 @@ export function registerIpcHandlers(): void {
   // where taking a directory from the renderer would matter most.
   handle('agent:availability', ({ kind }) => agentAvailability(kind));
 
-  handle('agent:start', ({ id, kind }, event) =>
-    startConversation(id, kind, askingRoot(event), event.sender.id)
+  handle('agent:start', ({ id, kind, resume }, event) =>
+    startConversation(
+      id,
+      kind,
+      askingRoot(event),
+      event.sender.id,
+      resume ?? null
+    )
   );
 
   handle('agent:send', ({ id, text }) => sendMessage(id, text));
@@ -575,6 +593,35 @@ export function registerIpcHandlers(): void {
   handle('agent:set-mode', ({ id, mode }) => setConversationMode(id, mode));
 
   handle('agent:stop', ({ id }) => stopConversation(id));
+
+  // Favorites, filed under the asking window's project like everything
+  // else here — a window cannot mark or list another project's.
+  handle('agent:favorites', (_req, event) => listFavorites(askingRoot(event)));
+
+  handle('agent:add-favorite', ({ kind, session, name }, event) =>
+    addFavorite(askingRoot(event), kind, session, name)
+  );
+
+  handle('agent:rename-favorite', ({ kind, session, name }, event) =>
+    renameFavorite(askingRoot(event), kind, session, name)
+  );
+
+  handle('agent:remove-favorite', ({ kind, session }, event) =>
+    removeFavorite(askingRoot(event), kind, session)
+  );
+
+  // Raised here rather than in `main/agent`: `main/app` already imports the
+  // registry to stop a closing window's conversations, so the registry
+  // cannot import it back.
+  handle('agent:reveal', ({ kind, session }) => {
+    if (!isAgentKind(kind)) return false;
+    const owner = revealConversation(kind, session);
+    if (owner === null) return false;
+    const contents = webContents.fromId(owner);
+    const window = contents ? BrowserWindow.fromWebContents(contents) : null;
+    if (window) raise(window);
+    return true;
+  });
 
   // Boards. The only channels in the app that take a *name* from the
   // renderer rather than a path main produced itself, which is why the

@@ -1,5 +1,6 @@
 import { cn } from 'cn';
 import {
+  Bot,
   ChevronLeft,
   ChevronRight,
   FolderClosed,
@@ -21,6 +22,7 @@ import { useOpenGit } from '~/lib/window';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../../ui';
 import Boards from './boards';
 import Explorer from './explorer';
+import Favorites from './favorites';
 import GlobalSearch from './search';
 import Worktrees from './worktrees';
 
@@ -46,6 +48,8 @@ export default function Sidebar() {
         return <Boards />;
       case 'WORKTREES':
         return <Worktrees />;
+      case 'FAVORITES':
+        return <Favorites />;
       default:
         return null;
     }
@@ -161,6 +165,12 @@ function SidebarMenu({ collapsed }: { collapsed: boolean }) {
       label: 'Worktrees',
       focused: module === 'WORKTREES' && !collapsed,
       shortcut: ['mod', 'shift', 'w'],
+    },
+    {
+      icon: <Bot className="size-5" />,
+      onClick: () => toggleModule('FAVORITES'),
+      label: 'Favorite conversations',
+      focused: module === 'FAVORITES' && !collapsed,
     },
   ];
 

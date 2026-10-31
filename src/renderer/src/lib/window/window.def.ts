@@ -355,8 +355,12 @@ export interface WindowStore {
    * — the window asked for, else the focused one, else any agent window,
    * else a newly spawned one. Always a *new* conversation: two tabs on one
    * conversation would be two people typing into the same agent.
+   *
+   * Returns the new conversation's id, so a caller that came to resume one
+   * can say so before the tab mounts — or null when there was nowhere to
+   * put it.
    */
-  openAgent: (windowId?: string) => void;
+  openAgent: (windowId?: string) => string | null;
   closeConversation: (windowId: string, conversationId: string) => void;
   setActiveConversation: (windowId: string, conversationId: string) => void;
 

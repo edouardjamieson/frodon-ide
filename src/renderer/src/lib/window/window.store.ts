@@ -461,11 +461,13 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
 
     // The same answer `openTerminal` gives when the grid is full of things
     // that cannot hold a conversation.
-    if (!target) return;
+    if (!target) return null;
 
     if ('spawn' in target) {
       set({ windows: [...windows, target.spawn], focusedId: target.spawn.id });
-      return;
+      return target.spawn.type === 'agent'
+        ? target.spawn.activeConversation
+        : null;
     }
 
     const conversation = nextConversationId();
@@ -482,6 +484,7 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
       }),
       focusedId: target.id,
     });
+    return conversation;
   },
 
   setActiveConversation: (windowId, conversationId) => {

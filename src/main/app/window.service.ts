@@ -177,7 +177,7 @@ export function createWindow(root?: string): BrowserWindow {
  * `steal: true` is right here and would be rude anywhere else: every caller
  * is an explicit "give me a window" from the person at the keyboard.
  */
-function raise(window: BrowserWindow): void {
+export function raise(window: BrowserWindow): void {
   if (window.isMinimized()) window.restore();
   window.focus();
   if (process.platform === 'darwin') app.focus({ steal: true });

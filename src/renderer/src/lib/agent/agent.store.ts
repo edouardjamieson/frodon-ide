@@ -29,6 +29,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
           entries: [],
           approvals: [],
           costUsd: 0,
+          session: null,
         },
       },
     }));
@@ -53,4 +54,22 @@ export const useAgentStore = create<AgentStore>((set) => ({
       };
     });
   },
+
+  resumes: {},
+
+  requestResume: (id, request) => {
+    set((state) => ({ resumes: { ...state.resumes, [id]: request } }));
+  },
+
+  dropResume: (id) => {
+    set((state) => {
+      if (!(id in state.resumes)) return state;
+      const { [id]: _done, ...rest } = state.resumes;
+      return { resumes: rest };
+    });
+  },
+
+  favorites: null,
+
+  setFavorites: (favorites) => set({ favorites }),
 }));

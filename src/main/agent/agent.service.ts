@@ -21,11 +21,14 @@ import type {
   AgentKind,
   AgentReply,
   AgentStartResult,
+  FavoriteEntry,
 } from '@shared/agent.def';
+import { AGENT_LABELS, isSessionToken } from '@shared/agent.def';
 import { FLUSH_MS } from './agent.constant';
 import type { AgentDriver, AgentRun } from './agent.def';
 import { claudeDriver } from './agent-claude.service';
 import { loginEnvironment } from './agent-environment.service';
+import { readFavorites } from './agent-favorite.service';
 
 const log = createLogger('agent');
 
@@ -39,6 +42,7 @@ const DRIVERS: Record<AgentKind, AgentDriver> = {
 
 interface Conversation {
   id: string;
+  kind: AgentKind;
   /** The window that started it, and the only one told about it. */
   senderId: number;
   run: AgentRun;
@@ -80,15 +84,23 @@ export async function agentAvailability(
  *
  * Re-starting a live id replaces it, as `createSession` does for a shell and
  * for the same reason: StrictMode and HMR mount a tile twice with one id.
+ *
+ * `resume` carries on a conversation the agent kept, and is looked up in
+ * `cwd` — so a window can only reopen a conversation that was had in its
+ * own project, whatever token it sends. The transcript is replayed to the
+ * tile before `started`, so the tile is drawn whole before it is typed in.
  */
 export async function startConversation(
   id: string,
   kind: AgentKind,
   cwd: string | null,
-  senderId: number
+  senderId: number,
+  resume: string | null
 ): Promise<AgentStartResult> {
   if (!cwd)
     return { ok: false, error: 'Open a project to start an agent in it.' };
+  if (resume !== null && !isSessionToken(resume))
+    return { ok: false, error: 'That conversation cannot be reopened.' };
 
   if (conversations.has(id) || starting.has(id)) {
     log.info(`replacing conversation ${id}`);
@@ -100,6 +112,7 @@ export async function startConversation(
 
   const env = await loginEnvironment();
   const found = await DRIVERS[kind].locate(env);
+  const history = resume ? await DRIVERS[kind].history(cwd, resume) : [];
 
   // Stopped or replaced while we were looking. Whoever did that owns the id
   // now, and this start has nothing left to do.
@@ -108,13 +121,28 @@ export async function startConversation(
   }
   starting.delete(id);
   if (found.status === 'missing') return { ok: false, error: found.reason };
+  if (!history) {
+    return {
+      ok: false,
+      error: `${AGENT_LABELS[kind]} no longer has this conversation.`,
+    };
+  }
+  // The renderer asks `agent:reveal` before it opens a tab on a favorite,
+  // so this is the race between that question and this start — two clicks,
+  // or two windows at once. Two agents on one session would each write over
+  // what the other said next.
+  if (resume && holderOf(kind, resume)) {
+    return { ok: false, error: 'This conversation is open in another tab.' };
+  }
 
   // Registered before the driver starts, because the driver may emit from
   // inside `start` and its events need somewhere to land.
   const conversation: Conversation = {
     id,
+    kind,
     senderId,
     run: {
+      session: null,
       send: () => {},
       interrupt: async () => {},
       setModel: async () => {},
@@ -131,11 +159,14 @@ export async function startConversation(
     cwd,
     path: found.path,
     env,
+    resume,
     host: {
       emit: (event) => emit(conversation, event),
       ask: (action, signal) => ask(conversation, action, signal),
     },
   });
+
+  for (const event of history) emit(conversation, event);
 
   // Ready is said here, by the registry, not left to the driver. Claude Code
   // fed a stream says nothing at all — not even its `init` — until the first
@@ -148,6 +179,7 @@ export async function startConversation(
     version: found.version,
     model: null,
     mode: null,
+    session: conversation.run.session,
   });
 
   log.info(`conversation ${id} with ${kind} ${found.version} in ${cwd}`);
@@ -207,6 +239,61 @@ export async function setConversationMode(
   mode: string
 ): Promise<void> {
   await conversations.get(id)?.run.setMode(mode);
+}
+
+/**
+ * A project's favorites, each with when its agent last wrote to it — or
+ * null when the agent no longer has it.
+ *
+ * Asked of the agent on every listing rather than remembered, because the
+ * agent deletes conversations on its own schedule and a favorite that has
+ * gone should say so the next time anyone looks.
+ */
+export async function listFavorites(
+  cwd: string | null
+): Promise<FavoriteEntry[]> {
+  if (!cwd) return [];
+  const favorites = await readFavorites(cwd);
+  return Promise.all(
+    favorites.map(async (favorite) => ({
+      ...favorite,
+      lastActive: await DRIVERS[favorite.kind].lastActive(
+        cwd,
+        favorite.session
+      ),
+    }))
+  );
+}
+
+/** The live conversation on a session, in any window, if there is one. */
+function holderOf(kind: AgentKind, session: string): Conversation | null {
+  for (const conversation of conversations.values()) {
+    if (conversation.kind === kind && conversation.run.session === session)
+      return conversation;
+  }
+  return null;
+}
+
+/**
+ * Brings forward the tab already holding a session, wherever it is.
+ *
+ * Main is the one place that sees every window's conversations, so it is
+ * the one that can answer "is this open?" across them. The owning window is
+ * told which tab to show; raising it is the caller's, which is the IPC
+ * layer — `main/app` already depends on this module, and the arrow cannot
+ * point back. Answers the owner's id, or null when nobody has it open.
+ */
+export function revealConversation(
+  kind: AgentKind,
+  session: string
+): number | null {
+  const holder = holderOf(kind, session);
+  if (!holder) return null;
+
+  const target = webContents.fromId(holder.senderId);
+  if (!target || target.isDestroyed()) return null;
+  target.send('agent:reveal', { id: holder.id });
+  return holder.senderId;
 }
 
 /** Ends a conversation and the process behind it. */

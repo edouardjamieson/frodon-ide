@@ -141,13 +141,25 @@ export type AgentEvent =
    * `model` and `mode` are the agent's own ids, matched against the
    * `models` and `modes` it offered; one that matches nothing is shown as
    * it came.
+   *
+   * `session` is the token that reopens this conversation later — see
+   * `FavoriteConversation`. Main knows it from the start, because the driver picks
+   * it before the agent is spawned.
    */
   | {
       type: 'started';
       version: string;
       model: string | null;
       mode: string | null;
+      session: string | null;
     }
+  /**
+   * Something the person said, replayed from a conversation being resumed.
+   *
+   * Never sent live: a message typed in the tile is drawn the moment it is
+   * sent, by the renderer, and an echo from the driver would draw it twice.
+   */
+  | { type: 'prompt'; text: string }
   /**
    * More text for one message. Appended, never replaced: the driver streams
    * deltas, and a message is the concatenation of every delta sharing its id.
@@ -218,3 +230,55 @@ export interface AgentEvents {
 
 /** What `agent:start` answers: the agent was spawned, or why it was not. */
 export type AgentStartResult = { ok: true } | { ok: false; error: string };
+
+/**
+ * A conversation the person marked as a favorite, under a name.
+ *
+ * A pointer, not a copy. Every agent worth driving keeps its own
+ * conversations — Claude Code writes each one under `~/.claude/projects/`
+ * whether or not anything asks it to — so Frodon stores no transcript, only
+ * which conversations were worth coming back to. `session` is the agent's
+ * own token for one, opaque on this side: the renderer stores it, compares
+ * it and hands it back, and never reads anything into it. ADR-0044.
+ */
+export interface FavoriteConversation {
+  kind: AgentKind;
+  session: string;
+  name: string;
+  /** When it was made a favorite, in milliseconds since the epoch. */
+  addedAt: number;
+}
+
+/**
+ * A favorite as the sidebar lists it: with when the agent last wrote to it,
+ * or null once the agent no longer has it.
+ *
+ * Marking a conversation a favorite does not stop the agent deleting it, so
+ * the answer is asked of the agent on every listing, and a gone one is shown
+ * as gone rather than quietly dropped.
+ */
+export interface FavoriteEntry extends FavoriteConversation {
+  lastActive: number | null;
+}
+
+/** The longest name a favorite can carry. */
+export const FAVORITE_NAME_LIMIT = 80;
+
+/**
+ * Whether a string can be a session token: short, and made of characters no
+ * path or flag is made of.
+ *
+ * Checked on both sides of the boundary, and again by the driver against its
+ * own format. A token goes from the renderer to a driver that hands it to an
+ * agent process — as an argument on Claude's command line — so it is input,
+ * and the cheapest way to make sure it cannot be anything else is to allow
+ * only what a token is made of. Claude's are UUIDs.
+ */
+export function isSessionToken(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.length > 0 &&
+    value.length <= 128 &&
+    /^[A-Za-z0-9_-]+$/.test(value)
+  );
+}

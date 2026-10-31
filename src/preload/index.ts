@@ -125,7 +125,8 @@ const api: FrodonApi = {
   },
   agent: {
     availability: (kind) => ipcRenderer.invoke('agent:availability', { kind }),
-    start: (id, kind) => ipcRenderer.invoke('agent:start', { id, kind }),
+    start: (id, kind, resume) =>
+      ipcRenderer.invoke('agent:start', { id, kind, resume }),
     send: (id, text) => ipcRenderer.invoke('agent:send', { id, text }),
     respond: (id, requestId, reply) =>
       ipcRenderer.invoke('agent:respond', { id, requestId, reply }),
@@ -134,6 +135,27 @@ const api: FrodonApi = {
       ipcRenderer.invoke('agent:set-model', { id, model }),
     setMode: (id, mode) => ipcRenderer.invoke('agent:set-mode', { id, mode }),
     stop: (id) => ipcRenderer.invoke('agent:stop', { id }),
+    favorites: () => ipcRenderer.invoke('agent:favorites'),
+    addFavorite: (kind, session, name) =>
+      ipcRenderer.invoke('agent:add-favorite', { kind, session, name }),
+    renameFavorite: (kind, session, name) =>
+      ipcRenderer.invoke('agent:rename-favorite', { kind, session, name }),
+    removeFavorite: (kind, session) =>
+      ipcRenderer.invoke('agent:remove-favorite', { kind, session }),
+    reveal: (kind, session) =>
+      ipcRenderer.invoke('agent:reveal', { kind, session }),
+    onFavoritesChanged: (listener) => {
+      const handler = () => listener();
+      ipcRenderer.on('agent:favorites-changed', handler);
+      return () =>
+        ipcRenderer.removeListener('agent:favorites-changed', handler);
+    },
+    onReveal: (listener) => {
+      const handler = (_event: unknown, payload: { id: string }) =>
+        listener(payload.id);
+      ipcRenderer.on('agent:reveal', handler);
+      return () => ipcRenderer.removeListener('agent:reveal', handler);
+    },
     // Filtered here, like a terminal's output: one channel carries every
     // conversation, and a reply streaming in one tile must not wake the rest.
     onEvents: (id, listener) => {

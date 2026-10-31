@@ -5,7 +5,9 @@
  * narrow on purpose, because a workbench of nine panes subscribed to the whole
  * store would re-render all of them every time one tab changed.
  */
-import { useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
+import type { AgentKind } from '@shared/agent.def';
+import { useAgentStore } from '~/lib/agent';
 import { useWindowStore } from './window.store';
 import { useWindowDragStore } from './window-drag.store';
 import { canSplit, rowsOf } from './window.service';
@@ -123,6 +125,54 @@ export const useAgentWindow = (window: AgentWindow) => {
     close: (id: string) => closeConversation(window.id, id),
     open: () => openAgent(window.id),
   };
+};
+
+/**
+ * Opens a favorite conversation: the tab already on it, in whichever OS
+ * window holds it, or else a new tab resuming it.
+ *
+ * Main is asked first because only main sees every window's conversations.
+ * Two tabs on one session would be two agents writing one conversation —
+ * each carrying on from where it started, each overwriting what the other
+ * said next — so "already open" has to mean open anywhere, not here.
+ */
+export const useOpenFavorite = () => {
+  const openAgent = useWindowStore((state) => state.openAgent);
+
+  return useCallback(
+    async (kind: AgentKind, session: string) => {
+      if (await window.frodon.agent.reveal(kind, session)) return;
+
+      // Asked for before the tab mounts: `openAgent` only adds an id to a
+      // window, and the tab reads this when it starts. Both happen in this
+      // tick, ahead of the render that mounts it.
+      const id = openAgent();
+      if (id) useAgentStore.getState().requestResume(id, { kind, session });
+    },
+    [openAgent]
+  );
+};
+
+/**
+ * Shows the tab main was asked to bring forward, by `useOpenFavorite` in
+ * this window or in another. Mounted once, in `App`.
+ */
+export const useConversationRevealEffect = (): void => {
+  useEffect(
+    () =>
+      window.frodon.agent.onReveal((id) => {
+        const { windows, setActiveConversation, focus } =
+          useWindowStore.getState();
+        const holder = windows.find(
+          (candidate) =>
+            candidate.type === 'agent' && candidate.conversations.includes(id)
+        );
+        if (!holder) return;
+        setActiveConversation(holder.id, id);
+        focus(holder.id);
+      }),
+    []
+  );
 };
 
 /** Everything a browser window's tabs need. */

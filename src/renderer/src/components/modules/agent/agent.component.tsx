@@ -6,6 +6,7 @@ import {
   resolvePath,
   useConversation,
   useConversationLifetime,
+  useFavoriteName,
 } from '~/lib/agent';
 import { useProjectStore } from '~/lib/project';
 import { useOpenFile } from '~/lib/window';
@@ -18,6 +19,7 @@ import {
 import { TranscriptRow } from './agent-entry.component';
 import { AgentIcon } from './agent-icon.component';
 import { ChoicePicker } from './agent-choice.component';
+import { FavoriteButton } from './agent-favorite.component';
 
 interface AgentProps {
   conversationId: string;
@@ -37,6 +39,7 @@ export default function Agent({ conversationId, active }: AgentProps) {
   useConversationLifetime(conversationId);
   const { conversation, send, interrupt, respond, chooseModel, chooseMode } =
     useConversation(conversationId);
+  const favoriteName = useFavoriteName(conversationId);
 
   const root = useProjectStore((state) => state.root);
   const openFile = useOpenFile();
@@ -59,6 +62,9 @@ export default function Agent({ conversationId, active }: AgentProps) {
   if (!conversation) return null;
 
   const { status, approvals } = conversation;
+  const firstMessage = conversation.entries.find(
+    (entry) => entry.kind === 'user'
+  );
   const working = status === 'working';
   const ended = status === 'ended';
 
@@ -144,7 +150,17 @@ export default function Agent({ conversationId, active }: AgentProps) {
             placeholder={ended ? 'This conversation has ended.' : 'Message'}
             className="min-w-0 flex-1 resize-none bg-transparent text-[14px] text-fg outline-none placeholder:text-fg-subtle"
           />
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex items-center justify-between gap-2">
+            <FavoriteButton
+              kind={conversation.kind}
+              session={conversation.session}
+              favoriteName={favoriteName}
+              suggestion={
+                firstMessage?.kind === 'user'
+                  ? firstMessage.text.replace(/\s+/g, ' ').slice(0, 60)
+                  : null
+              }
+            />
             {working ? (
               <button
                 aria-label="Stop"

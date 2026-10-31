@@ -18,6 +18,53 @@ their reasoning is the reasoning recorded at the time, not reconstructed.
 
 ---
 
+### ADR-0044 — A favorite conversation is a pointer into the agent's own store
+
+**When** 2026-10-31 · **Status** active · **Touches** agent, workbench
+
+**What.** Frodon stores no transcripts. A conversation the person marks a
+favorite is recorded as `{ kind, session, name, addedAt }` in
+`~/.frodon/agent-favorites.json`, filed by project root; `session` is the
+driver's own token, opaque to everything but that driver. Reopening one
+starts the agent with that token and replays its history from the agent's
+store. Nothing is a favorite unless somebody marks it, and a session is
+open in at most one tab across every window.
+
+**Why.** Claude Code already writes every conversation to disk, so a copy
+in Frodon would be a second store to disagree with the first and a second
+place for something private to sit. Saving every conversation by default
+was rejected because the agent's list is long and mostly throwaway, and the
+point of a favorite is the curation; offering the agent's own recent list
+under the favorites was built and dropped for the same reason — it filled
+with every terminal session in the project. Putting tokens in the layout
+file, restoring whichever tabs were open, was rejected as the first step:
+it would start an agent per tab on every launch. The file is in the home
+directory rather than the project's `.frodon/`: a token points into this
+machine's `~/.claude`, and committed it would point a teammate at nothing.
+"Open at most once" is main's to enforce because only main sees every
+window's conversations; two tabs on one session are two agents writing over
+each other.
+
+**How.** `AgentDriver` gains `lastActive(cwd, session)` and
+`history(cwd, session)`; `AgentRun` gains `session`, which Claude's driver
+picks itself (`sessionId`, or `resume`) so it is known before the first
+reply. `startConversation` takes `resume`, asks `history` in the asking
+window's project, emits it ahead of `started`, and refuses a session another
+conversation holds. `revealConversation` and the `agent:reveal` handler
+bring forward and raise the window holding one. The list lives in
+`main/agent/agent-favorite.service.ts`, and every change is broadcast as
+`agent:favorites-changed`. `isSessionToken` in `shared/agent.def.ts` bounds
+what a token can be on both sides.
+
+**Cost.** A favorite lives only as long as the agent keeps it — Claude's
+default is 30 days — and is then shown as gone, with no way back. Reopening
+a long conversation replays all of it across IPC at once, and its first new
+turn is uncached and so costs more than a fresh one. Open tabs still do not
+survive a restart. A conversation never marked can only be reopened from a
+terminal.
+
+---
+
 ### ADR-0043 — An agent is found on the machine, never shipped with the app
 
 **When** 2026-10-29 · **Status** active · **Touches** agent, updates

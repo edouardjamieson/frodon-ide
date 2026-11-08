@@ -20,7 +20,7 @@ export const FLUSH_MS = 16;
  */
 export const OUTPUT_LIMIT = 4000;
 
-/** How long the login shell may take to report its `PATH`. */
+/** How long the login shell may take to report its environment. */
 export const SHELL_TIMEOUT_MS = 5000;
 
 /** How long an agent may take to report its own version. */

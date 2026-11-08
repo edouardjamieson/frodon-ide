@@ -24,7 +24,7 @@ and a member on `AgentKind`. ADR-0042.
 | `main/agent/agent.def.ts` | `AgentDriver`, `AgentHost`, `AgentRun` — the contract a driver implements |
 | `main/agent/agent.service.ts` | the registry: who owns which conversation, batching, approvals waiting on a click |
 | `main/agent/agent-claude.service.ts` | the Claude driver — the only file that imports the Agent SDK or spells a Claude tool name |
-| `main/agent/agent-environment.service.ts` | the login shell's `PATH`, and finding an executable on it |
+| `main/agent/agent-environment.service.ts` | the login shell's environment, and finding an executable on its `PATH` |
 | `main/agent/agent-favorite.service.ts` | the favorites, `~/.frodon/agent-favorites.json` |
 | `main/agent/agent-attachment.service.ts` | `cleanAttachments`: what a message carries, checked before a driver sees it |
 | `main/agent/agent.constant.ts` | `FLUSH_MS`, `OUTPUT_LIMIT`, the probe timeouts, how many sessions are listed |
@@ -80,11 +80,17 @@ already installed, and the SDK is pointed at it with
 main by Vite as plain JavaScript — its runtime imports are Node built-ins
 only — so electron-builder never packages the optional binary. ADR-0043.
 
-The executable is found on the **login shell's `PATH`**, asked once per run
-by `loginEnvironment`. A Mac app started from the Dock inherits launchd's
-`PATH`, which holds nothing a developer installed. The rest of the
-environment is passed through untouched: Claude Code keeps its login in the
-Keychain, and without `USER` and its siblings it answers "Not logged in".
+The agent runs in the **login shell's environment**, asked once per run by
+`loginEnvironment`. A Mac app started from the Dock inherits launchd's, whose
+`PATH` holds nothing a developer installed and which has none of what the
+profile exports — so the executable would not be found, and the commands the
+agent runs would miss the tokens, `AWS_PROFILE` and database hosts the same
+commands see in a terminal tile. The shell is run with `-ilc 'env -0'`, and
+what it reports is laid over Electron's own environment rather than replacing
+it: Claude Code keeps its login in the Keychain, and without `USER` and its
+siblings it answers "Not logged in". The shell's own bookkeeping — `PWD`,
+`OLDPWD`, `SHLVL`, `_` — is left behind. An export added to the profile
+reaches a new agent after a restart, not before.
 
 ### The conversation is a process, like a shell
 

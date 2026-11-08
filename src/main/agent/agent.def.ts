@@ -37,7 +37,8 @@ export interface AgentRun {
   /**
    * The token that reopens this conversation, or null for an agent that
    * cannot be reopened. Known as soon as `start` returns: a driver that can
-   * resume picks the token itself rather than waiting to be told one.
+   * resume picks the token itself rather than waiting to be told one. The
+   * registry replaces it when a later `started` reports another.
    */
   session: string | null;
   /** Sends the next message. Queued by the agent if a turn is under way. */

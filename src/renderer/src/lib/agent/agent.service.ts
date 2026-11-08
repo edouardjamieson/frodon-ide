@@ -10,6 +10,7 @@ import {
   AGENT_IMAGE_LIMIT,
   AGENT_IMAGE_TYPES,
   type AgentAttachment,
+  type AgentCommand,
   type AgentEvent,
 } from '@shared/agent.def';
 import type { Conversation, TranscriptEntry } from './agent.def';
@@ -127,6 +128,9 @@ function step(conversation: Conversation, event: AgentEvent): Conversation {
 
     case 'modes':
       return { ...conversation, modes: event.modes };
+
+    case 'commands':
+      return { ...conversation, commands: event.commands };
 
     case 'turn-ended':
       return {
@@ -275,4 +279,47 @@ let lastEntryId = 0;
 function nextEntryId(): string {
   lastEntryId += 1;
   return `e${lastEntryId}`;
+}
+
+/**
+ * The command name being typed, or null when the draft is not one.
+ *
+ * Only while the slash and the name are all there is: once a space follows,
+ * the name is chosen and the rest of the line is the command's own, and a
+ * menu still open over it would take the arrow keys from a person moving
+ * through what they wrote.
+ */
+export function commandQuery(draft: string): string | null {
+  const match = /^\/(\S*)$/.exec(draft);
+  return match ? (match[1] ?? '') : null;
+}
+
+/**
+ * The commands that match what is typed after the slash, best first.
+ *
+ * A name that starts with it, then a name that contains it, then a
+ * description that does — so `/rev` finds `review` ahead of
+ * `audit-review-flow`, and `/release` still finds a skill whose name says
+ * `gate` but whose description says release. Within each tier the agent's
+ * own order is kept: Claude lists the project's skills first, which is
+ * usually what a person in that project is after.
+ */
+export function rankCommands(
+  commands: AgentCommand[],
+  query: string
+): AgentCommand[] {
+  const needle = query.toLowerCase();
+  if (!needle) return commands;
+
+  const starts: AgentCommand[] = [];
+  const contains: AgentCommand[] = [];
+  const described: AgentCommand[] = [];
+  for (const command of commands) {
+    const name = command.name.toLowerCase();
+    if (name.startsWith(needle)) starts.push(command);
+    else if (name.includes(needle)) contains.push(command);
+    else if (command.description.toLowerCase().includes(needle))
+      described.push(command);
+  }
+  return [...starts, ...contains, ...described];
 }

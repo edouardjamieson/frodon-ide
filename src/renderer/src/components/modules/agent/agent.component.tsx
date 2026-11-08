@@ -13,7 +13,9 @@ import {
   type AgentAttachment,
 } from '@shared/agent.def';
 import {
+  commandQuery,
   imageAttachment,
+  rankCommands,
   resolvePath,
   useConversation,
   useConversationLifetime,
@@ -32,6 +34,7 @@ import { AgentIcon } from './agent-icon.component';
 import { ChoicePicker } from './agent-choice.component';
 import { FavoriteButton } from './agent-favorite.component';
 import { AttachmentChip, AttachPicker } from './agent-attach.component';
+import { CommandMenu } from './agent-command.component';
 
 interface AgentProps {
   conversationId: string;
@@ -63,6 +66,14 @@ export default function Agent({ conversationId, active }: AgentProps) {
   const [dragging, setDragging] = useState(false);
   /** Why the last paste or drop was refused, until the next one. */
   const [refusal, setRefusal] = useState<string | null>(null);
+  /** The highlighted row of the `/` menu. */
+  const [commandIndex, setCommandIndex] = useState(0);
+  /**
+   * The draft the `/` menu was dismissed on with Escape. It stays shut until
+   * the draft changes, so Escape reads as "not now" without the next
+   * keystroke having to fight it.
+   */
+  const [dismissed, setDismissed] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   /**
@@ -88,6 +99,25 @@ export default function Agent({ conversationId, active }: AgentProps) {
   const ended = status === 'ended';
 
   const sendable = !ended && (draft.trim() !== '' || attachments.length > 0);
+
+  const query = ended || draft === dismissed ? null : commandQuery(draft);
+  const commands =
+    query === null ? [] : rankCommands(conversation.commands, query);
+  const commandAt = Math.min(commandIndex, Math.max(commands.length - 1, 0));
+
+  const edit = (next: string) => {
+    setDraft(next);
+    setCommandIndex(0);
+    setDismissed(null);
+  };
+
+  /**
+   * Puts the command's name in the draft, followed by a space, and leaves
+   * the rest of the line to the person — a command that takes arguments
+   * wants them, and one that does not is sent with the next Shift+Enter.
+   * Nothing is sent on a pick: the message may be meant to say more.
+   */
+  const pickCommand = (name: string) => edit(`/${name} `);
 
   const submit = () => {
     if (!sendable) return;
@@ -139,6 +169,39 @@ export default function Agent({ conversationId, active }: AgentProps) {
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    // While the `/` menu is open, the keys a menu uses are the menu's.
+    // Shift+Enter is not among them, so it still sends exactly what was
+    // typed.
+    if (commands.length > 0 && !event.nativeEvent.isComposing) {
+      const move = (delta: number) =>
+        setCommandIndex(
+          (commandAt + delta + commands.length) % commands.length
+        );
+      const picked = commands[commandAt];
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        move(1);
+        return;
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        move(-1);
+        return;
+      }
+      if (
+        picked &&
+        (event.key === 'Tab' || (event.key === 'Enter' && !event.shiftKey))
+      ) {
+        event.preventDefault();
+        pickCommand(picked.name);
+        return;
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setDismissed(draft);
+        return;
+      }
+    }
     // Shift+Enter sends and Enter breaks the line — the reverse of the chat
     // convention, on purpose: a message to an agent is a paragraph or a list
     // of steps more often than a line, and an Enter that sends cuts it off
@@ -244,9 +307,17 @@ export default function Agent({ conversationId, active }: AgentProps) {
           {refusal ? (
             <p className="text-[11px] text-fg-danger">{refusal}</p>
           ) : null}
+          {commands.length > 0 ? (
+            <CommandMenu
+              commands={commands}
+              selected={commandAt}
+              onHover={setCommandIndex}
+              onPick={(command) => pickCommand(command.name)}
+            />
+          ) : null}
           <textarea
             value={draft}
-            onChange={(event) => setDraft(event.target.value)}
+            onChange={(event) => edit(event.target.value)}
             onKeyDown={onKeyDown}
             onPaste={(event) => {
               // Only a paste that carries images is taken over; text pastes
@@ -263,7 +334,9 @@ export default function Agent({ conversationId, active }: AgentProps) {
             placeholder={
               ended
                 ? 'This conversation has ended.'
-                : 'Message — paste or drop a screenshot to show it'
+                : conversation.commands.length > 0
+                  ? 'Message — / for commands, or paste a screenshot to show it'
+                  : 'Message — paste or drop a screenshot to show it'
             }
             className="min-w-0 flex-1 resize-none bg-transparent text-[14px] text-fg outline-none placeholder:text-fg-subtle"
           />

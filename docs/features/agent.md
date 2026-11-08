@@ -29,7 +29,7 @@ and a member on `AgentKind`. ADR-0042.
 | `main/agent/agent-attachment.service.ts` | `cleanAttachments`: what a message carries, checked before a driver sees it |
 | `main/agent/agent.constant.ts` | `FLUSH_MS`, `OUTPUT_LIMIT`, the probe timeouts, how many sessions are listed |
 | `renderer/src/lib/agent/` | the transcript store, `reduce`, and `useConversationLifetime` |
-| `components/modules/agent/` | the transcript and composer, one row per entry, the pickers for model and permission mode, the favorite button, attachment chips and the project picker, and each agent's logo |
+| `components/modules/agent/` | the transcript and composer, one row per entry, the pickers for model and permission mode, the `/` menu, the favorite button, attachment chips and the project picker, and each agent's logo |
 | `components/modules/window/window-agent.component.tsx` | the tab bar and the tile body |
 | `components/modules/workbench/sidebar/favorites/` | the Favorites view: open, rename, remove |
 | `renderer/src/lib/window/window.hook.ts` | `useOpenFavorite` and `useConversationRevealEffect`: the tab already on a favorite, in any window, or a new one |
@@ -161,6 +161,34 @@ its model under another name than the menu's (`claude-sonnet-5-5` for
 reports its mode in the same ids it offers, so a pick stands in for the
 report in `mode` until the next turn confirms it.
 
+### Commands are offered, and sent as typed
+
+A message that starts with `/` opens a menu of what the agent can run: its
+own commands and every skill it found — the user's, the project's, a
+plugin's. The list is a `commands` event, sent from the same handshake as
+the models, so it is there before the first message, and again whenever
+Claude reports `commands_changed`. The tile ranks it and helps the name get
+typed — `rankCommands` puts a name that starts with the query ahead of one
+that contains it, and both ahead of a description that does — and that is
+all it does: the message goes to the agent as the text in the box, and
+Claude decides what `/audit-pr 412` means.
+
+This is the only way to reach most of a project's skills. A skill whose
+frontmatter says `disable-model-invocation: true` is left out of the listing
+Claude shows the model, so the agent will not reach for it and will not
+count it when asked what it has; it runs only when a person types it. In a
+terminal the `/` menu is how anyone finds those. See
+[learned.md](../learned.md).
+
+The list is taken as Claude gives it, not trimmed to what makes sense in a
+tile: it is already the list for this mode, and commands like `/context`
+and `/compact` answer as assistant text, which the tile draws like any
+reply. `/clear` is the one with a consequence: Claude starts a new session
+under the same tab and reports it on the next `init`. The renderer and the
+registry both follow the new id, so a favorite marked afterwards keeps what
+came after the clear, and "open in another tab" guards the session the tab
+is actually on.
+
 ### Attachments are project paths, or images handed over
 
 A message can carry files and folders from the project, and images. They
@@ -275,7 +303,11 @@ in" — arrives whole and is shown whole.
 2. The reply streams in. Tool calls appear as cards: a diff for a change, the
    command line for a command, a one-line receipt for a read or a search.
 3. A card's file is a link: clicking it opens the file through `openFile`.
-4. While a turn runs, the send button becomes a stop button, which interrupts
+4. Type `/` to see the commands and skills the agent can run. Typing
+   narrows the list; the arrows move through it; Tab or Enter puts the name
+   in the box with a space after it, ready for arguments; Escape closes it
+   until the text changes. Nothing is sent until Shift+Enter.
+5. While a turn runs, the send button becomes a stop button, which interrupts
    the turn and answers every open question no.
 
 ### Allowing an action

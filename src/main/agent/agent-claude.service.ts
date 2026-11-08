@@ -24,6 +24,7 @@ import {
   type SDKMessage,
   type SessionMessage,
   type SDKUserMessage,
+  type SlashCommand,
 } from '@anthropic-ai/claude-agent-sdk';
 import { createLogger } from '@main/logger';
 import type {
@@ -31,6 +32,7 @@ import type {
   AgentAttachment,
   AgentChange,
   AgentChoice,
+  AgentCommand,
   AgentEvent,
   AgentQuestion,
 } from '@shared/agent.def';
@@ -245,13 +247,14 @@ function startClaude({ cwd, path, env, host, resume }: StartOptions): AgentRun {
     })),
   });
 
-  // The models are answered by the handshake the SDK makes on its own, so
-  // they arrive in a fraction of a second — before the first message, which
-  // is what lets a model be chosen before anything has been said. Everything
-  // else Claude reports waits until it is spoken to.
+  // The models and the commands are answered by the handshake the SDK makes
+  // on its own, so they arrive in a fraction of a second — before the first
+  // message, which is what lets a model be chosen, or a command typed, before
+  // anything has been said. Everything else Claude reports waits until it is
+  // spoken to.
   conversation
     .initializationResult()
-    .then(({ models }) =>
+    .then(({ models, commands }) => {
       host.emit({
         type: 'models',
         models: models.map((model) => ({
@@ -259,8 +262,9 @@ function startClaude({ cwd, path, env, host, resume }: StartOptions): AgentRun {
           label: model.displayName,
           description: model.description,
         })),
-      })
-    )
+      });
+      host.emit({ type: 'commands', commands: commandsOf(commands) });
+    })
     .catch((error: unknown) => {
       // A process that died on start says so through `pump`; this is only
       // the picker going missing, and is not worth a second notice.
@@ -417,6 +421,13 @@ class Translator {
             mode: message.permissionMode ?? null,
             session: message.session_id,
           });
+        } else if (message.subtype === 'commands_changed') {
+          // A skill found partway through — the agent went into a folder
+          // with skills of its own, or `/reload-skills` was run.
+          this.host.emit({
+            type: 'commands',
+            commands: commandsOf(message.commands),
+          });
         }
         return;
 
@@ -555,6 +566,32 @@ function replay(messages: SessionMessage[]): AgentEvent[] {
     }
   }
   return events;
+}
+
+/**
+ * Claude's command list, as the composer offers it.
+ *
+ * Taken as Claude reports it rather than trimmed to a list of what works
+ * outside a terminal: the list is already the one for this mode — no
+ * `/login`, no `/resume` — and `/context` or `/compact` answer as ordinary
+ * assistant text. Two things are dropped. A name starting `__` is Claude's
+ * plumbing, run by Claude itself and never by a person. And a name can
+ * appear twice, Claude's own and a skill of the same name; Claude runs its
+ * own, so that is the row kept.
+ */
+function commandsOf(commands: SlashCommand[]): AgentCommand[] {
+  const byName = new Map<string, SlashCommand>();
+  for (const command of commands) {
+    if (command.name.startsWith('__')) continue;
+    const existing = byName.get(command.name);
+    if (!existing || (command.builtin && !existing.builtin))
+      byName.set(command.name, command);
+  }
+  return [...byName.values()].map((command) => ({
+    name: command.name,
+    description: command.description,
+    hint: command.argumentHint || null,
+  }));
 }
 
 /** What Claude wraps its own words in when it stores them as the person's. */

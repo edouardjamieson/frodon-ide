@@ -10,6 +10,7 @@ import type {
   AgentAction,
   AgentAttachment,
   AgentChoice,
+  AgentCommand,
   AgentKind,
   FavoriteEntry,
 } from '@shared/agent.def';
@@ -75,6 +76,11 @@ export interface Conversation {
   mode: string | null;
   /** The modes it can be switched to. Empty if the driver offers none. */
   modes: AgentChoice[];
+  /**
+   * What a message can start with, for the composer's `/` menu. Empty until
+   * the agent has said, and for an agent with no commands.
+   */
+  commands: AgentCommand[];
   entries: TranscriptEntry[];
   /**
    * Approvals waiting on a click, by request id, oldest first.

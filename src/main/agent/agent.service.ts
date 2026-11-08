@@ -382,6 +382,13 @@ function emit(conversation: Conversation, event: AgentEvent): void {
 
   conversation.buffer.push(event);
 
+  // A conversation can change sessions under the same tab: `/clear` in
+  // Claude starts a new one and reports it with the next `started`. The
+  // registry follows, or it would refuse to reopen the old session as
+  // "open in another tab" and let a second tab onto the new one.
+  if (event.type === 'started' && event.session)
+    conversation.run.session = event.session;
+
   if (event.type === 'exited') {
     flush(conversation);
     conversations.delete(conversation.id);

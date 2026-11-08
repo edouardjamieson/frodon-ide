@@ -342,6 +342,16 @@ Packaging will also need `prebuilds/` unpacked from the asar.
 
 ## The libraries
 
+### `/clear` changes the session under a running conversation
+`code` · 2026-11-08 · `src/main/agent/agent.service.ts`
+
+Sent through the SDK's stream, `/clear` does not end the process or the
+`query()`: the next turn's `init` carries a new `session_id`, and the old
+session stays on disk as it was. Anything that took the session id from
+the first `init` and kept it — the registry's "one tab per session" guard,
+a favorite marked later — is then about a conversation the tab is no longer
+having. Every `started` that carries a session now replaces the one held.
+
 ### Claude Code takes a session id up front, and keeps it on resume
 `code` · 2026-10-31 · `src/main/agent/agent-claude.service.ts`
 
@@ -678,6 +688,19 @@ runtime, in a payload, which is why the contract is types-only and plain data.
 ---
 
 ## Product
+
+### Most of a project's skills are invisible to the agent, by design
+`product` · 2026-11-08 · `src/main/agent/agent-claude.service.ts`
+
+Asked "how many skills do you have?" in a project with 43 of them, the
+agent listed 3 and the report was that Frodon had not loaded the project's
+skills. It had. The other 40 set `disable-model-invocation: true`, and
+Claude Code leaves those out of the listing it shows the model — the
+terminal's `claude` gives the same answer in the same project. They run only
+when a person types `/name`, so the agent cannot discover them and a person
+can only find them through a `/` menu. A tile without one hid the larger
+half of a well-equipped project's tooling. The SDK's handshake returns the
+full list, those skills included, as `commands`.
 
 ### A path list under a screenshot reads as one attachment
 `product` · 2026-10-31 · `src/main/agent/agent-claude.service.ts`

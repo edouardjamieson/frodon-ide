@@ -202,6 +202,13 @@ export type AgentEvent =
    * is not: no picker.
    */
   | { type: 'modes'; modes: AgentChoice[] }
+  /**
+   * The commands a message can start with — the agent's own and the skills
+   * it found in the project and the person's setup. Sent when the agent is
+   * up, and again whenever the list changes, each time whole: a later list
+   * replaces the earlier one rather than adding to it.
+   */
+  | { type: 'commands'; commands: AgentCommand[] }
   /** The agent is gone — it crashed, or could not start. Nothing follows. */
   | { type: 'exited'; error: string | null };
 
@@ -266,6 +273,22 @@ export interface AgentChoice {
   id: string;
   label: string;
   description: string;
+}
+
+/**
+ * A command the composer offers when a message starts with `/`.
+ *
+ * Sent to the agent as the text the person typed — `/audit-pr 412` — and
+ * never interpreted on this side. Whether a name runs one of the agent's own
+ * commands or a skill, and what it does with the rest of the line, is the
+ * agent's business: the composer only helps the name get typed.
+ */
+export interface AgentCommand {
+  /** Without the slash. */
+  name: string;
+  description: string;
+  /** What follows the name, as the agent describes it — `[<pr#>]`. */
+  hint: string | null;
 }
 
 /** A batch of events for one conversation, coalesced in main. */

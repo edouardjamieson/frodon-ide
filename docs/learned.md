@@ -17,6 +17,24 @@ architecture, write the ADR too and link them.
 
 ## The platform
 
+### The Agent SDK runs Claude Code without its system prompt unless asked
+`code` · 2026-11-08 · `src/main/agent/agent-claude.service.ts`
+
+`query()` with no `systemPrompt` does not mean "Claude Code's default". The
+SDK turns an absent option into an empty custom prompt, and the request goes
+out with one line of system prompt: "You are a Claude agent, built on
+Anthropic's Claude Agent SDK." The project's `CLAUDE.md`, the auto-memory
+index and the skill listing are still attached as context, which is what made
+it hard to see — asked about its rules, the agent could quote them — but the
+prompt that tells Claude Code how to work in a repository, follow those files,
+use skills and keep a memory was missing, and the agent behaved like a
+stranger to the project. Found by reading a Frodon session's transcript in
+`~/.claude/projects/`, whose `api-request-shape` line records the system
+blocks actually sent. `systemPrompt: { type: 'preset', preset: 'claude_code' }`
+restores it. The prompt is recorded into the session on the first request, so
+a conversation begun without it keeps the empty one when resumed, until it is
+compacted.
+
 ### A spawned Claude Code needs the user's environment to find its login
 `code` · 2026-10-29 · `src/main/agent/agent-environment.service.ts`
 

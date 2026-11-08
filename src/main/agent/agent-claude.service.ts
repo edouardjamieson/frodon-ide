@@ -187,6 +187,21 @@ function startClaude({ cwd, path, env, host, resume }: StartOptions): AgentRun {
       pathToClaudeCodeExecutable: path,
       ...(session === resume ? { resume: session } : { sessionId: session }),
       abortController: abort,
+      // Claude Code's own system prompt. Left out, the SDK does not fall back
+      // to it: it sends an empty custom prompt, and the agent introduces
+      // itself as "a Claude agent, built on Anthropic's Claude Agent SDK" —
+      // `CLAUDE.md` still arrives as context, but nothing tells it how to
+      // work in a repository, when to reach for a skill, or that it keeps a
+      // memory. The SDK records the prompt into the session on the first
+      // request, so a conversation started without it keeps that empty prompt
+      // on resume until it is compacted. `docs/learned.md`.
+      systemPrompt: { type: 'preset', preset: 'claude_code' },
+      // Named rather than left to the default. Omitted means "all of them" in
+      // this version, but it meant "none" in an earlier one, and without
+      // `project` there is no `CLAUDE.md`, no project skills and no
+      // `.claude/settings.json` — a quiet loss a dependency bump could bring
+      // back.
+      settingSources: ['user', 'project', 'local'],
       // Deltas, so the reply is drawn as it is written rather than appearing
       // whole once the turn is over.
       includePartialMessages: true,

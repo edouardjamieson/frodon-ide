@@ -389,6 +389,10 @@ in" — arrives whole and is shown whole.
   inside the asking window's project; an image is checked against the
   formats and size the API takes, so a bad paste fails in the composer and
   not as a failed turn.
+- **Claude starts as Claude Code.** `systemPrompt` is the `claude_code`
+  preset and `settingSources` names all three; dropping either leaves an
+  agent that has the project's rules in context but not the prompt that makes
+  it follow them. See [learned.md](../learned.md).
 - **`prompt` is for replay only.** A driver that echoed live messages as
   `prompt` would draw every message twice.
 

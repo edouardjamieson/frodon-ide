@@ -5,9 +5,10 @@
  * Kept out of both the store and the views for the reason `browser.service`
  * is: this is the part worth being able to reason about without a React tree
  * in the picture, and all three of these are called on every render of a
- * menu that can hold five hundred rows.
+ * drawer that can hold five hundred rows.
  */
 import { hostOf } from '~/lib/browser';
+import { projectColorFromHue, projectHue } from '~/lib/project';
 import type {
   Bookmark,
   BookmarkEntry,
@@ -27,7 +28,7 @@ import type { BookmarkGroupView } from './bookmark.def';
  * Both scopes merge into the same groups. A `Deploys` in the project file and
  * a `Deploys` in the local one are one heading, because the group is what the
  * bookmark is *about* and the scope is only who keeps it. The cost is that a
- * menu row does not say which file it came out of — see the menu for why that
+ * drawer row does not say which file it came out of — see the drawer for why that
  * is the right trade there and the wrong one on the start page.
  *
  * The loose ones go last, under no heading at all. An invented "Other" is a
@@ -73,6 +74,24 @@ export function groupNames(bookmarks: BookmarkEntry[]): string[] {
   // field, which is the one place a bookmarks list is generated rather than
   // arranged — `groupBookmarks` is the one that must not sort.
   return [...names].sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * A group's color, hashed from its name.
+ *
+ * The project's derivation, reused whole: the same FNV hash to a hue, drawn
+ * through the theme's accent ramp. So a group's swatch sits at the same
+ * lightness as every project color in the app, and `Deploys` is the same
+ * color on every machine that clones the repository, with nothing stored.
+ *
+ * **Not editable, on purpose.** A chosen color would need somewhere to live,
+ * and a group is a string on a bookmark — there is no table of groups to
+ * hang a `hue` on, and inventing one to hold a color would bring back the
+ * join `Bookmark.group` exists to avoid. The cost is that two groups can
+ * land on neighbouring hues and nothing can be done about it but a rename.
+ */
+export function bookmarkGroupColor(name: string, dark: boolean): string {
+  return projectColorFromHue(projectHue(name), dark);
 }
 
 /**

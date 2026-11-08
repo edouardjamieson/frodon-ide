@@ -4,7 +4,7 @@
  *
  * The one arrangement worth reading before changing anything: **the listing
  * is not mounted per browser tile.** A workbench can hold several browser
- * windows, each with a toolbar that wants the menu, and an effect in the
+ * windows, each with a toolbar that wants the drawer, and an effect in the
  * toolbar would list the files once per tile on every project change.
  * `useBookmarkSyncEffect` is mounted once, at the app shell — the same shape
  * `useBoardAutosaveEffect` has, for the same reason.
@@ -22,6 +22,7 @@ import {
 } from '@shared/bookmark.def';
 import { useProjectStore } from '~/lib/project';
 import { useBookmarkStore } from './bookmark.store';
+import { useBookmarkDrawerStore } from './bookmark-drawer.store';
 import { groupBookmarks, groupNames, toPayload } from './bookmark.service';
 import type { BookmarkDraft, BookmarkGroupView } from './bookmark.def';
 
@@ -33,7 +34,7 @@ import type { BookmarkDraft, BookmarkGroupView } from './bookmark.def';
 export const useBookmarks = (): BookmarkEntry[] =>
   useBookmarkStore((state) => state.bookmarks);
 
-/** The list as the menu and the start page draw it. */
+/** The list as the drawer and the start page draw it. */
 export const useBookmarkGroups = (): BookmarkGroupView[] => {
   const bookmarks = useBookmarkStore((state) => state.bookmarks);
   return useMemo(() => groupBookmarks(bookmarks), [bookmarks]);
@@ -240,4 +241,39 @@ export const useBookmarkSyncEffect = (): void => {
   useEffect(() => {
     void refresh();
   }, [files]);
+};
+
+/* -------------------------------------------------------------------------
+ * The drawer
+ * ---------------------------------------------------------------------- */
+
+/** Whether this tab's drawer is out, and the two ways to change that. */
+export const useBookmarkDrawer = (tabId: string) => {
+  const open = useBookmarkDrawerStore((state) => state.openTabId === tabId);
+  const setOpenTabId = useBookmarkDrawerStore((state) => state.setOpenTabId);
+
+  const toggle = useCallback(
+    () => setOpenTabId(open ? null : tabId),
+    [open, setOpenTabId, tabId]
+  );
+  const close = useCallback(() => {
+    // Only this tab's: a close arriving late from a tile whose drawer was
+    // already put away must not shut the one another tile just opened.
+    if (useBookmarkDrawerStore.getState().openTabId === tabId) {
+      setOpenTabId(null);
+    }
+  }, [setOpenTabId, tabId]);
+
+  return { open, toggle, close };
+};
+
+/** Whether a group is folded, and the switch. */
+export const useBookmarkGroupFold = (name: string) => {
+  const collapsed = useBookmarkDrawerStore((state) => !!state.collapsed[name]);
+  const toggleGroup = useBookmarkDrawerStore((state) => state.toggleGroup);
+
+  return {
+    collapsed,
+    toggle: useCallback(() => toggleGroup(name), [toggleGroup, name]),
+  };
 };

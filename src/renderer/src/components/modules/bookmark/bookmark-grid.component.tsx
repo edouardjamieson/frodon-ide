@@ -35,10 +35,10 @@ import BookmarkEditor from './bookmark-editor.component';
  * A browser's new-tab page, which is the obvious thing to put there and was
  * not what was there before: a blank tab used to say "type an address", which
  * is advice rather than a destination. This is also the only surface with
- * room to *manage* bookmarks — the menu is navigation and the star only knows
+ * room to *manage* bookmarks — the drawer is navigation and the star only knows
  * about the page you are on — so a tile is where Edit and Delete live.
  *
- * Unlike the menu, a tile **shows which file it came from**. There is room
+ * Unlike the drawer, a tile **shows which file it came from**. There is room
  * here, and it is the fact a person wants when they are tidying rather than
  * when they are travelling: whether this url is one a teammate will get on
  * clone. Same two icons the boards panel uses, so the vocabulary is one

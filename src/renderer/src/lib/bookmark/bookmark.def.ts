@@ -2,7 +2,7 @@
  * The renderer's view of bookmarks.
  *
  * A flat list, kept exactly as main handed it over, plus the pure functions
- * that turn it into the two shapes the UI draws — a menu of groups and a grid
+ * that turn it into the two shapes the UI draws — a drawer of groups and a grid
  * of groups. The grouping is derived on every read rather than stored,
  * because a group is a string on a bookmark and nothing else; see
  * `Bookmark.group` in `shared/bookmark.def.ts` for why there is no table of
@@ -60,3 +60,32 @@ export interface BookmarkStore {
 
 /** What a scope's file needs: the entries, with the scope tag taken back off. */
 export type BookmarkPayload = Record<BookmarkScope, Bookmark[]>;
+
+/**
+ * The drawer's presentation state — which tab has it open, and which groups
+ * are folded.
+ *
+ * Kept apart from `BookmarkStore` because none of it is a fact about the
+ * disk: it never crosses to main, and a re-read of the files must not reset
+ * it.
+ */
+export interface BookmarkDrawerStore {
+  /**
+   * The browser tab whose drawer is out, or null.
+   *
+   * One id rather than a set, so opening the drawer in one tile puts away the
+   * one in another. Two drawers out at once is two columns of the same list.
+   */
+  openTabId: string | null;
+  /**
+   * Folded groups, by name. Absent means unfolded, so a group that has just
+   * been created arrives open, showing the bookmark that made it.
+   *
+   * Keyed by name because a group *is* its name. A rename therefore unfolds
+   * the group, which is the right way for that to fail.
+   */
+  collapsed: Record<string, true>;
+
+  setOpenTabId: (tabId: string | null) => void;
+  toggleGroup: (name: string) => void;
+}

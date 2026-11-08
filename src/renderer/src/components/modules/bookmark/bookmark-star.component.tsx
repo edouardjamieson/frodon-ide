@@ -43,6 +43,7 @@ export default function BookmarkStar({
   const { add, update, remove } = useBookmarkActions();
 
   const blank = isBlank(url);
+
   const saved = existing !== null;
 
   const close = () => setOpen(false);
@@ -62,7 +63,7 @@ export default function BookmarkStar({
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
-      <DropdownMenuTrigger asChild>
+      <DropdownMenuTrigger asChild disabled={blank}>
         <button
           aria-label={saved ? 'Edit bookmark' : 'Bookmark this page'}
           title={saved ? 'Edit bookmark' : 'Bookmark this page'}
@@ -98,7 +99,7 @@ export default function BookmarkStar({
             //
             // An existing bookmark is seeded with exactly what it stores,
             // empty title included: that was a choice somebody made, and the
-            // menu already falls back to the host for it.
+            // drawer already falls back to the host for it.
             title: existing ? existing.title : title || hostOf(url),
             group: existing?.group ?? '',
             // New bookmarks default to the project. In an IDE's browser the

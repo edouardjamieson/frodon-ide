@@ -23,9 +23,10 @@ repository, yours stay on the machine.
 | `main/bookmark/bookmark.service.ts` | `listBookmarks`, `writeBookmarks` |
 | `renderer/src/lib/bookmark/bookmark.def.ts` | the store, `BookmarkDraft`, `BookmarkGroupView` |
 | `renderer/src/lib/bookmark/bookmark.store.ts` | the flat list, and nothing else |
-| `renderer/src/lib/bookmark/bookmark.service.ts` | `groupBookmarks`, `groupNames`, `bookmarkTitle`, `toPayload` |
-| `renderer/src/lib/bookmark/bookmark.hook.ts` | the sync effect, and the four operations |
-| `components/modules/bookmark/` | the star, the menu, the start-page grid, the editor |
+| `renderer/src/lib/bookmark/bookmark-drawer.store.ts` | which tab has the drawer out, and which groups are folded |
+| `renderer/src/lib/bookmark/bookmark.service.ts` | `groupBookmarks`, `groupNames`, `bookmarkGroupColor`, `bookmarkTitle`, `toPayload` |
+| `renderer/src/lib/bookmark/bookmark.hook.ts` | the sync effect, the four operations, and the drawer's two switches |
+| `components/modules/bookmark/` | the star, the drawer and its button, the start-page grid, the editor |
 
 ## How it works
 
@@ -58,7 +59,7 @@ crosses, and nothing else should.
 
 ### A group is a string on a bookmark
 
-There is no table of groups. A group has no color, no order and no
+There is no table of groups. A group has no stored color, no order and no
 description, so a table of them would be a table of names, and the join would
 buy nothing but a way for a bookmark to point at a group that no longer
 exists. Grouping is `groupBookmarks` reading the field; renaming a group is
@@ -69,6 +70,21 @@ The cost is that a typo makes a new group in silence. The editor offers the
 existing names as chips to click, which is the whole defence against it — and
 a better one than a dropdown, because a dropdown makes the first group of a
 project a two-step act.
+
+### A group's color is its name, hashed
+
+`bookmarkGroupColor` is the project derivation reused whole: `projectHue` to
+a hue, `projectColorFromHue` to a color in the theme's accent ramp. So a
+group's swatch sits at the same lightness as every project color in the app,
+and `Deploys` is the same color on every machine that clones the repository,
+with nothing written down.
+
+**It cannot be edited, and that is the point.** A chosen color needs
+somewhere to live, and there is nowhere: putting a `hue` on every bookmark in
+a group means keeping N copies in step, and a table to hang it on is the join
+this section just refused. The cost is that two groups can land on
+neighbouring hues and the only cure is a rename — which is also how a project
+changes color when it has not pinned one.
 
 **Both scopes merge into the same groups.** A `Deploys` in the project file
 and a `Deploys` in the local one are one heading: the group is what a
@@ -137,14 +153,34 @@ that can disagree with it.
 | Surface | What it is for | Shows the scope |
 | --- | --- | --- |
 | the star | the page you are on | in the editor |
-| the menu | going somewhere | no |
+| the drawer | going somewhere | no |
 | the start page | everything, and tidying it | yes |
 
-The menu is navigation and nothing else — no rename, no delete, no scope
-marker. A menu you opened to go somewhere should close on the first click, and
-a row carrying three affordances is a row where the one you wanted is the
-small one. The cost is real: you cannot tell from the menu whether a bookmark
-is committed.
+The drawer is navigation and nothing else — no rename, no delete, no scope
+marker. A drawer you opened to go somewhere should go away on the first
+click, and a row carrying three affordances is a row where the one you wanted
+is the small one. The cost is real: you cannot tell from the drawer whether a
+bookmark is committed.
+
+### The drawer is the tile's, not the app's
+
+It slides out of the right edge of the browser tile it was opened from and
+covers that tile only. The drawer navigates its own tab, and a workbench can
+hold three browsers; a sheet over the whole window would sit beside the wrong
+page as often as the right one. A DOM element over a `<webview>` does paint
+above it, because the guest is composited into the page — the start page and
+the load error rely on the same thing.
+
+It replaced a dropdown menu. A menu is as wide as its longest title and as
+tall as it can get away with, and once a project had five groups the headings
+were the only thing in it that could be found. The drawer has the tile's
+height, folds a group out of the way, and puts each group's color on a dot
+and on a rail down its rows, so a group is findable folded or open.
+
+One drawer is out at a time across the workbench — opening it in one tile
+puts away the one in another. Folds are kept by group name and not persisted:
+a rename unfolds a group, and a group folded last week does not come back
+hidden after a restart.
 
 The start page has room, so a tile shows the scope icon — the same
 `FolderGit2` / `HardDrive` pair the boards panel uses — and carries Edit and
@@ -167,10 +203,17 @@ did not agree to.
 
 ### Going back to one
 
-1. The bookmarks button beside the star opens the menu, grouped.
-2. Clicking a row navigates **this** tab. The tab strip is how you get a
-   second page; a menu that silently forked your tab is one you stop using.
-3. A blank tab shows the same bookmarks as a grid — the new-tab page.
+1. The bookmarks button beside the star slides the drawer out over the
+   page: groups first, each under its colored heading, the loose ones last
+   with no heading.
+2. A heading folds and unfolds its group. The row for the page the tab is on
+   is tinted.
+3. Clicking a row navigates **this** tab and puts the drawer away. The tab
+   strip is how you get a second page; a drawer that silently forked your tab
+   is one you stop using.
+4. Escape, the button again, or a click on the page behind puts it away
+   without going anywhere.
+5. A blank tab shows the same bookmarks as a grid — the new-tab page.
 
 ### Tidying up
 

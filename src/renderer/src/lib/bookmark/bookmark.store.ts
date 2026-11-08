@@ -11,7 +11,8 @@ import type { BookmarkStore } from './bookmark.def';
  * authority on what is on disk. The hooks are where that round trip lives.
  *
  * It is a store rather than component state because three surfaces read it —
- * the star in the toolbar, the menu beside it, and the start page under both
+ * the star in the toolbar, the drawer's button beside it, and the drawer and
+ * the start page under both
  * — and they are in different subtrees of different windows. The list is also
  * shared by every browser tile in the workbench, which is what keeps the
  * listing to one call instead of one per tile.

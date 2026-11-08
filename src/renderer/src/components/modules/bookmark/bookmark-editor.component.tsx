@@ -61,7 +61,7 @@ export default function BookmarkEditor({
     setDraft((current) => ({ ...current, ...change }));
 
   // The url is the one field that cannot be reconstructed, so it is the one
-  // field that can block a save. An empty title is fine — the menu falls back
+  // field that can block a save. An empty title is fine — the drawer falls back
   // to the host, which is what an untitled tab shows anyway — and a title too
   // long to store is not, because it would be silently truncated on read.
   const valid =

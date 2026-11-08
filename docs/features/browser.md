@@ -24,7 +24,7 @@ about what a guest page is *not* allowed to be.
 | `renderer/src/lib/browser/browser.store.ts` | tab state, and the seeds a restored layout left |
 | `renderer/src/lib/browser/browser.service.ts` | `normalizeUrl`, `fitScale` |
 | `components/modules/browser/` | the toolbar, the viewport, the element |
-| `components/modules/bookmark/` | the star and the menu in that toolbar, and the page a blank tab shows — see [bookmarks.md](bookmarks.md) |
+| `components/modules/bookmark/` | the star and the drawer's button in that toolbar, the drawer over the page, and the page a blank tab shows — see [bookmarks.md](bookmarks.md) |
 
 ## How it works
 

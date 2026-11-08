@@ -1,6 +1,6 @@
 import { cn } from 'cn';
 import { TriangleAlert } from 'lucide-react';
-import { BookmarkGrid } from '~/components/modules/bookmark';
+import { BookmarkDrawer, BookmarkGrid } from '~/components/modules/bookmark';
 import { isBlank, useBrowserTab } from '~/lib/browser';
 import { useStageFit, useWebview } from './browser.hook';
 import BrowserToolbar from './browser-toolbar.component';
@@ -99,6 +99,11 @@ export default function Browser({
           <BookmarkGrid onNavigate={navigate} />
         ) : null}
         {tab?.error ? <LoadError message={tab.error} onRetry={reload} /> : null}
+
+        {/* Last, so it slides over the start page and the load error both. */}
+        {tab ? (
+          <BookmarkDrawer tabId={tabId} url={tab.url} onNavigate={navigate} />
+        ) : null}
       </div>
     </div>
   );

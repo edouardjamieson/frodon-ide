@@ -342,6 +342,20 @@ Packaging will also need `prebuilds/` unpacked from the asar.
 
 ## The libraries
 
+### A subagent's call returns before the subagent has done anything
+`code` · 2026-11-08 · `src/main/agent/agent-claude.service.ts`
+
+In Claude Code 2.1.309, the `Agent` tool can launch its subagent in the
+background (`task_started` says `is_backgrounded: true`). Its tool result is
+"Async agent launched" and arrives at once, the turn ends with a `result`,
+and the subagent's work streams in afterwards — then Claude begins a new
+turn on its own, with no message from the person, to read what came back.
+A tile that marked a call done on its result, and a conversation working
+only when something was sent, showed a finished card and an idle composer
+while the real work was still running. The same version has no todo tool at
+all — neither `TodoWrite` nor a successor is in `init`'s tool list, in the
+SDK or in the terminal — so there is no plan to draw.
+
 ### `/clear` changes the session under a running conversation
 `code` · 2026-11-08 · `src/main/agent/agent.service.ts`
 

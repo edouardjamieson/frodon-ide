@@ -298,6 +298,26 @@ thing that turns events into entries. Text arrives as deltas keyed by message
 id and is appended; a message that never streamed — an API error, "Not logged
 in" — arrives whole and is shown whole.
 
+### Work handed off is drawn under the call that started it
+
+A subagent, or a command left running in the background, is a **task**:
+Claude reports it in pieces — `task_started`, `task_progress`,
+`task_updated`, `task_notification` — and tags the subagent's own messages
+with the id of the call that launched it. The driver's `Translator` puts
+those back together into one `AgentTask` and sends it whole on every change;
+the renderer keeps tasks by that call's id, and the call's card draws its
+task: what it is doing now and its latest three steps while it runs, then
+"Done" with the steps and its report folded away. A step is the subagent's
+tool call run through `actionOf`, so it reads like any card's title.
+
+In Claude Code 2.1.309 a subagent can run in the background: the `Agent`
+call returns at once with "Async agent launched", the turn ends, and the
+work happens after. So the card's own tick waits for the task, not for the
+call's result, and when the task finishes Claude starts a turn by itself to
+read it. That turn is marked `working` by `reduce` as soon as it says
+something, so it streams with a stop button like a turn that was sent. See
+[learned.md](../learned.md).
+
 ### A reply is drawn as markdown, from a tree and never from HTML
 
 A reply goes through `@lezer/markdown`, the parser behind the editor's `.md`
@@ -518,8 +538,11 @@ arrives.
 - **Workbench context.** An in-process MCP server in the driver could give the
   agent `open_file`, the selection and boards without the socket ADR-0027
   parked — the cost that made it not worth building is gone on this path.
-- **Subagents.** Their traffic is dropped; the `Task` call and its result
-  are shown, the conversation inside is not.
+- **What a subagent says.** Its steps and its report are shown; the words
+  it writes along the way are not, and neither is anything it was asked to
+  approve beyond the ordinary card.
+- **A task with no action.** Work Claude starts that no call on screen
+  started is tracked by the driver and has nowhere on the tile to go.
 - **Choosing the agent.** One driver, so `DEFAULT_AGENT` is a constant. With
   two, the `+` becomes a choice and the default a user setting.
 - **A keyboard shortcut** to open one.

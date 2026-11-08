@@ -226,6 +226,13 @@ export type AgentEvent =
    */
   | { type: 'mode'; mode: string }
   /**
+   * Work the agent handed off and is not doing in the turn itself — a
+   * subagent, a command left running in the background. Sent whole on every
+   * change and replaced by `id`, so a late event never has to be merged into
+   * an early one.
+   */
+  | { type: 'task'; task: AgentTask }
+  /**
    * The commands a message can start with — the agent's own and the skills
    * it found in the project and the person's setup. Sent when the agent is
    * up, and again whenever the list changes, each time whole: a later list
@@ -296,6 +303,28 @@ export interface AgentChoice {
   id: string;
   label: string;
   description: string;
+}
+
+/**
+ * Something running apart from the conversation's own turn.
+ *
+ * Drawn on the card of the action that started it, when there is one: a
+ * subagent is a call like any other, and what it went on to do belongs under
+ * that call. Its steps are titles in this file's vocabulary, so a subagent's
+ * `Read` reads the same as the conversation's own.
+ */
+export interface AgentTask {
+  id: string;
+  /** The action that started it, or null when none is known. */
+  actionId: string | null;
+  description: string;
+  status: 'running' | 'done' | 'failed' | 'stopped';
+  /** What it is doing right now, while it runs. */
+  activity: string | null;
+  /** The calls it has made, as one-line titles, oldest first. */
+  steps: string[];
+  /** What it reported when it finished, or why it failed. */
+  summary: string | null;
 }
 
 /**

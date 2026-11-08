@@ -253,6 +253,11 @@ export default function Agent({ conversationId, active }: AgentProps) {
           <TranscriptRow
             key={entry.id}
             entry={entry}
+            task={
+              entry.kind === 'action'
+                ? (conversation.tasks[entry.id] ?? null)
+                : null
+            }
             approval={
               entry.kind === 'action'
                 ? (approvals.find((open) => open.action.id === entry.id) ??

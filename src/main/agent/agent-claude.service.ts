@@ -36,6 +36,7 @@ import type {
   AgentCommand,
   AgentEvent,
   AgentQuestion,
+  AgentTask,
 } from '@shared/agent.def';
 import { OUTPUT_LIMIT, VERSION_TIMEOUT_MS } from './agent.constant';
 import type {
@@ -425,14 +426,20 @@ async function pump(
  * do not — an API error or "Not logged in" arrives as a whole assistant
  * message with no deltas ahead of it, and would otherwise never be shown.
  *
- * Subagent traffic (`parent_tool_use_id` set) is dropped. The `Task` call
- * that started it is shown, and so is its result; the conversation inside it
- * is the subagent's, and drawing it inline would bury the one the person is
- * having.
+ * Subagent traffic (`parent_tool_use_id` set) is not drawn as conversation.
+ * Its tool calls become the steps of a task, shown under the call that
+ * started it; its words are dropped, because the conversation inside it is
+ * the subagent's, and drawing it inline would bury the one the person is
+ * having. What it concluded arrives as the task's summary.
+ *
+ * Tasks are kept here, whole, because Claude reports them in pieces — a
+ * start, progress, a patch, a notification — and the tile should not have to
+ * know how to put them back together.
  */
 class Translator {
   private current: string | null = null;
   private readonly streamed = new Set<string>();
+  private readonly tasks = new Map<string, AgentTask>();
 
   constructor(private readonly host: AgentHost) {}
 
@@ -455,6 +462,33 @@ class Translator {
           this.host.emit({
             type: 'commands',
             commands: commandsOf(message.commands),
+          });
+        } else if (message.subtype === 'task_started') {
+          // Steps heard before the start were kept under the parent call's
+          // id; they move to the real task, and the stand-in goes.
+          const early = message.tool_use_id
+            ? this.tasks.get(message.tool_use_id)
+            : undefined;
+          if (early) this.tasks.delete(early.id);
+          this.task(message.task_id, {
+            actionId: message.tool_use_id ?? null,
+            description: message.description,
+            status: 'running',
+            steps: early?.steps ?? [],
+          });
+        } else if (message.subtype === 'task_progress') {
+          this.task(message.task_id, { activity: message.description });
+        } else if (message.subtype === 'task_updated') {
+          const { status, description, error } = message.patch;
+          this.task(message.task_id, {
+            ...(status ? { status: TASK_STATUS[status] } : {}),
+            ...(description ? { description } : {}),
+            ...(error ? { summary: error } : {}),
+          });
+        } else if (message.subtype === 'task_notification') {
+          this.task(message.task_id, {
+            status: TASK_STATUS[message.status],
+            summary: message.summary || null,
           });
         }
         return;
@@ -480,7 +514,10 @@ class Translator {
       }
 
       case 'assistant': {
-        if (message.parent_tool_use_id) return;
+        if (message.parent_tool_use_id) {
+          this.steps(message.parent_tool_use_id, message.message.content);
+          return;
+        }
         const { id, content } = message.message;
         for (const block of content) {
           if (block.type === 'text' && !this.streamed.has(id)) {
@@ -530,12 +567,86 @@ class Translator {
         return;
 
       default:
-        // Rate limits, hooks, task progress, status pings: Claude's business,
-        // with nowhere on the tile to go yet. See the note on `AgentEvent`.
+        // Rate limits, hooks, status pings: Claude's business, with nowhere
+        // on the tile to go yet. See the note on `AgentEvent`.
         return;
     }
   }
+
+  /** Applies a change to a task, creating it if this is the first word. */
+  private task(id: string, change: Partial<AgentTask>): void {
+    const current = this.tasks.get(id) ?? {
+      id,
+      actionId: null,
+      description: '',
+      status: 'running',
+      activity: null,
+      steps: [],
+      summary: null,
+    };
+    const next: AgentTask = { ...current, ...change };
+    // What it was doing stops being true once it has stopped.
+    if (next.status !== 'running') next.activity = null;
+    this.tasks.set(id, next);
+    this.host.emit({ type: 'task', task: next });
+  }
+
+  /**
+   * A subagent's tool calls, added to the task its parent call started.
+   *
+   * Found by the parent call's id, which is what Claude tags the subagent's
+   * messages with. A subagent heard from before its `task_started` — or one
+   * run in the foreground by a version of Claude that sends none — gets a
+   * task of its own under that id, so its steps are not lost.
+   */
+  private steps(parent: string, content: unknown): void {
+    if (!Array.isArray(content)) return;
+    const titles = content.flatMap((block: Record<string, unknown>) =>
+      block['type'] === 'tool_use' &&
+      typeof block['id'] === 'string' &&
+      typeof block['name'] === 'string'
+        ? [
+            actionOf(
+              block['id'],
+              block['name'],
+              (block['input'] ?? {}) as Record<string, unknown>
+            ).title,
+          ]
+        : []
+    );
+    if (titles.length === 0) return;
+
+    const existing = [...this.tasks.values()].find(
+      (task) => task.actionId === parent
+    );
+    const id = existing?.id ?? parent;
+    this.task(id, {
+      actionId: parent,
+      description: existing?.description || 'Subagent',
+      steps: [...(existing?.steps ?? []), ...titles],
+    });
+  }
 }
+
+/** Claude's task states, in the four the tile draws. */
+const TASK_STATUS: Record<
+  | 'pending'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'killed'
+  | 'paused'
+  | 'stopped',
+  AgentTask['status']
+> = {
+  pending: 'running',
+  running: 'running',
+  paused: 'running',
+  completed: 'done',
+  failed: 'failed',
+  killed: 'stopped',
+  stopped: 'stopped',
+};
 
 /**
  * A stored session, as the events a live one would have sent.
@@ -805,6 +916,16 @@ function actionOf(
         questions,
       };
     }
+    case 'Agent':
+    case 'Task':
+      // `Task` is the name older versions of Claude Code gave it.
+      return {
+        id,
+        kind: 'other',
+        title: `${str('subagent_type') ?? 'Subagent'}: ${
+          str('description') ?? 'a task'
+        }`,
+      };
     case 'WebFetch':
       return { id, kind: 'other', title: `Fetch ${str('url') ?? 'a page'}` };
     case 'WebSearch':

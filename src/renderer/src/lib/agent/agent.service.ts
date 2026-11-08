@@ -24,6 +24,31 @@ export function reduce(
 }
 
 function step(conversation: Conversation, event: AgentEvent): Conversation {
+  return awake(apply(conversation, event), conversation, event);
+}
+
+/**
+ * A turn the agent began on its own counts as work, like one it was sent.
+ *
+ * Sending is what marks a conversation `working`, and most turns start that
+ * way. Some do not: a subagent left running in the background finishes after
+ * the turn that launched it has ended, and Claude starts a turn by itself to
+ * read the result. Without this, that turn streams with a send button where
+ * the stop button should be. Only from `idle`, so a conversation still
+ * `starting` — replaying its history — is left alone.
+ */
+function awake(
+  next: Conversation,
+  before: Conversation,
+  event: AgentEvent
+): Conversation {
+  const begins = event.type === 'text' || event.type === 'action';
+  return begins && before.status === 'idle' && next.status === 'idle'
+    ? { ...next, status: 'working' }
+    : next;
+}
+
+function apply(conversation: Conversation, event: AgentEvent): Conversation {
   switch (event.type) {
     case 'started':
       // Said more than once: by main when the agent is running, without a
@@ -135,6 +160,15 @@ function step(conversation: Conversation, event: AgentEvent): Conversation {
 
     case 'mode':
       return { ...conversation, mode: event.mode };
+
+    case 'task':
+      return {
+        ...conversation,
+        tasks: {
+          ...conversation.tasks,
+          [event.task.actionId ?? event.task.id]: event.task,
+        },
+      };
 
     case 'commands':
       return { ...conversation, commands: event.commands };

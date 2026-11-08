@@ -1,5 +1,6 @@
 import { cn } from 'cn';
 import {
+  Bot,
   Check,
   FilePen,
   FileSearch,
@@ -16,6 +17,7 @@ import type {
   AgentActionKind,
   AgentChange,
   AgentReply,
+  AgentTask,
 } from '@shared/agent.def';
 import type { OpenApproval, TranscriptEntry } from '~/lib/agent';
 import { QuestionForm } from './agent-question.component';
@@ -32,11 +34,14 @@ import { Markdown } from './agent-markdown.component';
  */
 export function TranscriptRow({
   entry,
+  task,
   approval,
   onRespond,
   onOpenFile,
 }: {
   entry: TranscriptEntry;
+  /** What this action set running, if it started anything. */
+  task: AgentTask | null;
   /** The open question about this action, if there is one. */
   approval: OpenApproval | null;
   onRespond: (requestId: string, reply: AgentReply) => void;
@@ -82,6 +87,7 @@ export function TranscriptRow({
         <ActionCard
           action={entry.action}
           result={entry.result}
+          task={task}
           approval={approval}
           onRespond={onRespond}
           onOpenFile={onOpenFile}
@@ -110,12 +116,14 @@ const ICONS: Record<AgentActionKind, ReactNode> = {
 function ActionCard({
   action,
   result,
+  task,
   approval,
   onRespond,
   onOpenFile,
 }: {
   action: AgentAction;
   result: { ok: boolean; output: string } | null;
+  task: AgentTask | null;
   approval: OpenApproval | null;
   onRespond: (requestId: string, reply: AgentReply) => void;
   onOpenFile: (path: string) => void;
@@ -145,7 +153,13 @@ function ActionCard({
           <span className="min-w-0 truncate">{action.title}</span>
         )}
         <span className="ml-auto shrink-0">
-          <ActionState result={result} waiting={approval !== null} />
+          <ActionState
+            // A call that launched work in the background returns at once,
+            // and its result only says the work began. The card is done
+            // when the work is.
+            result={task?.status === 'running' ? null : result}
+            waiting={approval !== null}
+          />
         </span>
       </div>
 
@@ -154,6 +168,8 @@ function ActionCard({
           $ {action.command}
         </pre>
       ) : null}
+
+      {task ? <TaskView task={task} onOpenFile={onOpenFile} /> : null}
 
       {action.changes?.map((change, index) => (
         <ChangeView key={index} change={change} />
@@ -209,6 +225,94 @@ function ActionCard({
             Deny
           </button>
         </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * A finished task, in a word. The card above already says what the task was
+ * — its title is the call that started it — so this says how it went.
+ */
+const STATUS: Record<AgentTask['status'], string> = {
+  running: 'Working',
+  done: 'Done',
+  failed: 'Failed',
+  stopped: 'Stopped',
+};
+
+/** How many of a running task's latest steps are shown without asking. */
+const RECENT_STEPS = 3;
+
+/**
+ * What an action set running: a subagent, a command left in the background.
+ *
+ * While it runs, what it is doing now and its latest few steps — enough to
+ * tell a subagent that is getting somewhere from one going round in circles,
+ * without the whole of its work taking over the transcript. Once it stops,
+ * the steps fold away behind a count, and what it reported is offered
+ * beside them.
+ */
+function TaskView({
+  task,
+  onOpenFile,
+}: {
+  task: AgentTask;
+  onOpenFile: (path: string) => void;
+}) {
+  const running = task.status === 'running';
+  const recent = task.steps.slice(-RECENT_STEPS);
+  const hidden = task.steps.length - recent.length;
+
+  return (
+    <div className="flex flex-col gap-1 border-t border-pane-border px-2.5 py-1.5 text-[12px]">
+      <div className="flex min-w-0 items-center gap-2 text-fg-muted">
+        <Bot className="size-3.5 shrink-0" />
+        <span className="min-w-0 truncate">
+          {running ? (task.activity ?? 'Starting…') : STATUS[task.status]}
+        </span>
+        {task.steps.length > 0 ? (
+          <span className="ml-auto shrink-0 text-fg-subtle">
+            {task.steps.length} {task.steps.length === 1 ? 'step' : 'steps'}
+          </span>
+        ) : null}
+      </div>
+
+      {running && recent.length > 0 ? (
+        <ol className="flex flex-col gap-0.5 pl-5.5 text-fg-subtle">
+          {hidden > 0 ? <li>…</li> : null}
+          {recent.map((step, index) => (
+            <li key={hidden + index} className="truncate">
+              {step}
+            </li>
+          ))}
+        </ol>
+      ) : null}
+
+      {!running && task.steps.length > 0 ? (
+        <details>
+          <summary className="cursor-pointer pl-5.5 text-fg-subtle select-none">
+            Steps
+          </summary>
+          <ol className="flex flex-col gap-0.5 pt-0.5 pl-5.5 text-fg-subtle">
+            {task.steps.map((step, index) => (
+              <li key={index} className="truncate">
+                {step}
+              </li>
+            ))}
+          </ol>
+        </details>
+      ) : null}
+
+      {!running && task.summary ? (
+        <details>
+          <summary className="cursor-pointer pl-5.5 text-fg-subtle select-none">
+            Report
+          </summary>
+          <div className="pt-1 pl-5.5 text-[13px]">
+            <Markdown text={task.summary} onOpenFile={onOpenFile} />
+          </div>
+        </details>
       ) : null}
     </div>
   );

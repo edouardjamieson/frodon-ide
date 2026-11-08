@@ -12,6 +12,7 @@ import type {
   AgentChoice,
   AgentCommand,
   AgentKind,
+  AgentTask,
   FavoriteEntry,
 } from '@shared/agent.def';
 
@@ -98,6 +99,13 @@ export interface Conversation {
    * before the call is made — and the question has to be drawn either way.
    */
   approvals: OpenApproval[];
+  /**
+   * Work running apart from the turn, by the id of the action that started
+   * it — the card it is drawn on. Keyed by action rather than by task, so a
+   * task the driver first knew under a stand-in id replaces the stand-in
+   * instead of sitting beside it.
+   */
+  tasks: Record<string, AgentTask>;
   /** What the conversation has cost so far, when the agent reports it. */
   costUsd: number;
   /**

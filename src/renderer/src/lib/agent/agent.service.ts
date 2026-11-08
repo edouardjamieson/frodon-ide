@@ -110,7 +110,11 @@ function step(conversation: Conversation, event: AgentEvent): Conversation {
         ...withEntry,
         approvals: [
           ...withEntry.approvals,
-          { requestId: event.requestId, action: event.action },
+          {
+            requestId: event.requestId,
+            action: event.action,
+            always: event.always,
+          },
         ],
       };
     }
@@ -128,6 +132,9 @@ function step(conversation: Conversation, event: AgentEvent): Conversation {
 
     case 'modes':
       return { ...conversation, modes: event.modes };
+
+    case 'mode':
+      return { ...conversation, mode: event.mode };
 
     case 'commands':
       return { ...conversation, commands: event.commands };

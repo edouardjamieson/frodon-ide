@@ -121,8 +121,14 @@ export interface AgentAction {
  * question, in the order asked — several picks joined with ", ". Order
  * rather than keys, because how an agent keys its answers is its own
  * business and the driver knows the questions it asked.
+ *
+ * `always` takes up the standing permission the approval offered, so the
+ * same kind of action goes ahead without asking next time. Ignored when none
+ * was offered: the driver keeps what it offered, and the renderer only says
+ * yes to it.
  */
-export type AgentReply = { allow: false } | { allow: true; answers?: string[] };
+export type AgentReply =
+  { allow: false } | { allow: true; answers?: string[]; always?: boolean };
 
 /**
  * Everything a conversation can report, in the order it happened.
@@ -178,7 +184,18 @@ export type AgentEvent =
    * The agent wants to do something and is waiting for a yes or a no. It
    * stays waiting until `agent:respond` answers it or the turn is stopped.
    */
-  | { type: 'approval'; requestId: string; action: AgentAction }
+  | {
+      type: 'approval';
+      requestId: string;
+      action: AgentAction;
+      /**
+       * The standing permission on offer instead of a one-off yes, in a
+       * sentence the driver wrote — "Always allow `npm pkg *` in this
+       * project". Null when the agent offers none, and the card then has
+       * no button for it.
+       */
+      always: string | null;
+    }
   /** An approval is no longer open — answered, or abandoned by the agent. */
   | { type: 'approval-closed'; requestId: string }
   /** A turn finished. The agent is idle and waiting for the next message. */
@@ -202,6 +219,12 @@ export type AgentEvent =
    * is not: no picker.
    */
   | { type: 'modes'; modes: AgentChoice[] }
+  /**
+   * The permission mode changed partway through a turn — the person allowed
+   * every edit from an approval card — ahead of the next `started` that
+   * would have said so.
+   */
+  | { type: 'mode'; mode: string }
   /**
    * The commands a message can start with — the agent's own and the skills
    * it found in the project and the person's setup. Sent when the agent is

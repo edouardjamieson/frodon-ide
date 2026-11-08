@@ -255,8 +255,8 @@ export default function Agent({ conversationId, active }: AgentProps) {
             entry={entry}
             approval={
               entry.kind === 'action'
-                ? (approvals.find((open) => open.action.id === entry.id)
-                    ?.requestId ?? null)
+                ? (approvals.find((open) => open.action.id === entry.id) ??
+                  null)
                 : null
             }
             onRespond={respond}

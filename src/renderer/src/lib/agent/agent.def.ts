@@ -45,6 +45,14 @@ export type TranscriptEntry =
     }
   | { kind: 'notice'; id: string; text: string; tone: 'muted' | 'danger' };
 
+/** An approval waiting on a click. */
+export interface OpenApproval {
+  requestId: string;
+  action: AgentAction;
+  /** The standing permission the card can grant instead; see `AgentEvent`. */
+  always: string | null;
+}
+
 export interface Conversation {
   kind: AgentKind;
   status: ConversationStatus;
@@ -89,7 +97,7 @@ export interface Conversation {
    * driver may ask about an action it never reported as a call — Claude asks
    * before the call is made — and the question has to be drawn either way.
    */
-  approvals: { requestId: string; action: AgentAction }[];
+  approvals: OpenApproval[];
   /** What the conversation has cost so far, when the agent reports it. */
   costUsd: number;
   /**

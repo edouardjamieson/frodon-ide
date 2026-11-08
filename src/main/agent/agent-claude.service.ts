@@ -21,6 +21,7 @@ import {
   getSessionMessages,
   query,
   type PermissionMode,
+  type PermissionUpdate,
   type SDKMessage,
   type SessionMessage,
   type SDKUserMessage,
@@ -210,10 +211,23 @@ function startClaude({ cwd, path, env, host, resume }: StartOptions): AgentRun {
       // No `permissionMode`: the person's own settings choose it, exactly as
       // they would for `claude` in a terminal. Whatever that mode decides to
       // ask about arrives here.
-      canUseTool: async (toolName, input, { signal, toolUseID }) => {
+      canUseTool: async (
+        toolName,
+        input,
+        { signal, toolUseID, suggestions, suppressAlwaysAllowRule }
+      ) => {
+        // Claude's own "don't ask again": the rules its terminal would save
+        // if that option were picked there. Withheld when Claude says the
+        // rule would grant more than this one action, and for a question,
+        // which is answered rather than allowed.
+        const standing =
+          suppressAlwaysAllowRule || toolName === 'AskUserQuestion'
+            ? []
+            : (suggestions ?? []);
         const reply = await host.ask(
           actionOf(toolUseID, toolName, input),
-          signal
+          signal,
+          standingLabel(standing, cwd)
         );
         if (!reply.allow) {
           return {
@@ -224,12 +238,26 @@ function startClaude({ cwd, path, env, host, resume }: StartOptions): AgentRun {
                 : 'Declined in Frodon.',
           };
         }
+        const always = reply.always === true && standing.length > 0;
+        // A mode granted for the rest of the conversation is a switch the
+        // picker should show now; Claude would only say so with the next
+        // turn's `init`.
+        const mode = always
+          ? standing.find((update) => update.type === 'setMode')
+          : undefined;
+        if (mode?.type === 'setMode')
+          host.emit({ type: 'mode', mode: mode.mode });
         return {
           behavior: 'allow',
           updatedInput:
             toolName === 'AskUserQuestion'
               ? withAnswers(input, reply.answers ?? [])
               : input,
+          // Handed back as Claude wrote them, so the rule lands where
+          // Claude's terminal would have put it — the project's
+          // `.claude/settings.local.json` for a command, this session for
+          // a mode — and reads the same in `/permissions`.
+          ...(always ? { updatedPermissions: standing } : {}),
         };
       },
       stderr: (data) => log.info(`claude: ${data.trimEnd()}`),
@@ -567,6 +595,63 @@ function replay(messages: SessionMessage[]): AgentEvent[] {
   }
   return events;
 }
+
+/**
+ * What taking Claude's suggested rules would mean, as the approval card's
+ * button says it, or null when there are none.
+ *
+ * Worded from the one update that matters most to a person: a rule for a
+ * command or a tool, then a mode, then a folder. The others ride along —
+ * a `mkdir` comes with a rule for the command and access to the folder it
+ * makes — and are granted with it, as Claude's terminal grants them.
+ */
+function standingLabel(
+  updates: PermissionUpdate[],
+  cwd: string
+): string | null {
+  const rules = updates.find(
+    (update) => update.type === 'addRules' && update.behavior === 'allow'
+  );
+  if (rules?.type === 'addRules' && rules.rules.length > 0) {
+    const what = rules.rules
+      .map(({ toolName, ruleContent }) =>
+        !ruleContent
+          ? toolName
+          : toolName === 'Bash'
+            ? `\`${ruleContent}\``
+            : `${toolName}(${ruleContent})`
+      )
+      .join(', ');
+    return `Always allow ${what}${WHERE[rules.destination]}`;
+  }
+
+  const mode = updates.find((update) => update.type === 'setMode');
+  if (mode?.type === 'setMode') {
+    const label = MODES.find((offered) => offered.id === mode.mode)?.label;
+    return mode.mode === 'acceptEdits'
+      ? `Allow every edit${WHERE[mode.destination]}`
+      : `Switch to ${label ?? mode.mode}${WHERE[mode.destination]}`;
+  }
+
+  const folders = updates.find((update) => update.type === 'addDirectories');
+  if (folders?.type === 'addDirectories' && folders.directories.length > 0) {
+    const names = folders.directories
+      .map((dir) => relativePath(cwd, dir))
+      .join(', ');
+    return `Allow access to ${names}${WHERE[folders.destination]}`;
+  }
+
+  return null;
+}
+
+/** Where a granted rule is kept, as the end of the button's sentence. */
+const WHERE: Record<PermissionUpdate['destination'], string> = {
+  localSettings: ' in this project',
+  projectSettings: ' in this project, for everyone',
+  userSettings: ' in every project',
+  session: ' in this conversation',
+  cliArg: ' in this conversation',
+};
 
 /**
  * Claude's command list, as the composer offers it.

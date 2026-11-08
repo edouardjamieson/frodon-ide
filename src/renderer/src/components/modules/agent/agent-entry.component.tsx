@@ -17,7 +17,7 @@ import type {
   AgentChange,
   AgentReply,
 } from '@shared/agent.def';
-import type { TranscriptEntry } from '~/lib/agent';
+import type { OpenApproval, TranscriptEntry } from '~/lib/agent';
 import { QuestionForm } from './agent-question.component';
 import { AttachmentChip } from './agent-attach.component';
 import { Markdown } from './agent-markdown.component';
@@ -38,7 +38,7 @@ export function TranscriptRow({
 }: {
   entry: TranscriptEntry;
   /** The open question about this action, if there is one. */
-  approval: string | null;
+  approval: OpenApproval | null;
   onRespond: (requestId: string, reply: AgentReply) => void;
   onOpenFile: (path: string) => void;
 }) {
@@ -116,7 +116,7 @@ function ActionCard({
 }: {
   action: AgentAction;
   result: { ok: boolean; output: string } | null;
-  approval: string | null;
+  approval: OpenApproval | null;
   onRespond: (requestId: string, reply: AgentReply) => void;
   onOpenFile: (path: string) => void;
 }) {
@@ -173,20 +173,38 @@ function ActionCard({
       {approval && action.questions ? (
         <QuestionForm
           questions={action.questions}
-          onReply={(reply) => onRespond(approval, reply)}
+          onReply={(reply) => onRespond(approval.requestId, reply)}
         />
       ) : approval ? (
         <div className="flex items-center gap-2 border-t border-pane-border px-2.5 py-1.5">
-          <span className="text-fg-muted">Allow this?</span>
+          <span className="shrink-0 text-fg-muted">Allow this?</span>
+          {approval.always ? (
+            // The standing permission, worded by the driver from what the
+            // agent offered — "Always allow `npm pkg *` in this project" —
+            // so the button says exactly what it grants rather than a bare
+            // "Always" that leaves the scope to be guessed.
+            <button
+              title={approval.always}
+              onClick={() =>
+                onRespond(approval.requestId, { allow: true, always: true })
+              }
+              className="ml-auto min-w-0 cursor-pointer truncate rounded-md border border-pane-border bg-button px-2.5 py-1 text-button-fg transition-colors hover:bg-button-hover"
+            >
+              {approval.always}
+            </button>
+          ) : null}
           <button
-            onClick={() => onRespond(approval, { allow: true })}
-            className="ml-auto cursor-pointer rounded-md bg-button-accent px-2.5 py-1 text-button-accent-fg transition-colors hover:bg-button-accent-hover"
+            onClick={() => onRespond(approval.requestId, { allow: true })}
+            className={cn(
+              'shrink-0 cursor-pointer rounded-md bg-button-accent px-2.5 py-1 text-button-accent-fg transition-colors hover:bg-button-accent-hover',
+              { 'ml-auto': !approval.always }
+            )}
           >
             Allow
           </button>
           <button
-            onClick={() => onRespond(approval, { allow: false })}
-            className="cursor-pointer rounded-md border border-pane-border bg-button px-2.5 py-1 text-button-fg transition-colors hover:bg-button-hover"
+            onClick={() => onRespond(approval.requestId, { allow: false })}
+            className="shrink-0 cursor-pointer rounded-md border border-pane-border bg-button px-2.5 py-1 text-button-fg transition-colors hover:bg-button-hover"
           >
             Deny
           </button>

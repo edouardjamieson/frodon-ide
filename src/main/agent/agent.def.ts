@@ -28,8 +28,16 @@ export interface AgentHost {
    * aborts — the agent gave up on the question, or the conversation is being
    * stopped — so a driver awaiting this never hangs on a tile that has gone
    * away.
+   *
+   * `always` is the standing permission the driver can grant instead, as the
+   * card should word it, or null for none. A reply with `always` set means
+   * the person took it.
    */
-  ask: (action: AgentAction, signal: AbortSignal) => Promise<AgentReply>;
+  ask: (
+    action: AgentAction,
+    signal: AbortSignal,
+    always: string | null
+  ) => Promise<AgentReply>;
 }
 
 /** A running agent, as the registry holds it. */

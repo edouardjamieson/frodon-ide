@@ -163,7 +163,8 @@ export async function startConversation(
     resume,
     host: {
       emit: (event) => emit(conversation, event),
-      ask: (action, signal) => ask(conversation, action, signal),
+      ask: (action, signal, always) =>
+        ask(conversation, action, signal, always),
     },
   });
 
@@ -230,7 +231,7 @@ export function respondTo(
   const answers = Array.isArray(reply.answers)
     ? reply.answers.map((answer) => (typeof answer === 'string' ? answer : ''))
     : undefined;
-  settle({ allow: true, answers });
+  settle({ allow: true, answers, always: reply.always === true });
 }
 
 export async function interruptConversation(id: string): Promise<void> {
@@ -343,7 +344,8 @@ export function disposeAgents(): void {
 function ask(
   conversation: Conversation,
   action: AgentAction,
-  signal: AbortSignal
+  signal: AbortSignal,
+  always: string | null
 ): Promise<AgentReply> {
   const requestId = randomUUID();
 
@@ -365,7 +367,7 @@ function ask(
     }
     signal.addEventListener('abort', onAbort);
     conversation.pending.set(requestId, settle);
-    emit(conversation, { type: 'approval', requestId, action });
+    emit(conversation, { type: 'approval', requestId, action, always });
   });
 }
 

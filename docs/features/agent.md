@@ -110,7 +110,8 @@ thing the channel could have been told.
 
 ### Approvals are a promise held in main
 
-A driver that wants permission calls `host.ask(action, signal)` and awaits it.
+A driver that wants permission calls `host.ask(action, signal, always)` and
+awaits it.
 The registry mints a request id, emits `approval`, and keeps the resolver
 until one of four things settles it: `agent:respond`, an interrupt, the agent
 withdrawing the question (its `signal` aborts), or the conversation stopping.
@@ -131,6 +132,21 @@ its own business; the Claude driver puts them back under the question texts
 in `withAnswers`. A bare yes is not an answer — Claude then reports that the
 person did not answer. The reply crosses from the renderer, so `respondTo`
 rebuilds it from a boolean and strings before any driver sees it.
+
+**A yes can stand.** With each request Claude sends the rules its own
+terminal would save under "Yes, and don't ask again" — `Bash(npm pkg *)` for
+the project, "accept edits" for the session, a folder it may write to. The
+driver words the most important one as a sentence, "Always allow `npm pkg *`
+in this project", and that sentence is the `always` on the approval and the
+label of the card's third button. Taking it replies `always: true`, and the
+driver hands Claude's rules back unchanged as `updatedPermissions`, so they
+land where the terminal would have put them — `.claude/settings.local.json`
+for a project rule, the session for a mode — and `/permissions` lists them
+the same way. Nothing on this side writes a settings file. When Claude marks
+a request `suppressAlwaysAllowRule` — the rule would grant more than the
+action asked about — there is no third button. A mode granted this way is
+reported as a `mode` event at once, so the picker shows it before the next
+turn would.
 
 Which actions are asked about is the agent's own business. A conversation
 starts with no `permissionMode`, so Claude Code begins in whatever the
@@ -340,7 +356,11 @@ arrives.
 1. The card being asked about takes the accent and shows **Allow** and
    **Deny**. The tab's logo gets an accent dot, so a question in a tab
    behind another is visible from the tab bar.
-2. Either answer goes to main, the card's buttons go away, and the agent
+2. When the agent offers a standing permission, a third button says what it
+   grants — "Always allow `npm pkg *` in this project", "Allow every edit in
+   this conversation". Clicking it allows this action and saves the rule, so
+   the next one goes ahead without a card.
+3. Any answer goes to main, the card's buttons go away, and the agent
    carries on — or is told it was declined.
 
 ### Answering the agent
@@ -434,6 +454,9 @@ arrives.
   second driver needs a second tile.
 - **No directory crosses on `agent:start`.** The root comes from
   `askingRoot(event)`; see the IPC rules in [ipc.md](../ipc.md).
+- **A standing permission is the agent's own rule, handed back.** The
+  driver never writes `.claude/settings*.json` and never builds a rule of its
+  own; it returns what Claude suggested, or nothing.
 - **Every approval settles through `settle`.** A path that resolves the
   driver's promise without emitting `approval-closed` leaves a card on screen
   asking about something already decided.

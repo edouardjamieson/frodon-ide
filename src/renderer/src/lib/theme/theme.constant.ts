@@ -1,8 +1,10 @@
+import { tags as t, type Tag } from '@lezer/highlight';
 import type {
   AccentKey,
   PaletteKey,
   RoleKey,
   ThemeDefinition,
+  ThemeSyntax,
 } from './theme.def';
 
 /** The theme used when config names none, and the root of every `extends` chain. */
@@ -401,5 +403,78 @@ export const BUILT_IN_THEMES: ThemeDefinition[] = [
         brightWhite: '#ece1d0',
       },
     },
+  },
+];
+
+/**
+ * Which Lezer highlight tags each syntax group colors.
+ *
+ * One table for every place that highlights code: the editor hands it to
+ * CodeMirror with the theme's colors, and a code block in an agent's reply
+ * hands it to `highlightCode` with the matching custom properties. Two copies
+ * would drift, and a keyword the editor shows in one color and a reply in
+ * another reads as two themes.
+ *
+ * Only the ten groups a theme colors. What CodeMirror alone draws — a
+ * heading's weight, a link's underline, an invalid token in the danger
+ * color — stays in `editor.theme.ts`.
+ */
+export const SYNTAX_TAGS: {
+  group: keyof ThemeSyntax;
+  tags: Tag[];
+  italic?: boolean;
+}[] = [
+  {
+    group: 'comment',
+    tags: [t.comment, t.lineComment, t.blockComment, t.docComment],
+    italic: true,
+  },
+  {
+    group: 'keyword',
+    tags: [
+      t.keyword,
+      t.modifier,
+      t.controlKeyword,
+      t.operatorKeyword,
+      t.definitionKeyword,
+      t.moduleKeyword,
+      t.operator,
+      t.compareOperator,
+      t.logicOperator,
+      t.arithmeticOperator,
+      t.attributeName,
+    ],
+  },
+  {
+    group: 'string',
+    tags: [t.string, t.special(t.string), t.regexp, t.character],
+  },
+  {
+    group: 'number',
+    tags: [t.number, t.integer, t.float, t.bool, t.null, t.atom],
+  },
+  {
+    group: 'function',
+    tags: [t.function(t.variableName), t.function(t.propertyName), t.macroName],
+  },
+  {
+    group: 'variable',
+    tags: [t.variableName, t.propertyName, t.attributeValue],
+  },
+  {
+    group: 'class',
+    tags: [t.className, t.typeName, t.namespace, t.standard(t.variableName)],
+  },
+  { group: 'tag', tags: [t.tagName, t.angleBracket] },
+  {
+    group: 'punctuation',
+    tags: [
+      t.punctuation,
+      t.separator,
+      t.bracket,
+      t.paren,
+      t.brace,
+      t.squareBracket,
+    ],
   },
 ];

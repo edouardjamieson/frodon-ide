@@ -20,6 +20,7 @@ import type {
 import type { TranscriptEntry } from '~/lib/agent';
 import { QuestionForm } from './agent-question.component';
 import { AttachmentChip } from './agent-attach.component';
+import { Markdown } from './agent-markdown.component';
 
 /**
  * One row of a transcript.
@@ -64,11 +65,7 @@ export function TranscriptRow({
         </div>
       );
     case 'assistant':
-      return (
-        <div className="whitespace-pre-wrap text-fg select-text">
-          {entry.text}
-        </div>
-      );
+      return <Markdown text={entry.text} onOpenFile={onOpenFile} />;
     case 'notice':
       return (
         <div

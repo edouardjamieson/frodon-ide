@@ -29,7 +29,7 @@ and a member on `AgentKind`. ADR-0042.
 | `main/agent/agent-attachment.service.ts` | `cleanAttachments`: what a message carries, checked before a driver sees it |
 | `main/agent/agent.constant.ts` | `FLUSH_MS`, `OUTPUT_LIMIT`, the probe timeouts, how many sessions are listed |
 | `renderer/src/lib/agent/` | the transcript store, `reduce`, and `useConversationLifetime` |
-| `components/modules/agent/` | the transcript and composer, one row per entry, the pickers for model and permission mode, the `/` menu, the favorite button, attachment chips and the project picker, and each agent's logo |
+| `components/modules/agent/` | the transcript and composer, one row per entry, the pickers for model and permission mode, the `/` menu, a reply drawn as markdown, the favorite button, attachment chips and the project picker, and each agent's logo |
 | `components/modules/window/window-agent.component.tsx` | the tab bar and the tile body |
 | `components/modules/workbench/sidebar/favorites/` | the Favorites view: open, rename, remove |
 | `renderer/src/lib/window/window.hook.ts` | `useOpenFavorite` and `useConversationRevealEffect`: the tab already on a favorite, in any window, or a new one |
@@ -282,6 +282,31 @@ thing that turns events into entries. Text arrives as deltas keyed by message
 id and is appended; a message that never streamed — an API error, "Not logged
 in" — arrives whole and is shown whole.
 
+### A reply is drawn as markdown, from a tree and never from HTML
+
+A reply goes through `@lezer/markdown`, the parser behind the editor's `.md`
+mode, and `Markdown` turns the tree into elements: headings, lists and task
+lists, quotes, tables, inline code and fenced blocks. Nothing on the way is
+an HTML string, so a reply that contains `<script>` shows the text
+`<script>`. ADR-0046.
+
+A fenced block is highlighted in the language its fence names, with the
+editor's grammars and the editor's colors: both read `SYNTAX_TAGS`, and the
+block's classes point at the theme's `--fd-syntax-*` properties, so a theme
+switch reaches it without a render. A grammar not yet fetched leaves the
+block plain for the moment the fetch takes.
+
+A link never navigates the window it is in. A web address opens in the
+person's browser; a path opens in the editor, without the `:42` or `#L42`
+an agent puts on the end. An image is drawn as a link to it rather than
+fetched.
+
+`Markdown` is memoized on its text. Every delta re-renders the transcript,
+and without the memo each one would parse every earlier reply again; with
+it, only the reply being written is parsed. A reply half-written is half a
+document, and is drawn as one: an open fence runs to the end until its close
+arrives.
+
 ## User flows
 
 ### Starting a conversation
@@ -464,8 +489,9 @@ in" — arrives whole and is shown whole.
 - **An approval open when the app quit.** It comes back as a card without
   buttons, closed as not finished; the agent asks again if it still needs
   to.
-- **Markdown.** Replies are drawn as pre-wrapped text. A renderer is a new
-  dependency and gets its own decision.
+- **More markdown.** Table alignment, reference-style links and most HTML
+  entities show as written. A copy button on a code block, and a file path
+  in backticks that opens the file, are the two that would be used daily.
 - **Workbench context.** An in-process MCP server in the driver could give the
   agent `open_file`, the selection and boards without the socket ADR-0027
   parked — the cost that made it not worth building is gone on this path.

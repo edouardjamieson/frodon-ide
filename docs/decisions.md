@@ -18,6 +18,44 @@ their reasoning is the reasoning recorded at the time, not reconstructed.
 
 ---
 
+### ADR-0046 — A reply is parsed by the editor's markdown parser and drawn as React elements
+
+**When** 2026-11-08 · **Status** active · **Touches** agent, editor, theme
+
+**What.** An agent's reply is parsed with `@lezer/markdown` (GitHub's
+dialect) and its syntax tree is turned into React elements by hand. No HTML
+string is produced or injected at any point, and no markdown library is added.
+Code blocks are highlighted with the editor's grammars, through the same tag
+table the editor colors with.
+
+**Why.** The usual answer is `react-markdown` with `remark-gfm`: a dozen
+packages of unified/micromark for something the bundle already contains,
+since CodeMirror's markdown mode is built on `@lezer/markdown`. The other
+usual answer, `marked` into `dangerouslySetInnerHTML`, puts the agent's words
+— and whatever web page it quoted — one sanitizer bug away from markup in the
+window that holds the preload bridge. Walking the tree means an unknown node,
+raw HTML included, can only ever come out as its source text. Sharing the
+parser also means a reply and a `.md` file opened in the editor agree on what
+a table or a task list is.
+
+**How.** `components/modules/agent/agent-markdown.service.ts` holds the parser
+(`parser.configure(GFM)`), the highlighter and `grammarFor`, which finds a
+fence's grammar in `@codemirror/language-data`.
+`agent-markdown.component.tsx` walks the tree: block nodes to elements, the
+text between inline nodes as text, marks to nothing. `SYNTAX_TAGS` in
+`lib/theme/theme.constant.ts` is the one map from highlight tags to the ten
+syntax groups; the editor turns it into a `HighlightStyle` with the theme's
+colors, a code block into classes over `--fd-syntax-*`. Links never navigate:
+a web address goes through `window.open` to the person's browser, a path to
+the editor.
+
+**Cost.** Every node the dialect has needs a case written for it, and a
+construct nobody wrote one for shows as its source rather than degrading
+gracefully into something close. Lezer's tree is a parse for editing, not for
+rendering — table alignment, reference-style links and HTML entities beyond a
+handful are not handled, and each would be more code here rather than a
+version bump of a library that already does it.
+
 ### ADR-0045 — A message attaches project paths, or images handed over, and nothing else
 
 **When** 2026-10-31 · **Status** active · **Touches** agent

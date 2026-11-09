@@ -106,6 +106,7 @@ import {
   setConversationMode,
   respondTo,
   rewindConversation,
+  runShellCommand,
   answerWorkbench,
   sendMessage,
   startConversation,
@@ -589,6 +590,8 @@ export function registerIpcHandlers(): void {
   handle('agent:rewind', ({ id, messageId, restore }) =>
     rewindConversation(id, messageId, restore)
   );
+
+  handle('agent:shell', ({ id, command }) => runShellCommand(id, command));
 
   handle('agent:respond', ({ id, requestId, reply }) =>
     respondTo(id, requestId, reply)

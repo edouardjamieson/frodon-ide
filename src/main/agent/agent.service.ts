@@ -27,9 +27,15 @@ import type {
 } from '@shared/agent.def';
 import type { AgentSettings } from '@shared/config.def';
 import { AGENT_LABELS, isSessionToken } from '@shared/agent.def';
-import { DAY_MS, FLUSH_MS } from './agent.constant';
+import {
+  DAY_MS,
+  FLUSH_MS,
+  NOTE_OUTPUT_LIMIT,
+  OUTPUT_LIMIT,
+} from './agent.constant';
 import type { AgentDriver, AgentRun } from './agent.def';
-import { claudeDriver } from './agent-claude.service';
+import { claudeDriver, shellAction } from './agent-claude.service';
+import { runShell } from './agent-shell.service';
 import { loginEnvironment } from './agent-environment.service';
 import { readFavorites } from './agent-favorite.service';
 import { cleanAttachments } from './agent-attachment.service';
@@ -50,6 +56,8 @@ interface Conversation {
   kind: AgentKind;
   /** The window that started it, and the only one told about it. */
   senderId: number;
+  /** The project it runs in — main's, never the renderer's word. */
+  cwd: string;
   run: AgentRun;
   /** Events waiting to cross, and the timer that will send them. */
   buffer: AgentEvent[];
@@ -157,10 +165,12 @@ export async function startConversation(
     id,
     kind,
     senderId,
+    cwd,
     run: {
       session: null,
       send: () => {},
       rewind: async () => ({ ok: false, error: 'The agent is starting.' }),
+      ranCommand: () => {},
       interrupt: async () => {},
       setModel: async () => {},
       setMode: async () => {},
@@ -270,6 +280,48 @@ function isMessageId(value: unknown): value is string {
       value
     )
   );
+}
+
+/**
+ * Runs a `!` command from the composer in the conversation's project, draws
+ * it as a command card, and hands it and its output to the agent. The command
+ * is the person's own, typed into their own composer — what a terminal tile
+ * would run — so nothing asks first.
+ */
+export async function runShellCommand(
+  id: string,
+  command: unknown
+): Promise<void> {
+  const conversation = conversations.get(id);
+  if (!conversation || typeof command !== 'string' || !command.trim()) return;
+  const line = command.trim();
+
+  const actionId = randomUUID();
+  emit(conversation, { type: 'action', action: shellAction(actionId, line) });
+  const { code, output } = await runShell(
+    line,
+    conversation.cwd,
+    await loginEnvironment()
+  );
+  emit(conversation, {
+    type: 'action-result',
+    actionId,
+    ok: code === 0,
+    output: tail(output, OUTPUT_LIMIT),
+  });
+  conversation.run.ranCommand({
+    command: line,
+    output: tail(output, NOTE_OUTPUT_LIMIT),
+    code,
+  });
+}
+
+/**
+ * The end of a long output rather than its start: the last lines of a build
+ * are where it says what went wrong.
+ */
+function tail(text: string, limit: number): string {
+  return text.length <= limit ? text : `…${text.slice(text.length - limit)}`;
 }
 
 /** The answer every way out of a question that is not a click gives. */

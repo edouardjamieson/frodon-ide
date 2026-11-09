@@ -50,3 +50,17 @@ export const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** How long Claude Code keeps a conversation when its settings do not say. */
 export const CLAUDE_DEFAULT_KEEP_DAYS = 30;
+
+/**
+ * How long a `!` command from the composer may run. Long enough for a test
+ * suite; a server meant to keep running belongs in a terminal tile, and this
+ * is what stops one started here by mistake from running for good.
+ */
+export const SHELL_COMMAND_TIMEOUT_MS = 120_000;
+
+/**
+ * The most of a `!` command's output the agent is handed, in characters.
+ * Larger than what a card shows, because the agent reads all of it; capped,
+ * because a build log can be megabytes and a context window cannot.
+ */
+export const NOTE_OUTPUT_LIMIT = 30_000;

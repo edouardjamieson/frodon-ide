@@ -497,6 +497,24 @@ function startClaude({
       );
       return { ok: true, files };
     },
+    ranCommand({ command, output, code }) {
+      // Appended, not asked: `shouldQuery: false` puts it in the transcript
+      // and Claude reads it with the next message that does ask — which is
+      // what the terminal's bash mode does, in the tags it uses for it.
+      const status =
+        code === 0
+          ? ''
+          : `\n<bash-exit-code>${code ?? 'killed'}</bash-exit-code>`;
+      current.inbox.push({
+        type: 'user',
+        shouldQuery: false,
+        message: {
+          role: 'user',
+          content: `<bash-input>${command}</bash-input>\n<bash-stdout>${output}</bash-stdout>${status}`,
+        },
+        parent_tool_use_id: null,
+      });
+    },
     async interrupt() {
       await current.conversation.interrupt();
     },
@@ -749,6 +767,11 @@ class Translator {
       }
 
       case 'result':
+        // What an appended `!` command ends with: a result of no turns at
+        // all, since nothing was asked. Passing it on would mark the tile
+        // idle — in the middle of a real turn, if the command was run
+        // during one.
+        if (message.num_turns === 0 && message.subtype === 'success') return;
         this.host.emit({
           type: 'turn-ended',
           ok: message.subtype === 'success' && !message.is_error,
@@ -881,6 +904,22 @@ function replay(messages: SessionMessage[]): AgentEvent[] {
   for (const stored of messages) {
     if (stored.parent_tool_use_id) continue;
     if (stored.type === 'user') {
+      // A `!` command run from the composer, stored as bash mode stores it:
+      // drawn again as the card it was, not as a message full of tags.
+      const ran = ranCommandOf(stored.message);
+      if (ran) {
+        const id = typeof stored.uuid === 'string' ? stored.uuid : randomUUID();
+        events.push(
+          { type: 'action', action: shellAction(id, ran.command) },
+          {
+            type: 'action-result',
+            actionId: id,
+            ok: true,
+            output: trimmed(ran.output),
+          }
+        );
+        continue;
+      }
       const text = promptOf(stored.message);
       if (text)
         events.push({
@@ -1121,6 +1160,24 @@ const INJECTED = [
   '<user-prompt-submit-hook>',
   'Caveat: ',
 ];
+
+/** A `!` command, as the card for it is drawn — live or replayed. */
+export function shellAction(id: string, command: string): AgentAction {
+  return { id, kind: 'command', title: 'Ran in your shell', command };
+}
+
+/** A stored bash-mode message, as the command and what it printed. */
+function ranCommandOf(
+  message: unknown
+): { command: string; output: string } | null {
+  const content = (message as { content?: unknown } | null)?.content;
+  if (typeof content !== 'string' || !content.startsWith('<bash-input>'))
+    return null;
+  const command = /<bash-input>([\s\S]*?)<\/bash-input>/.exec(content)?.[1];
+  const output =
+    /<bash-stdout>([\s\S]*?)<\/bash-stdout>/.exec(content)?.[1] ?? '';
+  return command === undefined ? null : { command, output };
+}
 
 /** The person's words in a stored user message, or '' when it has none. */
 function promptOf(message: unknown): string {

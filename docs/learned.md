@@ -342,6 +342,16 @@ Packaging will also need `prebuilds/` unpacked from the asar.
 
 ## The libraries
 
+### A message that does not query still ends with a result
+`code` · 2026-11-09 · `src/main/agent/agent-claude.service.ts`
+
+An `SDKUserMessage` with `shouldQuery: false` is appended to the transcript
+without asking the model anything — and the stream still answers it with a
+`result`, `success`, `num_turns: 0`, costing nothing. Passed on, that read
+as a turn ending: harmless while idle, but a `!` command run during a turn
+would have marked the tile idle with the agent still working. The driver
+drops a successful result of zero turns.
+
 ### `rewindFiles` says which files it changed only in a dry run
 `code` · 2026-11-09 · `src/main/agent/agent-claude.service.ts`
 

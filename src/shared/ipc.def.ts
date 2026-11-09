@@ -456,6 +456,11 @@ export interface IpcContract {
     };
     res: void;
   };
+  /**
+   * Runs a `!` command from the composer in the conversation's project and
+   * hands its output to the agent. Answers once it has finished.
+   */
+  'agent:shell': { req: { id: string; command: string }; res: void };
   /** Back to before a message — see `AgentRewind`. Between turns only. */
   'agent:rewind': {
     req: { id: string; messageId: string; restore: AgentRewind };
@@ -867,6 +872,7 @@ export interface FrodonApi {
       messageId: string,
       restore: AgentRewind
     ) => Promise<AgentRewindResult>;
+    shell: (id: string, command: string) => Promise<void>;
     respond: (
       id: string,
       requestId: string,

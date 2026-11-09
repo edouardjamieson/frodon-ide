@@ -181,6 +181,18 @@ export function useConversation(id: string) {
     [id]
   );
 
+  /**
+   * Runs a `!` command in the project. Nothing is drawn here: main draws it
+   * as a command card, the same as one of the agent's, and hands what it
+   * printed to the agent.
+   */
+  const runCommand = useCallback(
+    (command: string) => {
+      if (command.trim()) void window.frodon.agent.shell(id, command);
+    },
+    [id]
+  );
+
   return {
     conversation,
     send,
@@ -189,6 +201,7 @@ export function useConversation(id: string) {
     chooseModel,
     chooseMode,
     rewind,
+    runCommand,
   };
 }
 

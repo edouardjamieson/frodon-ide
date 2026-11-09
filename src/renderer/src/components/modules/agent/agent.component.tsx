@@ -79,6 +79,7 @@ export default function Agent({ conversationId, active }: AgentProps) {
     chooseModel,
     chooseMode,
     rewind,
+    runCommand,
   } = useConversation(conversationId);
   const favoriteName = useFavoriteName(conversationId);
 
@@ -135,7 +136,13 @@ export default function Agent({ conversationId, active }: AgentProps) {
   const sendable = !ended && (draft.trim() !== '' || attachments.length > 0);
   const background = runningBackground(conversation);
 
-  const closed = ended || draft === dismissed;
+  /**
+   * A draft that starts with `!` is a command for the person's own shell —
+   * the terminal's bash mode — and nothing in it is a mention or a command
+   * of the agent's, so the menus stay shut.
+   */
+  const shell = draft.startsWith('!');
+  const closed = ended || shell || draft === dismissed;
   const query = closed ? null : commandQuery(draft);
   const commands =
     query === null ? [] : rankCommands(conversation.commands, query);
@@ -188,6 +195,13 @@ export default function Agent({ conversationId, active }: AgentProps) {
 
   const submit = () => {
     if (!sendable) return;
+    if (shell) {
+      // Attachments stay for the next message: a command takes none.
+      runCommand(draft.slice(1));
+      setDraft('');
+      following.current = true;
+      return;
+    }
     send(draft, attachments);
     setDraft('');
     setAttachments([]);
@@ -418,7 +432,10 @@ export default function Agent({ conversationId, active }: AgentProps) {
           onDrop={onDrop}
           className={cn(
             'relative flex flex-col gap-2 rounded-lg border border-pane-border bg-input px-2 py-1.5 focus-within:border-project/50',
-            { 'border-dashed border-project/70': dragging }
+            {
+              'border-dashed border-project/70': dragging,
+              'border-project/70 focus-within:border-project': shell,
+            }
           )}
         >
           {attachments.length > 0 ? (
@@ -442,6 +459,12 @@ export default function Agent({ conversationId, active }: AgentProps) {
           ) : null}
           {refusal ? (
             <p className="text-[11px] text-fg-danger">{refusal}</p>
+          ) : null}
+          {shell ? (
+            <p className="text-[11px] text-project">
+              Runs in your shell, in the project. The agent sees what it prints,
+              the next time you ask it something.
+            </p>
           ) : null}
           {commands.length > 0 ? (
             <CommandMenu
@@ -489,10 +512,13 @@ export default function Agent({ conversationId, active }: AgentProps) {
               ended
                 ? 'This conversation has ended.'
                 : conversation.commands.length > 0
-                  ? 'Message — / for commands, @ for files, or paste a screenshot'
-                  : 'Message — @ for files, or paste a screenshot to show it'
+                  ? 'Message — / for commands, @ for files, ! to run a command'
+                  : 'Message — @ for files, ! to run a command'
             }
-            className="min-w-0 flex-1 resize-none bg-transparent text-[14px] text-fg outline-none placeholder:text-fg-subtle"
+            className={cn(
+              'min-w-0 flex-1 resize-none bg-transparent text-[14px] text-fg outline-none placeholder:text-fg-subtle',
+              { 'font-mono text-[13px]': shell }
+            )}
           />
           <div className="flex items-center justify-between gap-2">
             <FavoriteButton

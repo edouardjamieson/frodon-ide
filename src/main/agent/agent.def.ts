@@ -82,6 +82,16 @@ export interface AgentRun {
     messageId: string,
     restore: AgentRewind
   ) => Promise<AgentRewindResult>;
+  /**
+   * Adds a command the person ran from the composer, and what it printed,
+   * to what the agent knows — without asking it anything. It reads it with
+   * the next message that does ask.
+   */
+  ranCommand: (ran: {
+    command: string;
+    output: string;
+    code: number | null;
+  }) => void;
   /** Stops the turn in progress. The conversation stays open. */
   interrupt: () => Promise<void>;
   /**

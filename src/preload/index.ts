@@ -131,6 +131,7 @@ const api: FrodonApi = {
       ipcRenderer.invoke('agent:send', { id, text, attachments, messageId }),
     rewind: (id, messageId, restore) =>
       ipcRenderer.invoke('agent:rewind', { id, messageId, restore }),
+    shell: (id, command) => ipcRenderer.invoke('agent:shell', { id, command }),
     respond: (id, requestId, reply) =>
       ipcRenderer.invoke('agent:respond', { id, requestId, reply }),
     interrupt: (id) => ipcRenderer.invoke('agent:interrupt', { id }),

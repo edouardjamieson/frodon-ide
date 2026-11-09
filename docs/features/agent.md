@@ -93,6 +93,23 @@ siblings it answers "Not logged in". The shell's own bookkeeping — `PWD`,
 `OLDPWD`, `SHLVL`, `_` — is left behind. An export added to the profile
 reaches a new agent after a restart, not before.
 
+### A `!` command runs in your shell, and the agent reads it
+
+A message that starts with `!` is not sent to the agent: main runs it with
+`$SHELL -lc` in the project, in the login environment the agent gets
+(`agent-shell.service.ts`), draws it as a command card titled "Ran in your
+shell", and hands the command and its output to the driver. Claude's driver
+appends that to the session as the terminal's bash mode does —
+`<bash-input>`, `<bash-stdout>` — with `shouldQuery: false`, so no turn
+starts and Claude reads it with the next message that asks something. The
+card shows the end of the output, which is where a build says what broke;
+the agent gets up to 30,000 characters of it. A command still running after
+two minutes is stopped with its process group. Replayed, the stored command
+becomes its card again.
+
+Running one is not an approval, because it is not the agent's action: it
+is what the person would have typed into a terminal tile.
+
 ### Rewinding is a new process on the same session
 
 A message the person sends carries an id minted in the renderer, which
@@ -478,6 +495,15 @@ arrives.
    until the text changes. Nothing is sent until Shift+Enter.
 5. While a turn runs, the send button becomes a stop button, which interrupts
    the turn and answers every open question no.
+
+### Running a command yourself
+
+1. Start the message with `!` — `!pnpm test`. The box turns the project's
+   color and says the command runs in your shell.
+2. Shift+Enter runs it. It appears as a command card with its output, and
+   nothing is sent to the agent yet.
+3. The next message you send is read with that output in front of the agent
+   — "why did that fail?" needs nothing else.
 
 ### Rewinding
 

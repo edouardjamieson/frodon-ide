@@ -43,6 +43,7 @@ import type {
   AgentEvent,
   AgentQuestion,
   AgentTask,
+  AgentTaskStep,
   AgentWorkbench,
 } from '@shared/agent.def';
 import {
@@ -530,9 +531,9 @@ async function pump(
  * message with no deltas ahead of it, and would otherwise never be shown.
  *
  * Subagent traffic (`parent_tool_use_id` set) is not drawn as conversation.
- * Its tool calls become the steps of a task, shown under the call that
- * started it; its words are dropped, because the conversation inside it is
- * the subagent's, and drawing it inline would bury the one the person is
+ * Its tool calls and what it says between them become the steps of a task,
+ * shown under the call that started it, because the conversation inside it
+ * is the subagent's, and drawing it inline would bury the one the person is
  * having. What it concluded arrives as the task's summary.
  *
  * Tasks are kept here, whole, because Claude reports them in pieces — a
@@ -706,20 +707,31 @@ class Translator {
    */
   private steps(parent: string, content: unknown): void {
     if (!Array.isArray(content)) return;
-    const titles = content.flatMap((block: Record<string, unknown>) =>
-      block['type'] === 'tool_use' &&
-      typeof block['id'] === 'string' &&
-      typeof block['name'] === 'string'
-        ? [
-            actionOf(
-              block['id'],
-              block['name'],
-              (block['input'] ?? {}) as Record<string, unknown>
-            ).title,
-          ]
-        : []
+    const added = content.flatMap(
+      (block: Record<string, unknown>): AgentTaskStep[] => {
+        if (
+          block['type'] === 'tool_use' &&
+          typeof block['id'] === 'string' &&
+          typeof block['name'] === 'string'
+        ) {
+          const input = (block['input'] ?? {}) as Record<string, unknown>;
+          return [
+            {
+              kind: 'call',
+              text: actionOf(block['id'], block['name'], input).title,
+            },
+          ];
+        }
+        // What it says between calls — "the handler is in two places, checking
+        // both" — is what tells a subagent making progress from one lost.
+        if (block['type'] === 'text' && typeof block['text'] === 'string') {
+          const text = block['text'].trim();
+          return text ? [{ kind: 'message', text }] : [];
+        }
+        return [];
+      }
     );
-    if (titles.length === 0) return;
+    if (added.length === 0) return;
 
     const existing = [...this.tasks.values()].find(
       (task) => task.actionId === parent
@@ -728,7 +740,7 @@ class Translator {
     this.task(id, {
       actionId: parent,
       description: existing?.description || 'Subagent',
-      steps: [...(existing?.steps ?? []), ...titles],
+      steps: [...(existing?.steps ?? []), ...added],
     });
   }
 }

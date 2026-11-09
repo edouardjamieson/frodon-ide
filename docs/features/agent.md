@@ -371,7 +371,10 @@ those back together into one `AgentTask` and sends it whole on every change;
 the renderer keeps tasks by that call's id, and the call's card draws its
 task: what it is doing now and its latest three steps while it runs, then
 "Done" with the steps and its report folded away. A step is the subagent's
-tool call run through `actionOf`, so it reads like any card's title.
+tool call run through `actionOf`, so it reads like any card's title, or
+something the subagent said between calls — "the handler is in two places,
+checking both" — in italics, one line while it runs and whole once folded
+open. The step count counts only the calls.
 
 In Claude Code 2.1.309 a subagent can run in the background: the `Agent`
 call returns at once with "Async agent launched", the turn ends, and the
@@ -626,9 +629,9 @@ arrives.
 - **More of the workbench.** Boards, terminals and the git window are not
   reachable from a conversation yet; each would be another tool beside
   `editor_state` and `open_file`.
-- **What a subagent says.** Its steps and its report are shown; the words
-  it writes along the way are not, and neither is anything it was asked to
-  approve beyond the ordinary card.
+- **A subagent's approvals in its own card.** What a subagent asks to do is
+  asked on an ordinary card in the transcript, not under the task it
+  belongs to.
 - **A task with no action.** Work Claude starts that no call on screen
   started is tracked by the driver and has nowhere on the tile to go.
 - **Choosing the agent.** One driver, so `DEFAULT_AGENT` is a constant. With

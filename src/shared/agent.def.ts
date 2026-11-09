@@ -362,8 +362,9 @@ export interface AgentSelection {
  *
  * Drawn on the card of the action that started it, when there is one: a
  * subagent is a call like any other, and what it went on to do belongs under
- * that call. Its steps are titles in this file's vocabulary, so a subagent's
- * `Read` reads the same as the conversation's own.
+ * that call. Its steps are what it did and what it said, in order: a call
+ * is a title in this file's vocabulary, so a subagent's `Read` reads the
+ * same as the conversation's own, and a message is its words as written.
  */
 export interface AgentTask {
   id: string;
@@ -373,10 +374,16 @@ export interface AgentTask {
   status: 'running' | 'done' | 'failed' | 'stopped';
   /** What it is doing right now, while it runs. */
   activity: string | null;
-  /** The calls it has made, as one-line titles, oldest first. */
-  steps: string[];
+  /** What it has done and said, oldest first. */
+  steps: AgentTaskStep[];
   /** What it reported when it finished, or why it failed. */
   summary: string | null;
+}
+
+/** One thing a task did — a call — or said — a message — along the way. */
+export interface AgentTaskStep {
+  kind: 'call' | 'message';
+  text: string;
 }
 
 /**

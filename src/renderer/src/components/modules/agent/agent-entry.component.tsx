@@ -18,6 +18,7 @@ import type {
   AgentChange,
   AgentReply,
   AgentTask,
+  AgentTaskStep,
 } from '@shared/agent.def';
 import type { OpenApproval, TranscriptEntry } from '~/lib/agent';
 import { QuestionForm } from './agent-question.component';
@@ -263,6 +264,8 @@ function TaskView({
   const running = task.status === 'running';
   const recent = task.steps.slice(-RECENT_STEPS);
   const hidden = task.steps.length - recent.length;
+  // Counted as the work it did: what it said along the way is not a step.
+  const calls = task.steps.filter((step) => step.kind === 'call').length;
 
   return (
     <div className="flex flex-col gap-1 border-t border-pane-border px-2.5 py-1.5 text-[12px]">
@@ -271,9 +274,9 @@ function TaskView({
         <span className="min-w-0 truncate">
           {running ? (task.activity ?? 'Starting…') : STATUS[task.status]}
         </span>
-        {task.steps.length > 0 ? (
+        {calls > 0 ? (
           <span className="ml-auto shrink-0 text-fg-subtle">
-            {task.steps.length} {task.steps.length === 1 ? 'step' : 'steps'}
+            {calls} {calls === 1 ? 'step' : 'steps'}
           </span>
         ) : null}
       </div>
@@ -282,9 +285,7 @@ function TaskView({
         <ol className="flex flex-col gap-0.5 pl-5.5 text-fg-subtle">
           {hidden > 0 ? <li>…</li> : null}
           {recent.map((step, index) => (
-            <li key={hidden + index} className="truncate">
-              {step}
-            </li>
+            <StepRow key={hidden + index} step={step} />
           ))}
         </ol>
       ) : null}
@@ -296,9 +297,7 @@ function TaskView({
           </summary>
           <ol className="flex flex-col gap-0.5 pt-0.5 pl-5.5 text-fg-subtle">
             {task.steps.map((step, index) => (
-              <li key={index} className="truncate">
-                {step}
-              </li>
+              <StepRow key={index} step={step} whole />
             ))}
           </ol>
         </details>
@@ -315,6 +314,25 @@ function TaskView({
         </details>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * One step under a task. A call is a title, like a card's; a message is the
+ * subagent's own words, set apart in italics so the two read as doing and
+ * saying. While it runs a message is one line, enough to follow along;
+ * folded open afterwards, it is the whole thing.
+ */
+function StepRow({ step, whole }: { step: AgentTaskStep; whole?: boolean }) {
+  return (
+    <li
+      className={cn({
+        truncate: step.kind === 'call' || !whole,
+        'whitespace-pre-wrap italic text-fg-muted': step.kind === 'message',
+      })}
+    >
+      {step.text}
+    </li>
   );
 }
 

@@ -45,7 +45,7 @@ export function TranscriptRow({
   /** The open question about this action, if there is one. */
   approval: OpenApproval | null;
   onRespond: (requestId: string, reply: AgentReply) => void;
-  onOpenFile: (path: string) => void;
+  onOpenFile: (path: string, line?: number) => void;
 }) {
   switch (entry.kind) {
     case 'user':
@@ -126,7 +126,7 @@ function ActionCard({
   task: AgentTask | null;
   approval: OpenApproval | null;
   onRespond: (requestId: string, reply: AgentReply) => void;
-  onOpenFile: (path: string) => void;
+  onOpenFile: (path: string, line?: number) => void;
 }) {
   const { path } = action;
 
@@ -258,7 +258,7 @@ function TaskView({
   onOpenFile,
 }: {
   task: AgentTask;
-  onOpenFile: (path: string) => void;
+  onOpenFile: (path: string, line?: number) => void;
 }) {
   const running = task.status === 'running';
   const recent = task.steps.slice(-RECENT_STEPS);

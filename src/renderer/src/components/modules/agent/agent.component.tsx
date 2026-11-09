@@ -265,7 +265,16 @@ export default function Agent({ conversationId, active }: AgentProps) {
                 : null
             }
             onRespond={respond}
-            onOpenFile={(path) => openFile(resolvePath(root, path))}
+            onOpenFile={(path, line) =>
+              openFile(
+                resolvePath(root, path),
+                undefined,
+                // Nothing selected, only the line brought into view: unlike
+                // a search hit, a reference names a place, not a piece of
+                // text to type over.
+                line ? { line, column: 1, length: 0 } : undefined
+              )
+            }
           />
         ))}
       </div>

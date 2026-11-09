@@ -364,3 +364,47 @@ export function rankCommands(
   }
   return [...starts, ...contains, ...described];
 }
+
+/** A file in the project named in a reply, and the line it points at. */
+export interface FileReference {
+  /** Relative to the project root. */
+  path: string;
+  line: number | null;
+}
+
+/**
+ * A path, and what an agent puts after one to name a line: `:42`, `:42:7`,
+ * `:42-60`, `#L42`, `#L42-L60`. Only the first line is kept — it is where
+ * the editor scrolls to.
+ */
+const REFERENCE = /^(.*?)(?::(\d+)(?::\d+)?(?:-\d+)?|#L(\d+)(?:-L?\d+)?)?$/;
+
+/**
+ * The project file a piece of a reply names, or null when it names none.
+ *
+ * Checked against the project's own files rather than guessed from the
+ * shape of the text: `config.json` in a sentence about some other program
+ * is not a link, and a path that has since been deleted should not look
+ * like one. Relative, `./`-prefixed and absolute-inside-the-project forms
+ * all count, because an agent writes all three.
+ */
+export function fileReference(
+  text: string,
+  root: string | null,
+  files: ReadonlySet<string>
+): FileReference | null {
+  const trimmed = text.trim();
+  if (!trimmed || /\s/.test(trimmed)) return null;
+
+  const match = REFERENCE.exec(trimmed);
+  let path = match?.[1] ?? '';
+  const line = match?.[2] ?? match?.[3];
+
+  path = path.replace(/^\.\//, '');
+  if (root && path.startsWith(`${root.replace(/\/$/, '')}/`))
+    path = path.slice(root.replace(/\/$/, '').length + 1);
+
+  return files.has(path)
+    ? { path, line: line ? parseInt(line, 10) : null }
+    : null;
+}

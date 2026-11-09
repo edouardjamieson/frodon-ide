@@ -333,9 +333,18 @@ switch reaches it without a render. A grammar not yet fetched leaves the
 block plain for the moment the fetch takes.
 
 A link never navigates the window it is in. A web address opens in the
-person's browser; a path opens in the editor, without the `:42` or `#L42`
-an agent puts on the end. An image is drawn as a link to it rather than
-fetched.
+person's browser; a path opens in the editor at the line it names. An image
+is drawn as a link to it rather than fetched.
+
+**A path in backticks is a link too**, when it is a file in the project —
+`src/main/index.ts:42` opens the file scrolled to line 42. Agents name
+files that way far more often than with link syntax. `fileReference` reads
+the line from `:42`, `:42:7`, `:42-60`, `#L42` and `#L42-L60`, takes a
+relative, `./` or absolute-inside-the-project path, and checks the result
+against the project's files: `config.json` in a sentence about some other
+program stays text. The set it checks against is built once per tree and
+shared by every reply (`useFindFile`), so a path the agent has just created
+becomes a link when the watcher sees the file.
 
 `Markdown` is memoized on its text. Every delta re-renders the transcript,
 and without the memo each one would parse every earlier reply again; with
@@ -533,8 +542,8 @@ arrives.
   buttons, closed as not finished; the agent asks again if it still needs
   to.
 - **More markdown.** Table alignment, reference-style links and most HTML
-  entities show as written. A copy button on a code block, and a file path
-  in backticks that opens the file, are the two that would be used daily.
+  entities show as written. A copy button on a code block is the one that
+  would be used daily.
 - **Workbench context.** An in-process MCP server in the driver could give the
   agent `open_file`, the selection and boards without the socket ADR-0027
   parked — the cost that made it not worth building is gone on this path.

@@ -7,11 +7,19 @@
  * unmounts this, and this is what tells main.
  */
 import { useCallback, useEffect, useMemo } from 'react';
+import type { File } from '@shared/fs.def';
 import { useProjectStore } from '~/lib/project';
+import { collectFiles } from '~/lib/file-picker';
 import type { AgentAttachment, AgentKind, AgentReply } from '@shared/agent.def';
 import { useAgentStore } from './agent.store';
 import { DEFAULT_AGENT } from './agent.constant';
-import { reduce, withMessage, withNotice } from './agent.service';
+import {
+  fileReference,
+  reduce,
+  withMessage,
+  withNotice,
+  type FileReference,
+} from './agent.service';
 
 export function useConversationLifetime(id: string): void {
   useEffect(() => {
@@ -222,4 +230,39 @@ export function useOpenSessions(): Set<string> {
       .join('\n')
   );
   return useMemo(() => new Set(joined ? joined.split('\n') : []), [joined]);
+}
+
+/**
+ * The project's files as relative paths, one set per tree.
+ *
+ * Shared by every reply in every conversation: a transcript can hold a
+ * hundred replies, and each building its own set from the whole tree would
+ * be the per-row work that makes a long conversation slow. Keyed weakly on
+ * the tree, which main replaces whole when it changes, so a stale set is
+ * dropped with the tree it was made from.
+ */
+const projectFiles = new WeakMap<File[], Set<string>>();
+
+function filesOf(files: File[], root: string): Set<string> {
+  let set = projectFiles.get(files);
+  if (!set) {
+    set = new Set(collectFiles(files, root).map((file) => file.relative));
+    projectFiles.set(files, set);
+  }
+  return set;
+}
+
+/**
+ * Finds the project file a piece of a reply names — see `fileReference`.
+ * Stable until the tree changes, so a reply that depends on it re-renders
+ * when a file it mentions appears or goes, and not otherwise.
+ */
+export function useFindFile(): (text: string) => FileReference | null {
+  const files = useProjectStore((state) => state.files);
+  const root = useProjectStore((state) => state.root);
+  return useCallback(
+    (text: string) =>
+      root ? fileReference(text, root, filesOf(files, root)) : null,
+    [files, root]
+  );
 }

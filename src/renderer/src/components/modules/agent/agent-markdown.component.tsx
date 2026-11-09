@@ -1,5 +1,7 @@
 import { memo, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { cn } from 'cn';
 import type { SyntaxNode } from '@lezer/common';
+import { useFindFile, type FileReference } from '~/lib/agent';
 import {
   grammarFor,
   highlightLines,
@@ -14,7 +16,9 @@ import {
  * would make a long conversation slower the longer it ran; this way only the
  * reply being written is parsed, once per delta. `onOpenFile` is left out of
  * the comparison on purpose: it is a fresh closure on every render, and the
- * one a row first got opens the same files.
+ * one a row first got opens the same files. What counts as a file in the
+ * project is read through `useFindFile`, which re-renders a reply when the
+ * tree changes — so a path the agent has just created becomes a link.
  *
  * Mid-stream text is half a document — a fence with no close, a table with
  * one row — and the parser takes it as it is: an open fence runs to the end
@@ -26,12 +30,13 @@ export const Markdown = memo(
     onOpenFile,
   }: {
     text: string;
-    onOpenFile: (path: string) => void;
+    onOpenFile: (path: string, line?: number) => void;
   }) {
     const tree = useMemo(() => parseMarkdown(text), [text]);
+    const findFile = useFindFile();
     return (
       <div className="flex flex-col gap-2.5 text-fg select-text">
-        {blocks(tree.topNode, { text, onOpenFile })}
+        {blocks(tree.topNode, { text, onOpenFile, findFile })}
       </div>
     );
   },
@@ -40,7 +45,8 @@ export const Markdown = memo(
 
 interface Context {
   text: string;
-  onOpenFile: (path: string) => void;
+  onOpenFile: (path: string, line?: number) => void;
+  findFile: (text: string) => FileReference | null;
 }
 
 /** Syntax the parser keeps and a reader does not want to see. */
@@ -258,15 +264,42 @@ function span(node: SyntaxNode, context: Context, key: number): ReactNode {
           {inline(node, context)}
         </del>
       );
-    case 'InlineCode':
-      return (
+    case 'InlineCode': {
+      // A path in backticks is how an agent names a file nine times out of
+      // ten — `src/main/index.ts:42` — so one that is in the project opens
+      // it, at the line, like a link would.
+      const marks = node.getChildren('CodeMark');
+      const content = text.slice(
+        marks[0]?.to ?? node.from,
+        marks[1]?.from ?? node.to
+      );
+      const reference = context.findFile(content);
+      const code = (
         <code
-          key={key}
-          className="rounded bg-input px-1 py-px font-mono text-[12.5px]"
+          key={reference ? undefined : key}
+          className={cn('rounded bg-input px-1 py-px font-mono text-[12.5px]', {
+            'text-project': reference,
+          })}
         >
           {inline(node, context)}
         </code>
       );
+      if (!reference) return code;
+      return (
+        <a
+          key={key}
+          href={reference.path}
+          title={`Open ${reference.path}${reference.line ? `:${reference.line}` : ''}`}
+          onClick={(event) => {
+            event.preventDefault();
+            context.onOpenFile(reference.path, reference.line ?? undefined);
+          }}
+          className="cursor-pointer decoration-project/60 underline-offset-2 hover:underline"
+        >
+          {code}
+        </a>
+      );
+    }
     case 'HardBreak':
       return <br key={key} />;
     case 'Escape':
@@ -349,6 +382,11 @@ function ReplyLink({
     if (/^https?:/i.test(href)) {
       window.open(href, '_blank');
     } else if (!SCHEME.test(href) && !href.startsWith('#')) {
+      const reference = context.findFile(decodeURI(href));
+      if (reference) {
+        context.onOpenFile(reference.path, reference.line ?? undefined);
+        return;
+      }
       const path = decodeURI(href.replace(/#.*$/, '')).replace(
         /:\d+(:\d+)?$/,
         ''

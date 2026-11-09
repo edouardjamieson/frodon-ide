@@ -517,7 +517,7 @@ arrives.
 
 ### Reopening one
 
-1. The heart in the sidebar's rail opens **Favorites**: each conversation
+1. The heart in the sidebar's rail, or `mod+shift+h`, opens **Favorites**: each conversation
    by name, with when it was last active.
 2. Clicking one brings forward the tab already on it — in this window or
    another, which is raised — or opens a new tab that draws the
@@ -601,8 +601,6 @@ arrives.
 - **The name in Claude's own list.** `renameSession` could write a
   favorite's name where `claude --resume` shows it. Left out: it writes into the
   agent's store, and nothing here needs it yet.
-- **A shortcut for the Favorites view.** Every other sidebar module has a
-  `mod+shift` chord; this one has only its rail button so far.
 - **Attachments in a reopened conversation.** A replayed message shows its
   text, with the attached paths as the list the agent was sent; its images
   are not drawn.

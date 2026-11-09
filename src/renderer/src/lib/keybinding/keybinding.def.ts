@@ -19,6 +19,7 @@ export type CommandId =
   | 'sidebar.search'
   | 'sidebar.boards'
   | 'sidebar.worktrees'
+  | 'sidebar.favorites'
   | 'git.open'
   | 'agent.new'
   | 'settings.open'

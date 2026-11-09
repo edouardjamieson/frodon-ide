@@ -107,6 +107,7 @@ the app is in the background, which is right for a media key and wrong for
 | `mod+shift+f` | `sidebar.search` | |
 | `mod+shift+b` | `sidebar.boards` | |
 | `mod+shift+w` | `sidebar.worktrees` | free: Close All Windows is `opt+cmd+w` |
+| `mod+shift+h` | `sidebar.favorites` | the heart on the rail; Hide is `cmd+h`, without shift |
 | `mod+shift+g` | `git.open` | |
 | `mod+shift+i` | `agent.new` | a new conversation tab, routed like a file; on Windows and Linux the View menu's DevTools item takes this chord first |
 | `mod+,` | `settings.open` | no menu claims it |
@@ -115,7 +116,7 @@ the app is in the background, which is right for a media key and wrong for
 | `mod+alt+arrow` | `window.moveLeft` … `moveDown` | trades places with the neighbour that way |
 | `mod+shift+n` | `app.newWindow` | an OS window, not a tile |
 
-The four sidebar chords **show** rather than toggle. `mod+b` is how the panel
+The five sidebar chords **show** rather than toggle. `mod+b` is how the panel
 goes away, and a key with two meanings is a key you have to look at the screen
 to use. The rail buttons do toggle — a click on the thing you are already
 looking at has nothing else it could mean.

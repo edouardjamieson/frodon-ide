@@ -43,6 +43,9 @@ export const DEFAULT_KEYBINDINGS: Keybinding[] = [
   // `opt+cmd+w`, not `shift`, and the hand-built menu has no close item at
   // all — so nothing above the page is listening for this one.
   { chord: 'mod+shift+w', command: 'sidebar.worktrees' },
+  // `h` for the heart its rail button wears. Free: macOS's Hide is `cmd+h`
+  // without shift, and the hand-built menu has nothing on this one.
+  { chord: 'mod+shift+h', command: 'sidebar.favorites' },
   { chord: 'mod+shift+g', command: 'git.open' },
   // A new conversation, routed the way a file is: a tab in the focused agent
   // tile, else in any agent tile, else a tile of its own. `i` rather than
@@ -91,6 +94,7 @@ export const COMMAND_LABELS: Record<CommandId, string> = {
   'sidebar.search': 'Search the project',
   'sidebar.boards': 'Boards',
   'sidebar.worktrees': 'Worktrees',
+  'sidebar.favorites': 'Favorite conversations',
   'git.open': 'Source control',
   'agent.new': 'New conversation with an agent',
   'settings.open': 'Settings',

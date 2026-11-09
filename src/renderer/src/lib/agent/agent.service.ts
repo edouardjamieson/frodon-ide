@@ -12,6 +12,7 @@ import {
   type AgentAttachment,
   type AgentCommand,
   type AgentEvent,
+  type AgentTask,
 } from '@shared/agent.def';
 import type { Conversation, TranscriptEntry } from './agent.def';
 
@@ -161,14 +162,36 @@ function apply(conversation: Conversation, event: AgentEvent): Conversation {
     case 'mode':
       return { ...conversation, mode: event.mode };
 
-    case 'task':
-      return {
+    case 'task': {
+      const { task } = event;
+      const key = task.actionId ?? task.id;
+      const before = conversation.tasks[key];
+      const next = {
         ...conversation,
-        tasks: {
-          ...conversation.tasks,
-          [event.task.actionId ?? event.task.id]: event.task,
-        },
+        tasks: { ...conversation.tasks, [key]: task },
       };
+      // Work with no card of its own ends without anything on screen saying
+      // so — its strip above the composer just goes — so the transcript
+      // gets a line, once, as it stops.
+      const ended =
+        task.status !== 'running' &&
+        (before?.status ?? 'running') === 'running';
+      if (!ended || !isBackground(conversation, task)) return next;
+      const what = task.description || 'Background work';
+      const how = TASK_ENDED[task.status];
+      return {
+        ...next,
+        entries: [
+          ...next.entries,
+          notice(
+            task.summary
+              ? `${what} — ${how}: ${task.summary}`
+              : `${what} — ${how}`,
+            task.status === 'failed' ? 'danger' : 'muted'
+          ),
+        ],
+      };
+    }
 
     case 'commands':
       return { ...conversation, commands: event.commands };
@@ -431,4 +454,34 @@ export function mentionAt(draft: string, caret: number): Mention | null {
     start: match.index + (match[1]?.length ?? 0),
     query: match[2] ?? '',
   };
+}
+
+/** How a background task ended, as the transcript's line says it. */
+const TASK_ENDED: Record<AgentTask['status'], string> = {
+  running: 'running',
+  done: 'done',
+  failed: 'failed',
+  stopped: 'stopped',
+};
+
+/**
+ * Whether a task has no card in the transcript to be drawn under: Claude
+ * started it without a call on screen — a hook, a command it backgrounded
+ * itself — or the call it names never arrived.
+ */
+export function isBackground(
+  conversation: Conversation,
+  task: AgentTask
+): boolean {
+  if (!task.actionId) return true;
+  return !conversation.entries.some(
+    (entry) => entry.kind === 'action' && entry.id === task.actionId
+  );
+}
+
+/** The background tasks still running, for the strip above the composer. */
+export function runningBackground(conversation: Conversation): AgentTask[] {
+  return Object.values(conversation.tasks).filter(
+    (task) => task.status === 'running' && isBackground(conversation, task)
+  );
 }

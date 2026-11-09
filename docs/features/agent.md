@@ -376,6 +376,12 @@ something the subagent said between calls — "the handler is in two places,
 checking both" — in italics, one line while it runs and whole once folded
 open. The step count counts only the calls.
 
+A task no card on screen started — a hook's, or one whose call never
+arrived — has nowhere to be drawn under, so while it runs it is a line in a
+strip above the composer, with what it is doing; when it stops, the strip
+loses it and the transcript gains one line saying how it ended, with its
+summary (`isBackground`, `runningBackground`).
+
 In Claude Code 2.1.309 a subagent can run in the background: the `Agent`
 call returns at once with "Async agent launched", the turn ends, and the
 work happens after. So the card's own tick waits for the task, not for the
@@ -632,8 +638,6 @@ arrives.
 - **A subagent's approvals in its own card.** What a subagent asks to do is
   asked on an ordinary card in the transcript, not under the task it
   belongs to.
-- **A task with no action.** Work Claude starts that no call on screen
-  started is tracked by the driver and has nowhere on the tile to go.
 - **Choosing the agent.** One driver, so `DEFAULT_AGENT` is a constant. With
   two, the `+` becomes a choice and the default a user setting.
 - **A pick that becomes the default.** The pickers change one conversation;

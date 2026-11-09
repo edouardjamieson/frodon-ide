@@ -6,7 +6,14 @@ import {
   type KeyboardEvent,
 } from 'react';
 import { cn } from 'cn';
-import { ArrowUp, Brain, Plus, ShieldCheck, Square } from 'lucide-react';
+import {
+  ArrowUp,
+  Brain,
+  LoaderCircle,
+  Plus,
+  ShieldCheck,
+  Square,
+} from 'lucide-react';
 import {
   AGENT_ATTACHMENT_LIMIT,
   AGENT_LABELS,
@@ -18,6 +25,7 @@ import {
   mentionAt,
   rankCommands,
   resolvePath,
+  runningBackground,
   useConversation,
   useConversationLifetime,
   useFavoriteName,
@@ -118,6 +126,7 @@ export default function Agent({ conversationId, active }: AgentProps) {
   const ended = status === 'ended';
 
   const sendable = !ended && (draft.trim() !== '' || attachments.length > 0);
+  const background = runningBackground(conversation);
 
   const closed = ended || draft === dismissed;
   const query = closed ? null : commandQuery(draft);
@@ -345,6 +354,26 @@ export default function Agent({ conversationId, active }: AgentProps) {
           />
         ))}
       </div>
+
+      {background.length > 0 ? (
+        // Work no card on screen started — nothing else would show it is
+        // happening. Gone once it stops; the transcript gets a line then.
+        <div className="flex shrink-0 flex-col gap-0.5 border-t border-pane-border px-3 py-1.5 text-[12px] text-fg-muted">
+          {background.map((task) => (
+            <div key={task.id} className="flex min-w-0 items-center gap-2">
+              <LoaderCircle className="size-3 shrink-0 animate-spin" />
+              <span className="shrink-0 text-fg">
+                {task.description || 'Background work'}
+              </span>
+              {task.activity ? (
+                <span className="min-w-0 truncate text-fg-subtle">
+                  {task.activity}
+                </span>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       <div className="shrink-0 border-t border-pane-border p-2">
         <div

@@ -47,7 +47,15 @@ export default function Favorites() {
       </header>
 
       <ScrollArea className="min-h-0 flex-1">
-        <div className="flex flex-col gap-0.5 p-1.5">
+        {/* Radix slots its content element onto this div, and that element
+            carries `display: table` inline so it can measure its children —
+            which overrides `flex` and lets the longest name widen the list
+            past the panel, `truncate` or not. An inline style of our own
+            wins the merge and puts the column back. See docs/learned.md. */}
+        <div
+          style={{ display: 'flex' }}
+          className="flex w-full min-w-0 flex-col gap-0.5 p-1.5"
+        >
           {/* `favorites` is checked so that the empty state doesn't flash
               between the panel mounting and the first listing. */}
           {list.length === 0 && favorites !== null ? (

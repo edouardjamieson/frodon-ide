@@ -342,6 +342,18 @@ Packaging will also need `prebuilds/` unpacked from the asar.
 
 ## The libraries
 
+### Radix's ScrollArea makes its only child a table
+`code` · 2026-11-09 · `components/modules/workbench/sidebar/favorites/`
+
+`@radix-ui/react-scroll-area` 1.3 measures its content with an element
+styled `display: table; min-width: 100%`, and when it is given a single
+child it no longer wraps it: the style is slotted onto the child, inline.
+So a `flex flex-col` list inside a ScrollArea is silently a table, sized to
+its widest row, and `truncate` on the rows never has a width to cut at — the
+Favorites list ran off the side of the sidebar with a long name. The fix is
+an inline `display` on the child, which wins the merge. Anything that
+expects to be the width of its ScrollArea needs it.
+
 ### A subagent's call returns before the subagent has done anything
 `code` · 2026-11-08 · `src/main/agent/agent-claude.service.ts`
 

@@ -447,8 +447,7 @@ commit tab, and opens the commit's detail through `openCommitDetail`.
 
 `list_boards`, `read_board` and `draw_on_board` let the agent sketch a
 diagram for the person. A board's own format is geometry for a canvas, so
-the agent is shown each element as one line — "rectangle at (100, 100),
-160×80", "text at (147, 125): \"main\"" — and draws in the same terms: text
+the agent is shown each element as one line — `rectangle at (100, 100), 160×80`, `text at (147, 125): "main"` — and draws in the same terms: text
 and boxes by their corner and size, arrows from one point to another.
 `agent-board.service.ts` turns those into elements, in the canvas's default
 brush and with an arrow seated the way `normalizeElement` seats a drawn

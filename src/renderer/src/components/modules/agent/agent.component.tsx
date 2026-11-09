@@ -29,6 +29,7 @@ import {
   useConversation,
   useConversationLifetime,
   useFavoriteName,
+  wakeConversation,
 } from '~/lib/agent';
 import { PROJECT_ENTRY_TYPE, useProjectStore } from '~/lib/project';
 import {
@@ -521,6 +522,12 @@ export default function Agent({ conversationId, active }: AgentProps) {
               edit(event.target.value, event.target.selectionStart)
             }
             onSelect={(event) => setCaret(event.currentTarget.selectionStart)}
+            // A tab restored asleep starts its agent here, as soon as it is
+            // about to be used, so the commands and models are ready by the
+            // time the message is.
+            onFocus={() => {
+              if (status === 'asleep') void wakeConversation(conversationId);
+            }}
             onKeyDown={onKeyDown}
             onPaste={(event) => {
               // Only a paste that carries images is taken over; text pastes

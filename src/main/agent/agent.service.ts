@@ -26,7 +26,7 @@ import type {
   FavoriteEntry,
 } from '@shared/agent.def';
 import type { AgentSettings } from '@shared/config.def';
-import { AGENT_LABELS, isSessionToken } from '@shared/agent.def';
+import { AGENT_LABELS, isAgentKind, isSessionToken } from '@shared/agent.def';
 import {
   DAY_MS,
   FLUSH_MS,
@@ -118,7 +118,8 @@ export async function startConversation(
   kind: AgentKind,
   cwd: string | null,
   senderId: number,
-  resume: string | null
+  resume: string | null,
+  replayed = false
 ): Promise<AgentStartResult> {
   if (!cwd)
     return { ok: false, error: 'Open a project to start an agent in it.' };
@@ -201,7 +202,9 @@ export async function startConversation(
     },
   });
 
-  for (const event of history) emit(conversation, event);
+  // Unless the tab drew it already, from `agent:history`, before anything
+  // was running — then a second copy would draw every message twice.
+  if (!replayed) for (const event of history) emit(conversation, event);
 
   // Ready is said here, by the registry, not left to the driver. Claude Code
   // fed a stream says nothing at all — not even its `init` — until the first
@@ -219,6 +222,20 @@ export async function startConversation(
 
   log.info(`conversation ${id} with ${kind} ${found.version} in ${cwd}`);
   return { ok: true };
+}
+
+/**
+ * A stored conversation, as events, with no agent started — see
+ * `agent:history`. Checked the way a resume is: a known kind, a token in
+ * the shape of one, and looked up in the asking window's project only.
+ */
+export async function conversationHistory(
+  kind: unknown,
+  session: unknown,
+  cwd: string | null
+): Promise<AgentEvent[] | null> {
+  if (!cwd || !isAgentKind(kind) || !isSessionToken(session)) return null;
+  return DRIVERS[kind].history(cwd, session);
 }
 
 /**

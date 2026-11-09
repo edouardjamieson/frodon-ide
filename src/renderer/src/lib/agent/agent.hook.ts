@@ -30,6 +30,20 @@ import {
   type FileReference,
 } from './agent.service';
 
+/**
+ * How to start each tab that is drawn but asleep, by conversation id. Outside
+ * the store, being a function, and gone once the agent starts.
+ */
+const sleepers = new Map<string, () => Promise<boolean>>();
+
+/**
+ * Starts a sleeping tab's agent, if it is asleep. Answers whether it is
+ * running — at once, for a tab that never slept.
+ */
+export function wakeConversation(id: string): Promise<boolean> {
+  return sleepers.get(id)?.() ?? Promise.resolve(true);
+}
+
 export function useConversationLifetime(id: string): void {
   useEffect(() => {
     const { open, update, forget, resumes, dropResume } =
@@ -58,20 +72,65 @@ export function useConversationLifetime(id: string): void {
     // "closed" would end the conversation that replaced it.
     let disposed = false;
 
-    void window.frodon.agent
-      .start(id, kind, resume?.session ?? null)
-      .then((result) => {
-        if (disposed) return;
-        dropResume(id);
-        if (result.ok) return;
-        update(id, (conversation) => ({
-          ...withNotice(conversation, result.error, 'danger'),
-          status: 'ended',
-        }));
-      });
+    /** Starts the agent. Answers whether it is running now. */
+    const start = (replayed: boolean): Promise<boolean> =>
+      window.frodon.agent
+        .start(id, kind, resume?.session ?? null, replayed)
+        .then((result) => {
+          if (disposed) return false;
+          dropResume(id);
+          if (result.ok) return true;
+          update(id, (conversation) => ({
+            ...withNotice(conversation, result.error, 'danger'),
+            status: 'ended',
+          }));
+          return false;
+        });
+
+    if (resume?.lazy) {
+      // Drawn from the agent's record now; started when the tab is used.
+      // A tab restored at launch is often never touched before the app
+      // quits again, and an agent each would be a process each for nothing.
+      void window.frodon.agent
+        .history(resume.kind, resume.session)
+        .then((events) => {
+          if (disposed) return;
+          if (!events) {
+            dropResume(id);
+            update(id, (conversation) => ({
+              ...withNotice(
+                conversation,
+                `${AGENT_LABELS[kind]} no longer has this conversation.`,
+                'danger'
+              ),
+              status: 'ended',
+            }));
+            return;
+          }
+          update(id, (conversation) => ({
+            ...reduce(conversation, events),
+            status: 'asleep',
+          }));
+          sleepers.set(id, () => {
+            // Held while it starts, so a message sent a moment after a
+            // focus woke the tab waits for the same start rather than
+            // racing it to a main that has nowhere to put it yet.
+            const running = start(true).finally(() => sleepers.delete(id));
+            sleepers.set(id, () => running);
+            update(id, (conversation) => ({
+              ...conversation,
+              status: 'starting',
+            }));
+            return running;
+          });
+        });
+    } else {
+      void start(false);
+    }
 
     return () => {
       disposed = true;
+      sleepers.delete(id);
       unsubscribe();
       void window.frodon.agent.stop(id);
       forget(id);
@@ -95,7 +154,12 @@ export function useConversation(id: string) {
         .update(id, (current) =>
           withMessage(current, message, attachments, messageId)
         );
-      void window.frodon.agent.send(id, message, attachments, messageId);
+      // A tab that has not started its agent yet starts it first, and the
+      // message goes once main has somewhere to put it.
+      void wakeConversation(id).then((running) => {
+        if (running)
+          void window.frodon.agent.send(id, message, attachments, messageId);
+      });
     },
     [id]
   );

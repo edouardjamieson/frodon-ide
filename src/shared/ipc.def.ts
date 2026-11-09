@@ -25,6 +25,7 @@ import type {
   AgentAvailability,
   AgentEvents,
   AgentKind,
+  AgentEvent,
   AgentReply,
   AgentRewind,
   AgentRewindResult,
@@ -439,8 +440,27 @@ export interface IpcContract {
    * nothing outside it.
    */
   'agent:start': {
-    req: { id: string; kind: AgentKind; resume: string | null };
+    req: {
+      id: string;
+      kind: AgentKind;
+      resume: string | null;
+      /**
+       * The tab has already drawn the conversation from `agent:history`,
+       * so main need not replay it. Meaningless without `resume`.
+       */
+      replayed: boolean;
+    };
     res: AgentStartResult;
+  };
+  /**
+   * A stored conversation, as the events that draw it, without starting an
+   * agent — for a tab restored at launch, which shows its history and starts
+   * the agent only when it is used. Null when the agent no longer has it.
+   * Looked up in the asking window's project, like `agent:start`.
+   */
+  'agent:history': {
+    req: { kind: AgentKind; session: string };
+    res: AgentEvent[] | null;
   };
   /**
    * The next message, and what is attached to it. One call per message, not
@@ -859,8 +879,13 @@ export interface FrodonApi {
     start: (
       id: string,
       kind: AgentKind,
-      resume: string | null
+      resume: string | null,
+      replayed: boolean
     ) => Promise<Res<'agent:start'>>;
+    history: (
+      kind: AgentKind,
+      session: string
+    ) => Promise<Res<'agent:history'>>;
     send: (
       id: string,
       text: string,

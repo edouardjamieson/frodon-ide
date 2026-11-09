@@ -20,6 +20,11 @@ import type {
 export type ConversationStatus =
   /** Asked main to start it; nothing back yet. */
   | 'starting'
+  /**
+   * Drawn from the agent's record, with no agent running. It starts the
+   * first time the composer is used. Restored tabs begin here.
+   */
+  | 'asleep'
   /** Waiting for the person. */
   | 'idle'
   /** A turn is under way. */
@@ -127,6 +132,12 @@ export interface Conversation {
 export interface ResumeRequest {
   kind: AgentKind;
   session: string;
+  /**
+   * Draw the conversation now and start the agent only when the tab is
+   * used. For tabs restored at launch, which would otherwise start an
+   * agent each before anything has been typed.
+   */
+  lazy?: boolean;
 }
 
 export interface AgentStore {

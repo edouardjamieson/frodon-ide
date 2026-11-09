@@ -102,7 +102,10 @@ export function applyProjectLayout(
   // The same ordering argument for conversations: a tab reads whether to
   // resume as it mounts, so the request has to be waiting before it does.
   const { requestResume } = useAgentStore.getState();
-  for (const [id, tab] of Object.entries(resumes)) requestResume(id, tab);
+  // Lazily: each draws its history at once and starts its agent when used,
+  // so a launch does not start an agent for every favorite left open.
+  for (const [id, tab] of Object.entries(resumes))
+    requestResume(id, { ...tab, lazy: true });
   useWindowStore.getState().restore(windows, focusedId);
 }
 

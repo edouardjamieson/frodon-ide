@@ -106,6 +106,7 @@ import {
   setConversationMode,
   respondTo,
   rewindConversation,
+  conversationHistory,
   runShellCommand,
   answerWorkbench,
   sendMessage,
@@ -573,14 +574,19 @@ export function registerIpcHandlers(): void {
   // where taking a directory from the renderer would matter most.
   handle('agent:availability', ({ kind }) => agentAvailability(kind));
 
-  handle('agent:start', ({ id, kind, resume }, event) =>
+  handle('agent:start', ({ id, kind, resume, replayed }, event) =>
     startConversation(
       id,
       kind,
       askingRoot(event),
       event.sender.id,
-      resume ?? null
+      resume ?? null,
+      replayed === true
     )
+  );
+
+  handle('agent:history', ({ kind, session }, event) =>
+    conversationHistory(kind, session, askingRoot(event))
   );
 
   handle('agent:send', ({ id, text, attachments, messageId }, event) =>

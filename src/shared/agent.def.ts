@@ -30,6 +30,11 @@ export const AGENT_LABELS: Record<AgentKind, string> = {
   claude: 'Claude Code',
 };
 
+/** Whether a value names an agent this build knows. */
+export function isAgentKind(value: unknown): value is AgentKind {
+  return typeof value === 'string' && Object.hasOwn(AGENT_LABELS, value);
+}
+
 /**
  * Whether an agent can be started, and what it is.
  *

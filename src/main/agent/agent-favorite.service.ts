@@ -18,8 +18,8 @@ import { BrowserWindow } from 'electron';
 import { createLogger } from '@main/logger';
 import { FRODON_DIRNAME } from '@main/board';
 import {
-  AGENT_LABELS,
   FAVORITE_NAME_LIMIT,
+  isAgentKind,
   isSessionToken,
   type AgentKind,
   type FavoriteConversation,
@@ -33,10 +33,6 @@ type FavoritesFile = Record<string, FavoriteConversation[]>;
 
 function favoritesFile(): string {
   return path.join(homedir(), FRODON_DIRNAME, FAVORITES_FILENAME);
-}
-
-export function isAgentKind(value: unknown): value is AgentKind {
-  return typeof value === 'string' && Object.hasOwn(AGENT_LABELS, value);
 }
 
 function isFavorite(value: unknown): value is FavoriteConversation {

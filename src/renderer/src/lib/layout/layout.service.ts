@@ -31,7 +31,12 @@ import {
   type WindowState,
 } from '~/lib/window';
 import { BLANK_URL, type BrowserTab, type BrowserTabSeed } from '~/lib/browser';
-import type { LayoutSnapshot, LayoutWindow } from '@shared/layout.def';
+import type { AgentKind } from '@shared/agent.def';
+import type {
+  AgentTabLayout,
+  LayoutSnapshot,
+  LayoutWindow,
+} from '@shared/layout.def';
 
 /**
  * One window, reduced to what survives a quit.
@@ -42,7 +47,8 @@ import type { LayoutSnapshot, LayoutWindow } from '@shared/layout.def';
  */
 function windowSnapshot(
   window: WindowState,
-  tabs: Record<string, BrowserTab>
+  tabs: Record<string, BrowserTab>,
+  kept: Record<string, AgentTabLayout>
 ): LayoutWindow {
   const { row, col } = window;
 
@@ -69,9 +75,20 @@ function windowSnapshot(
     // write down. See `TerminalLayout` for the argument.
     case 'terminal':
       return { type: 'terminal', row, col };
-    // A conversation is a process, like a shell. See `AgentLayout`.
-    case 'agent':
-      return { type: 'agent', row, col };
+    // A conversation is a process, like a shell, unless it is a favorite.
+    // See `AgentLayout`.
+    case 'agent': {
+      const ids = window.conversations.filter((id) => kept[id]);
+      return {
+        type: 'agent',
+        row,
+        col,
+        conversations: ids.flatMap((id) => kept[id] ?? []),
+        activeConversation: window.activeConversation
+          ? ids.indexOf(window.activeConversation)
+          : -1,
+      };
+    }
     case 'browser':
       return {
         type: 'browser',
@@ -97,10 +114,11 @@ function windowSnapshot(
 export function snapshotOf(
   windows: WindowState[],
   focusedId: string,
-  tabs: Record<string, BrowserTab>
+  tabs: Record<string, BrowserTab>,
+  kept: Record<string, AgentTabLayout>
 ): LayoutSnapshot {
   return {
-    windows: windows.map((window) => windowSnapshot(window, tabs)),
+    windows: windows.map((window) => windowSnapshot(window, tabs, kept)),
     focused: windows.findIndex((window) => window.id === focusedId),
   };
 }
@@ -116,7 +134,8 @@ export function snapshotOf(
  */
 function windowFrom(
   layout: LayoutWindow,
-  seeds: Record<string, BrowserTabSeed>
+  seeds: Record<string, BrowserTabSeed>,
+  resumes: Record<string, AgentTabLayout>
 ): WindowState {
   const base = { id: nextWindowId(), row: layout.row, col: layout.col };
 
@@ -147,12 +166,24 @@ function windowFrom(
       };
     }
     case 'agent': {
-      const conversation = nextConversationId();
+      // Each favorite comes back as a tab that resumes it. A window that held
+      // none is an empty tile now: its conversations ended with the app, and
+      // a fresh one nobody asked for would only be something to close.
+      const saved = layout.conversations ?? [];
+      if (saved.length === 0) return { ...base, type: null };
+      const conversations = saved.map((tab) => {
+        const id = nextConversationId();
+        resumes[id] = tab;
+        return id;
+      });
       return {
         ...base,
         type: 'agent',
-        conversations: [conversation],
-        activeConversation: conversation,
+        conversations,
+        activeConversation:
+          conversations[layout.activeConversation ?? 0] ??
+          conversations[0] ??
+          null,
       };
     }
     case 'browser': {
@@ -190,9 +221,13 @@ export function windowsFrom(snapshot: LayoutSnapshot): {
   windows: WindowState[];
   focusedId: string;
   seeds: Record<string, BrowserTabSeed>;
+  resumes: Record<string, AgentTabLayout>;
 } {
   const seeds: Record<string, BrowserTabSeed> = {};
-  const windows = snapshot.windows.map((window) => windowFrom(window, seeds));
+  const resumes: Record<string, AgentTabLayout> = {};
+  const windows = snapshot.windows.map((window) =>
+    windowFrom(window, seeds, resumes)
+  );
   const focused = windows[snapshot.focused];
 
   return {
@@ -202,6 +237,7 @@ export function windowsFrom(snapshot: LayoutSnapshot): {
     // window, which is the top-left one and the only defensible default.
     focusedId: focused?.id ?? windows[0]?.id ?? '',
     seeds,
+    resumes,
   };
 }
 
@@ -221,4 +257,22 @@ export function windowsFrom(snapshot: LayoutSnapshot): {
  */
 export function sameSnapshot(a: LayoutSnapshot, b: LayoutSnapshot): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
+}
+
+/**
+ * The conversations a layout should keep, by conversation id: those whose
+ * session is one of the project's favorites.
+ */
+export function keptConversations(
+  conversations: Record<string, { kind: AgentKind; session: string | null }>,
+  favorites: { kind: AgentKind; session: string }[] | null
+): Record<string, AgentTabLayout> {
+  const kept: Record<string, AgentTabLayout> = {};
+  if (!favorites) return kept;
+  const marked = new Set(favorites.map((f) => `${f.kind}:${f.session}`));
+  for (const [id, { kind, session }] of Object.entries(conversations)) {
+    if (session && marked.has(`${kind}:${session}`))
+      kept[id] = { kind, session };
+  }
+  return kept;
 }

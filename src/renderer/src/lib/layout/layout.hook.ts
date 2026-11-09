@@ -29,7 +29,13 @@
 import { useEffect } from 'react';
 import { useWindowStore } from '~/lib/window';
 import { useBrowserStore, type BrowserTab } from '~/lib/browser';
-import { sameSnapshot, snapshotOf, windowsFrom } from './layout.service';
+import { useAgentStore } from '~/lib/agent';
+import {
+  keptConversations,
+  sameSnapshot,
+  snapshotOf,
+  windowsFrom,
+} from './layout.service';
 import { LAYOUT_SAVE_MS } from './layout.constant';
 import type { LayoutSnapshot } from '@shared/layout.def';
 
@@ -86,14 +92,27 @@ export function applyProjectLayout(
 
   if (!snapshot) return;
 
-  const { windows, focusedId, seeds } = windowsFrom(snapshot);
+  const { windows, focusedId, seeds, resumes } = windowsFrom(snapshot);
 
   // The browser store first, and not for tidiness: the window store write is
   // what mounts the views, and a view reads the page it opens on out of the
   // browser store as it creates its guest. Seeding afterwards would be
   // seeding a tab that has already started loading `about:blank`.
   useBrowserStore.getState().restoreTabs(seeds);
+  // The same ordering argument for conversations: a tab reads whether to
+  // resume as it mounts, so the request has to be waiting before it does.
+  const { requestResume } = useAgentStore.getState();
+  for (const [id, tab] of Object.entries(resumes)) requestResume(id, tab);
   useWindowStore.getState().restore(windows, focusedId);
+}
+
+/** Each conversation's session, as one string to compare. */
+function sessionsOf(
+  conversations: Record<string, { session: string | null }>
+): string {
+  return Object.entries(conversations)
+    .map(([id, { session }]) => `${id}=${session ?? ''}`)
+    .join(',');
 }
 
 /** Whether two tab maps differ in anything a layout would record. */
@@ -144,10 +163,12 @@ export const useLayoutSaveEffect = (): void => {
       if (!root || root !== openRoot) return;
 
       const { windows, focusedId } = useWindowStore.getState();
+      const { conversations, favorites } = useAgentStore.getState();
       const snapshot = snapshotOf(
         windows,
         focusedId,
-        useBrowserStore.getState().tabs
+        useBrowserStore.getState().tabs,
+        keptConversations(conversations, favorites)
       );
 
       if (saved && sameSnapshot(saved, snapshot)) return;
@@ -201,9 +222,24 @@ export const useLayoutSaveEffect = (): void => {
       arm();
     });
 
+    /**
+     * Marking a favorite changes what a layout keeps without moving a tile,
+     * so the agent store is heard too — gated on what the layout records,
+     * since this store changes on every streamed delta of every reply.
+     */
+    const unsubscribeAgents = useAgentStore.subscribe((state, previous) => {
+      if (
+        state.favorites === previous.favorites &&
+        sessionsOf(state.conversations) === sessionsOf(previous.conversations)
+      )
+        return;
+      arm();
+    });
+
     return () => {
       unsubscribeWindows();
       unsubscribeTabs();
+      unsubscribeAgents();
       if (timer) clearTimeout(timer);
       // A reload during the countdown would otherwise lose the arrangement
       // that was waiting on it. Whether the call lands before the page goes

@@ -526,6 +526,11 @@ arrives.
    favorites** takes it off the list.
 4. A favorite the agent no longer has is greyed and says "No longer
    available"; it cannot be opened, only removed.
+5. A favorite left open in a tab is open again after a restart: the layout
+   remembers the favorite tabs of each agent tile and which was in front,
+   and each resumes. A tab that was not a favorite is not brought back,
+   and a tile left with none comes back as an empty tile in the same place —
+   a conversation nobody marked is one nobody said was worth returning to.
 
 ### Several at once
 
@@ -585,10 +590,10 @@ arrives.
   then a copy Frodon fetches into
   `~/.frodon/agents/<kind>/<version>/` from the npm platform package, checked
   against its sha512 and pinned to the SDK's version.
-- **Open tabs after a restart.** A saved agent tile still comes back as one
-  fresh conversation, like a terminal; only favorites can be reopened.
-  Restoring the tabs that were open would put tokens in the layout file, and
-  start an agent per tab on launch unless they waited for a first message.
+- **Lazy resume on launch.** Each favorite tab restored at launch starts
+  its agent at once, so a tile of five favorites is five processes before
+  anything is typed. Waiting for the first message would need a tab that
+  can draw its history without a running agent.
 - **A favorite surviving the agent's cleanup.** It does not: Claude deletes
   sessions after 30 days by default (`cleanupPeriodDays`), and a favorite
   then reads as gone. Preventing that means copying transcripts, which is

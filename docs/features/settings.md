@@ -54,7 +54,7 @@ Every field is optional, and that is the model rather than an omission.
 | `gitHistoryLayout` (user) | `horizontal` | `vertical` — choosing it removes the key |
 | `gitCommitDetailLayout` (user) | `horizontal` | `vertical` |
 | `gitCommitLayout` (user) | `horizontal` | `vertical` |
-| `agents` (user) | per agent kind: `path`, `permissionMode`, `model` — see [agent.md](agent.md) | found on `PATH`, the agent's own mode, its default model; an agent with nothing chosen has no entry |
+| `agents` (user) | per agent kind: `path`, `permissionMode` — see [agent.md](agent.md) | found on `PATH`, the agent's own mode; an agent with nothing chosen has no entry |
 
 The two terminal fields derive from the editor's fields, not from the
 built-in defaults: one font for code wherever it is, until somebody says
@@ -134,7 +134,7 @@ the hand edit. The watcher that would fix this is not worth its chattiness yet.
 | `user.appearance` | `~/.frodon/config.json` | the theme, and the app icon |
 | `user.editor` | `~/.frodon/config.json` | the editor's font, size and wrapping; the terminal's font and size |
 | `user.git` | `~/.frodon/config.json` | which way the history, a commit's detail and the commit tab split |
-| `user.agents` | `~/.frodon/config.json` | per agent: which executable runs, and the permission mode and model a new conversation starts with |
+| `user.agents` | `~/.frodon/config.json` | per agent: which executable runs, and the permission mode a new conversation starts in |
 | `user.shortcuts` | — | the chord table, read-only until the config layer lands |
 | `user.feedback` | — | a report, opened as a GitHub issue in the browser |
 | `user.about` | — | the logo, the version, the updater's state, what it runs on, and the repository |

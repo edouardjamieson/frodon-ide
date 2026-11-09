@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   AGENT_LABELS,
   type AgentAvailability,
@@ -6,7 +6,6 @@ import {
   type AgentKind,
 } from '@shared/agent.def';
 import {
-  isValidAgentId,
   isValidAgentPath,
   MAX_AGENT_PATH_LENGTH,
   type AgentSettings,
@@ -19,7 +18,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '~/components/ui';
-import { useAgentStore } from '~/lib/agent';
 import { CONFIG_SAVE_MS, useUserConfig } from '~/lib/config';
 import { Field, FieldGroup } from './settings-field.component';
 
@@ -37,11 +35,11 @@ const LOCATE_DELAY_MS = CONFIG_SAVE_MS + 200;
 const AGENT_DECIDES = '__agent__';
 
 /**
- * How each coding agent starts: which copy runs, the permission mode a new
- * conversation begins in, and the model it begins with.
+ * How each coding agent starts: which copy runs, and the permission mode a
+ * new conversation begins in.
  *
  * One group per agent, because nothing here carries from one to another —
- * a Claude model id means nothing to any other agent. Every field is a
+ * a Claude permission mode means nothing to any other agent. Every field is a
  * default: the pickers under a conversation still change it for that one
  * conversation, and a field left empty leaves the choice to the agent's own
  * configuration, the way a terminal would.
@@ -61,7 +59,6 @@ function AgentGroup({ kind }: { kind: AgentKind }) {
   const settings = config.agents?.[kind] ?? {};
   const label = AGENT_LABELS[kind];
   const found = useAvailability(kind, settings.path);
-  const models = useKnownModels(kind);
 
   /** Writes one field, dropping the agent's entry once nothing is left. */
   const change = (patch: Partial<AgentSettings>) => {
@@ -104,19 +101,6 @@ function AgentGroup({ kind }: { kind: AgentKind }) {
           onChange={(permissionMode) => change({ permissionMode })}
         />
       </Field>
-
-      <Field
-        label="Model"
-        htmlFor={`settings-agent-${kind}-model`}
-        hint={`The model a new conversation starts with, by ${label}'s own name for it. Empty for ${label}'s default.`}
-      >
-        <ModelInput
-          id={`settings-agent-${kind}-model`}
-          value={settings.model}
-          models={models}
-          onChange={(model) => change({ model })}
-        />
-      </Field>
     </FieldGroup>
   );
 }
@@ -147,24 +131,6 @@ function useAvailability(
   }, [kind, path]);
 
   return found;
-}
-
-/**
- * The models open conversations of this kind have offered, for the model
- * field's suggestions. Only an agent can say which models it has, and only
- * once it is running; with no conversation open the field takes a name typed
- * by hand.
- */
-function useKnownModels(kind: AgentKind): AgentChoice[] {
-  const conversations = useAgentStore((state) => state.conversations);
-  return useMemo(() => {
-    const byId = new Map<string, AgentChoice>();
-    for (const conversation of Object.values(conversations)) {
-      if (conversation.kind !== kind) continue;
-      for (const model of conversation.models) byId.set(model.id, model);
-    }
-    return [...byId.values()];
-  }, [conversations, kind]);
 }
 
 function Located({
@@ -267,50 +233,5 @@ function ModeSelect({
         {unknown ? <SelectItem value={value}>{value}</SelectItem> : null}
       </SelectContent>
     </Select>
-  );
-}
-
-/**
- * The model's id. Free text, with the models any open conversation has
- * offered as suggestions — the list is the agent's and changes without
- * Frodon, so it is a help and not a constraint. A keystroke that makes the
- * value something no agent spells a model as is not taken.
- */
-function ModelInput({
-  id,
-  value,
-  models,
-  onChange,
-}: {
-  id: string;
-  value: string | undefined;
-  models: AgentChoice[];
-  onChange: (next: string | undefined) => void;
-}) {
-  const list = `${id}-models`;
-  return (
-    <>
-      <Input
-        id={id}
-        list={list}
-        value={value ?? ''}
-        spellCheck={false}
-        autoComplete="off"
-        placeholder="sonnet, opus, haiku…"
-        className="w-72 font-mono text-xs"
-        onChange={(event) => {
-          const next = event.target.value.trim();
-          if (!next) onChange(undefined);
-          else if (isValidAgentId(next)) onChange(next);
-        }}
-      />
-      <datalist id={list}>
-        {models.map((model) => (
-          <option key={model.id} value={model.id}>
-            {model.label}
-          </option>
-        ))}
-      </datalist>
-    </>
   );
 }

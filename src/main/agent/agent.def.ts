@@ -88,11 +88,11 @@ export interface StartOptions {
   env: Record<string, string>;
   host: AgentHost;
   /**
-   * Where the person's settings say a new conversation starts, by the
-   * agent's own ids, or null to leave it to the agent. Shape-checked by the
-   * config sanitizer; whether the id exists is the driver's to check.
+   * The permission mode the person's settings say a conversation starts in,
+   * by the agent's own id, or null to leave it to the agent. Shape-checked
+   * by the config sanitizer; whether the id exists is the driver's to check.
    */
-  defaults: { permissionMode: string | null; model: string | null };
+  permissionMode: string | null;
   /**
    * A conversation to carry on rather than begin, by a token this driver
    * reported. Already checked by `history` to exist in `cwd`.

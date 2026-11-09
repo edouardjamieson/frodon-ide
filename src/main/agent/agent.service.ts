@@ -177,10 +177,7 @@ export async function startConversation(
     resume,
     // For a resumed conversation too: it is a new process carrying on a
     // stored session, and starts from the settings like any other.
-    defaults: {
-      permissionMode: settings.permissionMode ?? null,
-      model: settings.model ?? null,
-    },
+    permissionMode: settings.permissionMode ?? null,
     host: {
       workbench: {
         read: () => readWorkbench(senderId, cwd),

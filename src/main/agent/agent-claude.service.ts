@@ -198,11 +198,11 @@ function startClaude({
   env,
   host,
   resume,
-  defaults,
+  permissionMode,
 }: StartOptions): AgentRun {
   // Checked against the modes this driver offers: the id is shape-checked
   // by the config sanitizer, not known to be one of Claude's.
-  const startMode = MODES.find(({ id }) => id === defaults.permissionMode)?.id;
+  const startMode = MODES.find(({ id }) => id === permissionMode)?.id;
 
   const inbox = new Inbox<SDKUserMessage>();
   const abort = new AbortController();
@@ -255,8 +255,6 @@ function startClaude({
       // `claude` in a terminal. Whatever that mode decides to ask about
       // arrives here.
       ...(startMode ? { permissionMode: startMode } : {}),
-      // Likewise the model: Frodon's choice when there is one, else Claude's.
-      ...(defaults.model ? { model: defaults.model } : {}),
       canUseTool: async (
         toolName,
         input,

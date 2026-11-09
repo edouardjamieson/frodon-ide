@@ -229,8 +229,9 @@ export interface UserConfig {
    * A user setting, because every part of it is a fact about this machine —
    * where you installed the agent, how much you like it to ask — and a
    * project setting would put your install path in everyone's pull request.
-   * Scoped by agent because none of it carries across: a Claude model id
-   * means nothing to Codex, and neither do Claude's permission modes.
+   * Scoped by agent because none of it carries across: Claude's permission
+   * modes mean nothing to Codex, and a path to one is not a path to the
+   * other.
    */
   agents?: Partial<Record<AgentKind, AgentSettings>>;
 }
@@ -249,13 +250,6 @@ export interface AgentSettings {
    * they would in a terminal. The picker still changes it per conversation.
    */
   permissionMode?: string;
-  /**
-   * The model a new conversation starts with, by the agent's own id
-   * (`sonnet`, `opus`). Absent: the agent's default. Not checked against
-   * a list: the list is the agent's and changes without Frodon, so a
-   * retired id fails at the first message, with the agent's own words.
-   */
-  model?: string;
 }
 
 /**
@@ -571,8 +565,8 @@ export function isValidAgentPath(value: string): boolean {
 }
 
 /**
- * A model or mode id, as an agent spells one: `sonnet`, `acceptEdits`,
- * `claude-opus-5-5[1m]`. The shape only — which ids exist is the agent's.
+ * A mode id, as an agent spells one: `acceptEdits`, `plan`. The shape only
+ * — which ids exist is the agent's.
  */
 export function isValidAgentId(value: string): boolean {
   return /^[A-Za-z0-9][A-Za-z0-9._:[\]-]{0,99}$/.test(value);
@@ -599,8 +593,6 @@ function sanitizeAgents(
       isValidAgentId(fields.permissionMode)
     )
       settings.permissionMode = fields.permissionMode;
-    if (typeof fields.model === 'string' && isValidAgentId(fields.model))
-      settings.model = fields.model;
 
     if (Object.keys(settings).length > 0) agents[kind] = settings;
   }

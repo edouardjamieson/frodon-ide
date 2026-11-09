@@ -97,30 +97,32 @@ reaches a new agent after a restart, not before.
 
 `~/.frodon/config.json` holds an `agents` entry per kind — user scope,
 because an install path and how much you like to be asked are facts about
-your machine, and per kind because a Claude model id means nothing to any
-other agent. Three fields, each absent unless chosen:
+your machine, and per kind because Claude's permission modes mean nothing
+to any other agent. Two fields, each absent unless chosen:
 
 | Field | Written | Absent |
 | --- | --- | --- |
 | `path` | an absolute path to the executable | the first one on the login shell's `PATH` |
 | `permissionMode` | one of the driver's mode ids | the agent's own settings decide |
-| `model` | the agent's model id | the agent's default |
 
 Main reads them fresh for every `locate` and every start, so a change applies
 to the next tab without a restart. A configured path is taken at its word or
 not at all: when it is not an executable file, the tile says so, rather than
 quietly running whichever copy `PATH` finds. A mode is checked against the
-driver's `MODES` before it is passed; a model is passed as written, since
-the list is Claude's and a retired id fails at the first message in Claude's
-own words. A resumed conversation starts from them too — it is a new
-process carrying on a stored session. The renderer seeds a new tab's
-pickers from the same file, so they show the defaults before the agent has
-said anything.
+driver's `MODES` before it is passed. A resumed conversation starts from
+them too — it is a new process carrying on a stored session. The renderer
+seeds a new tab's mode picker from the same file, so it shows the default
+before the agent has said anything.
 
 The settings page has no conversation to ask, so `agent:availability`
-carries the driver's modes and whether the path came from the settings; the
-model field suggests the models that open conversations of that kind have
-offered.
+carries the driver's modes and whether the path came from the settings.
+
+**There is no default model.** Claude's models are Claude's list, known to
+Frodon only from the handshake a running conversation makes, so a settings
+field could be a dropdown only by starting `claude` to ask, and otherwise
+had to be free text unlike the field beside it. It was taken out rather
+than kept as the odd one. Claude's own `model` setting still decides what a
+new conversation runs, and the picker changes it per conversation.
 
 ### The conversation is a process, like a shell
 
@@ -411,8 +413,8 @@ arrives.
 1. Pick **Agent** on an empty tile, or press `mod+shift+i` anywhere. The
    shortcut adds a tab the way opening a file does: to the focused agent
    tile, else to any agent tile, else to an empty tile, else to a new one.
-   The model and permission pickers start on the defaults from Settings →
-   Agents, when there are any.
+   The permission picker starts on the default from Settings → Agents,
+   when there is one.
 2. The tile mounts a conversation, which asks main to start it. Main finds
    `claude`, starts it in the project root, and says the conversation is
    ready — the status line shows the version. Which model is running
@@ -615,7 +617,8 @@ arrives.
 - **Choosing the agent.** One driver, so `DEFAULT_AGENT` is a constant. With
   two, the `+` becomes a choice and the default a user setting.
 - **A pick that becomes the default.** The pickers change one conversation;
-  making that choice the default means opening Settings → Agents.
+  making a mode the default means opening Settings → Agents, and a model
+  has no default of Frodon's at all — see "Settings, per agent".
 
 ## See also
 

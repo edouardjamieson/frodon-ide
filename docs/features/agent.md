@@ -330,7 +330,8 @@ A fenced block is highlighted in the language its fence names, with the
 editor's grammars and the editor's colors: both read `SYNTAX_TAGS`, and the
 block's classes point at the theme's `--fd-syntax-*` properties, so a theme
 switch reaches it without a render. A grammar not yet fetched leaves the
-block plain for the moment the fetch takes.
+block plain for the moment the fetch takes. Hovering a block shows a copy
+button in its corner, which copies the code without its fence.
 
 A link never navigates the window it is in. A web address opens in the
 person's browser; a path opens in the editor at the line it names. An image
@@ -542,8 +543,7 @@ arrives.
   buttons, closed as not finished; the agent asks again if it still needs
   to.
 - **More markdown.** Table alignment, reference-style links and most HTML
-  entities show as written. A copy button on a code block is the one that
-  would be used daily.
+  entities show as written.
 - **Workbench context.** An in-process MCP server in the driver could give the
   agent `open_file`, the selection and boards without the socket ADR-0027
   parked — the cost that made it not worth building is gone on this path.

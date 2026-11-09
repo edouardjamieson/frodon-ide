@@ -1,5 +1,6 @@
 import { memo, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { cn } from 'cn';
+import { Check, Copy } from 'lucide-react';
 import type { SyntaxNode } from '@lezer/common';
 import { useFindFile, type FileReference } from '~/lib/agent';
 import {
@@ -410,6 +411,9 @@ function ReplyLink({
   );
 }
 
+/** How long the copy button says it copied. */
+const COPIED_MS = 1500;
+
 /**
  * A fenced block, highlighted in the language its fence names.
  *
@@ -443,26 +447,60 @@ function CodeBlock({ code, info }: { code: string; info: string }) {
     [code, grammar]
   );
 
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), COPIED_MS);
+    return () => clearTimeout(timer);
+  }, [copied]);
+
   return (
-    <pre className="overflow-x-auto rounded-md border border-pane-border bg-input px-3 py-2 font-mono text-[12.5px] leading-normal text-(--fd-syntax-plain)">
-      <code>
-        {lines
-          ? lines.map((line, index) => (
-              <span key={index}>
-                {index > 0 ? '\n' : null}
-                {line.map((part, at) =>
-                  part.className ? (
-                    <span key={at} className={part.className}>
-                      {part.text}
-                    </span>
-                  ) : (
-                    part.text
-                  )
-                )}
-              </span>
-            ))
-          : code}
-      </code>
-    </pre>
+    <div className="group/code relative">
+      {/* Over the block's corner and only on hover, so it costs a block no
+          room and a reply full of them no noise. Copies the code as the
+          agent wrote it, without the fence or the highlighting. */}
+      <button
+        aria-label={copied ? 'Copied' : 'Copy'}
+        title={copied ? 'Copied' : 'Copy'}
+        onClick={() => {
+          // A refused write leaves the button as it was: there is nothing
+          // more useful to say about a clipboard that would not take it.
+          navigator.clipboard.writeText(code).then(
+            () => setCopied(true),
+            () => {}
+          );
+        }}
+        className={cn(
+          'absolute top-1.5 right-1.5 flex size-6 cursor-pointer items-center justify-center rounded-md border border-pane-border bg-input text-fg-subtle opacity-0 transition-opacity group-hover/code:opacity-100 hover:text-fg',
+          { 'opacity-100': copied }
+        )}
+      >
+        {copied ? (
+          <Check className="size-3.5 text-fg-success" />
+        ) : (
+          <Copy className="size-3.5" />
+        )}
+      </button>
+      <pre className="overflow-x-auto rounded-md border border-pane-border bg-input px-3 py-2 font-mono text-[12.5px] leading-normal text-(--fd-syntax-plain)">
+        <code>
+          {lines
+            ? lines.map((line, index) => (
+                <span key={index}>
+                  {index > 0 ? '\n' : null}
+                  {line.map((part, at) =>
+                    part.className ? (
+                      <span key={at} className={part.className}>
+                        {part.text}
+                      </span>
+                    ) : (
+                      part.text
+                    )
+                  )}
+                </span>
+              ))
+            : code}
+        </code>
+      </pre>
+    </div>
   );
 }

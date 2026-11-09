@@ -22,7 +22,7 @@
  * `env -i`; see `docs/learned.md`.
  */
 import { execFile } from 'node:child_process';
-import { access, constants } from 'node:fs/promises';
+import { access, constants, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { createLogger } from '@main/logger';
@@ -143,12 +143,22 @@ export async function findExecutable(
 
   for (const dir of dirs) {
     const candidate = join(dir, name);
-    try {
-      await access(candidate, constants.X_OK);
-      return candidate;
-    } catch {
-      // Not here, or not executable. Keep looking.
-    }
+    if (await isExecutable(candidate)) return candidate;
   }
   return null;
+}
+
+/**
+ * Whether a path is a file this process may run. A file and not only
+ * executable: a directory passes `X_OK` too, and spawning one fails far from
+ * here with a message about neither.
+ */
+export async function isExecutable(path: string): Promise<boolean> {
+  try {
+    if (!(await stat(path)).isFile()) return false;
+    await access(path, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
 }

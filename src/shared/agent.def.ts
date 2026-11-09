@@ -37,9 +37,8 @@ export const AGENT_LABELS: Record<AgentKind, string> = {
  * installed, so the honest answer is often "missing", and the tile has to be
  * able to say so before anything is typed. See ADR-0043.
  */
-export type AgentAvailability =
+export type AgentAvailability = (
   | {
-      kind: AgentKind;
       status: 'ready';
       /** The executable that will be spawned, absolute. */
       path: string;
@@ -47,11 +46,24 @@ export type AgentAvailability =
       version: string;
     }
   | {
-      kind: AgentKind;
       status: 'missing';
       /** A sentence for the person: what was looked for, and where. */
       reason: string;
-    };
+    }
+) & {
+  kind: AgentKind;
+  /**
+   * Whether the executable is the one named in the settings rather than
+   * the one found on `PATH` — so the settings page can say which.
+   */
+  configured: boolean;
+  /**
+   * The permission modes a conversation can start in, for the settings
+   * page, which has no conversation to ask. The same list a conversation's
+   * `modes` event carries.
+   */
+  modes: AgentChoice[];
+};
 
 /**
  * What a tool call *does*, as far as the tile is concerned.

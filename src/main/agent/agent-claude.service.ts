@@ -49,32 +49,50 @@ import type {
   AgentRun,
   StartOptions,
 } from './agent.def';
-import { findExecutable } from './agent-environment.service';
+import { findExecutable, isExecutable } from './agent-environment.service';
 
 const log = createLogger('agent');
 
 export const claudeDriver: AgentDriver = {
-  async locate(env) {
-    const path = await findExecutable('claude', env);
+  async locate(env, configured) {
+    const about = {
+      kind: 'claude' as const,
+      configured: configured !== null,
+      modes: MODES.map(({ id, label, description }) => ({
+        id,
+        label,
+        description,
+      })),
+    };
+
+    // A path in the settings is taken at its word or not at all: falling
+    // back to `PATH` when it is wrong would run a copy the person did not
+    // choose, and say nothing about the one they did.
+    const path = configured
+      ? (await isExecutable(configured))
+        ? configured
+        : null
+      : await findExecutable('claude', env);
     if (!path) {
       return {
-        kind: 'claude',
+        ...about,
         status: 'missing',
-        reason:
-          'No `claude` on your PATH. Install Claude Code, then reopen Frodon.',
+        reason: configured
+          ? `${configured}, set in Settings → Agents, is not an executable file.`
+          : 'No `claude` on your PATH. Install Claude Code, or set its path in Settings → Agents.',
       };
     }
 
     const version = await versionOf(path, env);
     if (!version) {
       return {
-        kind: 'claude',
+        ...about,
         status: 'missing',
         reason: `Found ${path}, but it did not answer \`--version\`.`,
       };
     }
 
-    return { kind: 'claude', status: 'ready', path, version };
+    return { ...about, status: 'ready', path, version };
   },
 
   start(options) {
@@ -174,7 +192,18 @@ const MODES: (AgentChoice & { id: PermissionMode })[] = [
   },
 ];
 
-function startClaude({ cwd, path, env, host, resume }: StartOptions): AgentRun {
+function startClaude({
+  cwd,
+  path,
+  env,
+  host,
+  resume,
+  defaults,
+}: StartOptions): AgentRun {
+  // Checked against the modes this driver offers: the id is shape-checked
+  // by the config sanitizer, not known to be one of Claude's.
+  const startMode = MODES.find(({ id }) => id === defaults.permissionMode)?.id;
+
   const inbox = new Inbox<SDKUserMessage>();
   const abort = new AbortController();
 
@@ -221,9 +250,13 @@ function startClaude({ cwd, path, env, host, resume }: StartOptions): AgentRun {
       // Deltas, so the reply is drawn as it is written rather than appearing
       // whole once the turn is over.
       includePartialMessages: true,
-      // No `permissionMode`: the person's own settings choose it, exactly as
-      // they would for `claude` in a terminal. Whatever that mode decides to
-      // ask about arrives here.
+      // A mode only when Frodon's settings name one. Otherwise none, so the
+      // person's own Claude settings choose it, exactly as they would for
+      // `claude` in a terminal. Whatever that mode decides to ask about
+      // arrives here.
+      ...(startMode ? { permissionMode: startMode } : {}),
+      // Likewise the model: Frodon's choice when there is one, else Claude's.
+      ...(defaults.model ? { model: defaults.model } : {}),
       canUseTool: async (
         toolName,
         input,

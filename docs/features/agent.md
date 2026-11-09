@@ -93,6 +93,35 @@ siblings it answers "Not logged in". The shell's own bookkeeping — `PWD`,
 `OLDPWD`, `SHLVL`, `_` — is left behind. An export added to the profile
 reaches a new agent after a restart, not before.
 
+### Settings, per agent
+
+`~/.frodon/config.json` holds an `agents` entry per kind — user scope,
+because an install path and how much you like to be asked are facts about
+your machine, and per kind because a Claude model id means nothing to any
+other agent. Three fields, each absent unless chosen:
+
+| Field | Written | Absent |
+| --- | --- | --- |
+| `path` | an absolute path to the executable | the first one on the login shell's `PATH` |
+| `permissionMode` | one of the driver's mode ids | the agent's own settings decide |
+| `model` | the agent's model id | the agent's default |
+
+Main reads them fresh for every `locate` and every start, so a change applies
+to the next tab without a restart. A configured path is taken at its word or
+not at all: when it is not an executable file, the tile says so, rather than
+quietly running whichever copy `PATH` finds. A mode is checked against the
+driver's `MODES` before it is passed; a model is passed as written, since
+the list is Claude's and a retired id fails at the first message in Claude's
+own words. A resumed conversation starts from them too — it is a new
+process carrying on a stored session. The renderer seeds a new tab's
+pickers from the same file, so they show the defaults before the agent has
+said anything.
+
+The settings page has no conversation to ask, so `agent:availability`
+carries the driver's modes and whether the path came from the settings; the
+model field suggests the models that open conversations of that kind have
+offered.
+
 ### The conversation is a process, like a shell
 
 The same ownership as the terminal, for the same reasons. The renderer names
@@ -545,8 +574,9 @@ arrives.
 - **A second driver.** Codex is the obvious one; its SDK has the same shape
   (a thin JS layer over a native binary). Its approvals are a policy rather
   than a callback per call, which the `ask` contract may have to bend for.
-- **A download.** The plan in ADR-0043: an explicit path in user settings,
-  then `PATH` if the version is compatible, then a copy Frodon fetches into
+- **A download.** The rest of the plan in ADR-0043, now that the explicit
+  path in user settings exists: `PATH` only if the version is compatible,
+  then a copy Frodon fetches into
   `~/.frodon/agents/<kind>/<version>/` from the npm platform package, checked
   against its sha512 and pinned to the SDK's version.
 - **Open tabs after a restart.** A saved agent tile still comes back as one
@@ -581,10 +611,8 @@ arrives.
 - **Choosing the agent.** One driver, so `DEFAULT_AGENT` is a constant. With
   two, the `+` becomes a choice and the default a user setting.
 - **A keyboard shortcut** to open one.
-- **A default model or mode.** A pick lasts as long as its conversation.
-  Remembering it means a user setting, and an id from one agent is
-  meaningless to another, so it would have to be kept per kind. Until then,
-  Claude Code's own `permissions.defaultMode` sets the starting mode.
+- **A pick that becomes the default.** The pickers change one conversation;
+  making that choice the default means opening Settings → Agents.
 
 ## See also
 

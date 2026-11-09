@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo } from 'react';
 import type { File } from '@shared/fs.def';
 import { useProjectStore } from '~/lib/project';
 import { collectFiles } from '~/lib/file-picker';
+import { useConfigStore } from '~/lib/config';
 import type { AgentAttachment, AgentKind, AgentReply } from '@shared/agent.def';
 import { useAgentStore } from './agent.store';
 import { DEFAULT_AGENT } from './agent.constant';
@@ -28,6 +29,17 @@ export function useConversationLifetime(id: string): void {
     const resume = resumes[id] ?? null;
     const kind = resume?.kind ?? DEFAULT_AGENT;
     open(id, kind);
+    // The pickers start where main is about to start the agent, so they show
+    // the settings' model and mode before the first message — which is the
+    // first time the agent itself would say. Main reads the same file.
+    const defaults = useConfigStore.getState().user.agents?.[kind];
+    if (defaults) {
+      update(id, (conversation) => ({
+        ...conversation,
+        chosenModel: defaults.model ?? null,
+        mode: defaults.permissionMode ?? null,
+      }));
+    }
 
     // Subscribed before the start is asked for, so the `started` event —
     // which can arrive before the invoke resolves — has somewhere to go.

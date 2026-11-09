@@ -21,6 +21,7 @@
  * does not survive its check is dropped rather than making the whole file
  * unreadable — the same forgiveness `recents.json` and `layouts.json` show.
  */
+import { AGENT_LABELS, type AgentKind } from './agent.def';
 
 /** Longest project name the settings dialog will store. */
 export const MAX_PROJECT_NAME_LENGTH = 60;
@@ -221,6 +222,40 @@ export interface UserConfig {
   gitCommitDetailLayout?: PaneLayout;
   /** The staging lists against the diff, in the commit tab. Same. */
   gitCommitLayout?: PaneLayout;
+  /**
+   * How each coding agent is started, by kind. Absent, or a kind absent from
+   * it: everything derived, as below.
+   *
+   * A user setting, because every part of it is a fact about this machine —
+   * where you installed the agent, how much you like it to ask — and a
+   * project setting would put your install path in everyone's pull request.
+   * Scoped by agent because none of it carries across: a Claude model id
+   * means nothing to Codex, and neither do Claude's permission modes.
+   */
+  agents?: Partial<Record<AgentKind, AgentSettings>>;
+}
+
+/** One agent's settings. Every field optional; absent means derived. */
+export interface AgentSettings {
+  /**
+   * The executable to run, absolute. Absent: the first one on the login
+   * shell's `PATH`. For a second copy — a beta beside the release — or an
+   * install the shell does not know about.
+   */
+  path?: string;
+  /**
+   * The permission mode a new conversation starts in, by the agent's own id
+   * (`acceptEdits`, `plan`). Absent: the agent's own settings decide, as
+   * they would in a terminal. The picker still changes it per conversation.
+   */
+  permissionMode?: string;
+  /**
+   * The model a new conversation starts with, by the agent's own id
+   * (`sonnet`, `opus`). Absent: the agent's default. Not checked against
+   * a list: the list is the agent's and changes without Frodon, so a
+   * retired id fails at the first message, with the agent's own words.
+   */
+  model?: string;
 }
 
 /**
@@ -512,5 +547,63 @@ export function sanitizeUserConfig(value: unknown): UserConfig {
     config.gitCommitLayout = raw.gitCommitLayout;
   }
 
+  const agents = sanitizeAgents(raw.agents);
+  if (agents) config.agents = agents;
+
   return config;
+}
+
+/** Longest path accepted for an agent's executable. */
+export const MAX_AGENT_PATH_LENGTH = 1024;
+
+/**
+ * An agent's absolute path, as the field accepts it: absolute on this
+ * platform's terms, with nothing in it a path cannot hold.
+ */
+export function isValidAgentPath(value: string): boolean {
+  const path = value.trim();
+  return (
+    path.length > 0 &&
+    path.length <= MAX_AGENT_PATH_LENGTH &&
+    !path.includes('\0') &&
+    (path.startsWith('/') || /^[A-Za-z]:[\\/]/.test(path))
+  );
+}
+
+/**
+ * A model or mode id, as an agent spells one: `sonnet`, `acceptEdits`,
+ * `claude-opus-5-5[1m]`. The shape only — which ids exist is the agent's.
+ */
+export function isValidAgentId(value: string): boolean {
+  return /^[A-Za-z0-9][A-Za-z0-9._:[\]-]{0,99}$/.test(value);
+}
+
+/** Each known kind's settings, with the empty ones left out entirely. */
+function sanitizeAgents(
+  value: unknown
+): Partial<Record<AgentKind, AgentSettings>> | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const raw = value as Record<string, unknown>;
+  const agents: Partial<Record<AgentKind, AgentSettings>> = {};
+
+  for (const kind of Object.keys(AGENT_LABELS) as AgentKind[]) {
+    const entry = raw[kind];
+    if (typeof entry !== 'object' || entry === null) continue;
+    const fields = entry as Record<string, unknown>;
+    const settings: AgentSettings = {};
+
+    if (typeof fields.path === 'string' && isValidAgentPath(fields.path))
+      settings.path = fields.path.trim();
+    if (
+      typeof fields.permissionMode === 'string' &&
+      isValidAgentId(fields.permissionMode)
+    )
+      settings.permissionMode = fields.permissionMode;
+    if (typeof fields.model === 'string' && isValidAgentId(fields.model))
+      settings.model = fields.model;
+
+    if (Object.keys(settings).length > 0) agents[kind] = settings;
+  }
+
+  return Object.keys(agents).length > 0 ? agents : null;
 }

@@ -88,6 +88,12 @@ export interface StartOptions {
   env: Record<string, string>;
   host: AgentHost;
   /**
+   * Where the person's settings say a new conversation starts, by the
+   * agent's own ids, or null to leave it to the agent. Shape-checked by the
+   * config sanitizer; whether the id exists is the driver's to check.
+   */
+  defaults: { permissionMode: string | null; model: string | null };
+  /**
    * A conversation to carry on rather than begin, by a token this driver
    * reported. Already checked by `history` to exist in `cwd`.
    */
@@ -102,7 +108,11 @@ export interface AgentDriver {
    * `PATH` lives; Electron's own, on macOS, is the one launchd handed the app
    * bundle and holds nothing they installed.
    */
-  locate: (env: Record<string, string>) => Promise<AgentAvailability>;
+  locate: (
+    env: Record<string, string>,
+    /** The executable named in the settings, or null to search `PATH`. */
+    configured: string | null
+  ) => Promise<AgentAvailability>;
   /** Starts a conversation. Never throws: failure arrives as `exited`. */
   start: (options: StartOptions) => AgentRun;
   /**

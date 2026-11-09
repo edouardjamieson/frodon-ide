@@ -14,6 +14,7 @@
 import { randomUUID } from 'node:crypto';
 import { webContents } from 'electron';
 import { createLogger } from '@main/logger';
+import { readUserConfig } from '@main/config';
 import type {
   AgentAction,
   AgentAvailability,
@@ -23,6 +24,7 @@ import type {
   AgentStartResult,
   FavoriteEntry,
 } from '@shared/agent.def';
+import type { AgentSettings } from '@shared/config.def';
 import { AGENT_LABELS, isSessionToken } from '@shared/agent.def';
 import { FLUSH_MS } from './agent.constant';
 import type { AgentDriver, AgentRun } from './agent.def';
@@ -73,7 +75,17 @@ const starting = new Map<string, { token: symbol; senderId: number }>();
 export async function agentAvailability(
   kind: AgentKind
 ): Promise<AgentAvailability> {
-  return DRIVERS[kind].locate(await loginEnvironment());
+  const settings = await settingsOf(kind);
+  return DRIVERS[kind].locate(await loginEnvironment(), settings.path ?? null);
+}
+
+/**
+ * One agent's settings from the person's config, read fresh each time: a
+ * path changed in the dialog should apply to the next tab opened, not after
+ * a restart, and a read is a small file once per conversation.
+ */
+async function settingsOf(kind: AgentKind): Promise<AgentSettings> {
+  return (await readUserConfig()).agents?.[kind] ?? {};
 }
 
 /**
@@ -113,7 +125,8 @@ export async function startConversation(
   starting.set(id, { token, senderId });
 
   const env = await loginEnvironment();
-  const found = await DRIVERS[kind].locate(env);
+  const settings = await settingsOf(kind);
+  const found = await DRIVERS[kind].locate(env, settings.path ?? null);
   const history = resume ? await DRIVERS[kind].history(cwd, resume) : [];
 
   // Stopped or replaced while we were looking. Whoever did that owns the id
@@ -162,6 +175,12 @@ export async function startConversation(
     path: found.path,
     env,
     resume,
+    // For a resumed conversation too: it is a new process carrying on a
+    // stored session, and starts from the settings like any other.
+    defaults: {
+      permissionMode: settings.permissionMode ?? null,
+      model: settings.model ?? null,
+    },
     host: {
       workbench: {
         read: () => readWorkbench(senderId, cwd),

@@ -438,8 +438,14 @@ arrives.
 2. Paste a screenshot into the message, or drop images onto the composer,
    and each appears as a thumbnail. Anything that is not an image, or is
    over 5 MB, is refused with a line saying why.
-3. A chip's × takes it off. A message can be only attachments.
-4. On the sent message, the chips stay: a file's opens it in the editor.
+3. Type `@` in the message and the same search opens over the composer,
+   narrowing as the name is typed. Tab or Enter puts the file's path in the
+   sentence and attaches the file — both, so "compare `a.ts` with `b.ts`"
+   still reads and the agent is still told to read them. An `@` only counts
+   at the start of a word, so an email address opens nothing.
+4. Drag a file or folder from the explorer onto the composer to attach it.
+5. A chip's × takes it off. A message can be only attachments.
+6. On the sent message, the chips stay: a file's opens it in the editor.
 
 ### Marking a favorite
 
@@ -537,8 +543,6 @@ arrives.
 - **Attachments in a reopened conversation.** A replayed message shows its
   text, with the attached paths as the list the agent was sent; its images
   are not drawn.
-- **Dragging a file from the explorer** onto the composer, and an `@`
-  in the message that offers the same picker.
 - **An approval open when the app quit.** It comes back as a card without
   buttons, closed as not finished; the agent asks again if it still needs
   to.

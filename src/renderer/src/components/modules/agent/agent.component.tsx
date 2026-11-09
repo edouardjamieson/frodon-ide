@@ -15,13 +15,19 @@ import {
 import {
   commandQuery,
   imageAttachment,
+  mentionAt,
   rankCommands,
   resolvePath,
   useConversation,
   useConversationLifetime,
   useFavoriteName,
 } from '~/lib/agent';
-import { useProjectStore } from '~/lib/project';
+import { PROJECT_ENTRY_TYPE, useProjectStore } from '~/lib/project';
+import {
+  useFilePickerStore,
+  useProjectEntries,
+  type PickerFile,
+} from '~/lib/file-picker';
 import { useOpenFile } from '~/lib/window';
 import {
   Button,
@@ -33,7 +39,12 @@ import { TranscriptRow } from './agent-entry.component';
 import { AgentIcon } from './agent-icon.component';
 import { ChoicePicker } from './agent-choice.component';
 import { FavoriteButton } from './agent-favorite.component';
-import { AttachmentChip, AttachPicker } from './agent-attach.component';
+import {
+  AttachmentChip,
+  AttachPicker,
+  matchFiles,
+  MentionMenu,
+} from './agent-attach.component';
 import { CommandMenu } from './agent-command.component';
 
 interface AgentProps {
@@ -66,14 +77,22 @@ export default function Agent({ conversationId, active }: AgentProps) {
   const [dragging, setDragging] = useState(false);
   /** Why the last paste or drop was refused, until the next one. */
   const [refusal, setRefusal] = useState<string | null>(null);
-  /** The highlighted row of the `/` menu. */
-  const [commandIndex, setCommandIndex] = useState(0);
+  /** The highlighted row of whichever menu is open, `/` or `@`. */
+  const [menuIndex, setMenuIndex] = useState(0);
   /**
-   * The draft the `/` menu was dismissed on with Escape. It stays shut until
-   * the draft changes, so Escape reads as "not now" without the next
-   * keystroke having to fight it.
+   * The draft a menu was dismissed on with Escape. It stays shut until the
+   * draft changes, so Escape reads as "not now" without the next keystroke
+   * having to fight it.
    */
   const [dismissed, setDismissed] = useState<string | null>(null);
+  /**
+   * Where the caret is. Tracked because an `@` can be typed anywhere in a
+   * message, and what it is offering depends on the text just before it.
+   */
+  const [caret, setCaret] = useState(0);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const projectEntries = useProjectEntries();
+  const recent = useFilePickerStore((state) => state.recent);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   /**
@@ -100,14 +119,25 @@ export default function Agent({ conversationId, active }: AgentProps) {
 
   const sendable = !ended && (draft.trim() !== '' || attachments.length > 0);
 
-  const query = ended || draft === dismissed ? null : commandQuery(draft);
+  const closed = ended || draft === dismissed;
+  const query = closed ? null : commandQuery(draft);
   const commands =
     query === null ? [] : rankCommands(conversation.commands, query);
-  const commandAt = Math.min(commandIndex, Math.max(commands.length - 1, 0));
+  // A command is the whole draft and a mention is a word in it, so the two
+  // never compete: `/` wins, since `/audit @pr` is a command with an
+  // argument that happens to have an `@` in it.
+  const mention =
+    closed || commands.length > 0 ? null : mentionAt(draft, caret);
+  const mentions = mention
+    ? matchFiles(projectEntries, mention.query, recent)
+    : [];
+  const menuSize = commands.length || mentions.length;
+  const menuAt = Math.min(menuIndex, Math.max(menuSize - 1, 0));
 
-  const edit = (next: string) => {
+  const edit = (next: string, at = next.length) => {
     setDraft(next);
-    setCommandIndex(0);
+    setCaret(at);
+    setMenuIndex(0);
     setDismissed(null);
   };
 
@@ -118,6 +148,27 @@ export default function Agent({ conversationId, active }: AgentProps) {
    * Nothing is sent on a pick: the message may be meant to say more.
    */
   const pickCommand = (name: string) => edit(`/${name} `);
+
+  /**
+   * Replaces the `@query` with the file's path and attaches the file.
+   *
+   * Both, because they do different jobs: the path stays in the sentence so
+   * "compare `a.ts` with `b.ts`" still reads, and the attachment is what
+   * tells the agent to read it — the same as picking it from Add.
+   */
+  const pickMention = (file: PickerFile) => {
+    if (!mention) return;
+    const before = draft.slice(0, mention.start);
+    const after = draft.slice(caret);
+    const name = file.isDir ? `${file.relative}/` : file.relative;
+    const spaced = after.startsWith(' ') ? name : `${name} `;
+    const at = before.length + spaced.length;
+    edit(before + spaced + after, at);
+    attach([{ kind: 'path', path: file.path, isDir: file.isDir }]);
+    // After React has put the new text in, or the caret lands at the end of
+    // the old one.
+    requestAnimationFrame(() => inputRef.current?.setSelectionRange(at, at));
+  };
 
   const submit = () => {
     if (!sendable) return;
@@ -165,19 +216,38 @@ export default function Agent({ conversationId, active }: AgentProps) {
     event.preventDefault();
     setDragging(false);
     if (ended) return;
+
+    // A row dragged out of the explorer: attached as if picked from Add.
+    const entry = event.dataTransfer.getData(PROJECT_ENTRY_TYPE);
+    if (entry) {
+      try {
+        const { path, isDir } = JSON.parse(entry) as {
+          path: unknown;
+          isDir: unknown;
+        };
+        if (typeof path === 'string')
+          attach([{ kind: 'path', path, isDir: isDir === true }]);
+      } catch {
+        // Not ours after all. Nothing to attach.
+      }
+      return;
+    }
+
     void takeImages([...event.dataTransfer.files]);
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    // While the `/` menu is open, the keys a menu uses are the menu's.
-    // Shift+Enter is not among them, so it still sends exactly what was
-    // typed.
-    if (commands.length > 0 && !event.nativeEvent.isComposing) {
+    // While a menu is open, the keys a menu uses are the menu's. Shift+Enter
+    // is not among them, so it still sends exactly what was typed.
+    if (menuSize > 0 && !event.nativeEvent.isComposing) {
       const move = (delta: number) =>
-        setCommandIndex(
-          (commandAt + delta + commands.length) % commands.length
-        );
-      const picked = commands[commandAt];
+        setMenuIndex((menuAt + delta + menuSize) % menuSize);
+      const pick = () => {
+        const command = commands[menuAt];
+        const file = mentions[menuAt];
+        if (command) pickCommand(command.name);
+        else if (file) pickMention(file);
+      };
       if (event.key === 'ArrowDown') {
         event.preventDefault();
         move(1);
@@ -188,12 +258,9 @@ export default function Agent({ conversationId, active }: AgentProps) {
         move(-1);
         return;
       }
-      if (
-        picked &&
-        (event.key === 'Tab' || (event.key === 'Enter' && !event.shiftKey))
-      ) {
+      if (event.key === 'Tab' || (event.key === 'Enter' && !event.shiftKey)) {
         event.preventDefault();
-        pickCommand(picked.name);
+        pick();
         return;
       }
       if (event.key === 'Escape') {
@@ -283,9 +350,12 @@ export default function Agent({ conversationId, active }: AgentProps) {
         <div
           // Dropping a file anywhere else in the window would navigate the
           // page to it, so the composer claims every drag that carries
-          // files, and only the composer.
+          // files — from the desktop, or a row from the explorer — and only
+          // the composer.
           onDragOver={(event) => {
-            if (!event.dataTransfer.types.includes('Files')) return;
+            const types = event.dataTransfer.types;
+            if (!types.includes('Files') && !types.includes(PROJECT_ENTRY_TYPE))
+              return;
             event.preventDefault();
             setDragging(true);
           }}
@@ -324,14 +394,32 @@ export default function Agent({ conversationId, active }: AgentProps) {
           {commands.length > 0 ? (
             <CommandMenu
               commands={commands}
-              selected={commandAt}
-              onHover={setCommandIndex}
+              selected={menuAt}
+              onHover={setMenuIndex}
               onPick={(command) => pickCommand(command.name)}
+            />
+          ) : mentions.length > 0 ? (
+            <MentionMenu
+              files={mentions}
+              selected={menuAt}
+              attached={
+                new Set(
+                  attachments.flatMap((attachment) =>
+                    attachment.kind === 'path' ? [attachment.path] : []
+                  )
+                )
+              }
+              onHover={setMenuIndex}
+              onPick={pickMention}
             />
           ) : null}
           <textarea
+            ref={inputRef}
             value={draft}
-            onChange={(event) => edit(event.target.value)}
+            onChange={(event) =>
+              edit(event.target.value, event.target.selectionStart)
+            }
+            onSelect={(event) => setCaret(event.currentTarget.selectionStart)}
             onKeyDown={onKeyDown}
             onPaste={(event) => {
               // Only a paste that carries images is taken over; text pastes
@@ -349,8 +437,8 @@ export default function Agent({ conversationId, active }: AgentProps) {
               ended
                 ? 'This conversation has ended.'
                 : conversation.commands.length > 0
-                  ? 'Message — / for commands, or paste a screenshot to show it'
-                  : 'Message — paste or drop a screenshot to show it'
+                  ? 'Message — / for commands, @ for files, or paste a screenshot'
+                  : 'Message — @ for files, or paste a screenshot to show it'
             }
             className="min-w-0 flex-1 resize-none bg-transparent text-[14px] text-fg outline-none placeholder:text-fg-subtle"
           />

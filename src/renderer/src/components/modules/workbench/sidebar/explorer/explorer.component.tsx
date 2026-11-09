@@ -1,5 +1,9 @@
 import { useCallback, useRef, useState, type ReactNode } from 'react';
-import { useProjectStore, type ProjectDraft } from '~/lib/project';
+import {
+  PROJECT_ENTRY_TYPE,
+  useProjectStore,
+  type ProjectDraft,
+} from '~/lib/project';
 import { useGitFileStatus } from '~/lib/git';
 import { useActiveFilePath, useOpenFile, useOpenFilePaths } from '~/lib/window';
 import type { File } from '@shared/fs.def';
@@ -179,6 +183,17 @@ function Node({
           <ContextMenuTrigger asChild>
             <button
               onClick={onClick}
+              // Draggable onto anything that takes a project entry — the
+              // agent's composer attaches it. A drag here is a request to
+              // carry a reference, not to move the file.
+              draggable
+              onDragStart={(event) => {
+                event.dataTransfer.effectAllowed = 'copy';
+                event.dataTransfer.setData(
+                  PROJECT_ENTRY_TYPE,
+                  JSON.stringify({ path: file.path, isDir: file.isDir })
+                );
+              }}
               // Indent with padding rather than a wrapper so the hover and selection
               // backgrounds still span the full width of the panel.
               style={{ paddingLeft: indent(depth) }}

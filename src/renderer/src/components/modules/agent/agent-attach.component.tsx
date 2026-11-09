@@ -20,6 +20,23 @@ function nameOf(path: string): string {
 }
 
 /**
+ * The project's files and folders that match what was typed, best first —
+ * or, with nothing typed, the files most recently looked at, which is
+ * usually what a message is about. What the attach picker and an `@` in the
+ * composer both offer.
+ */
+export function matchFiles(
+  entries: PickerFile[],
+  query: string,
+  recent: string[]
+): PickerFile[] {
+  if (query.trim())
+    return rankFiles(entries, query, PICKER_ROWS).map(({ file }) => file);
+  const byPath = new Map(entries.map((entry) => [entry.path, entry]));
+  return recent.flatMap((path) => byPath.get(path) ?? []).slice(0, 8);
+}
+
+/**
  * One attachment, as a chip: a file's icon and name, a folder's, or the
  * image itself, small.
  *
@@ -115,12 +132,10 @@ export function AttachPicker({
   const [selected, setSelected] = useState(0);
   const list = useRef<HTMLDivElement>(null);
 
-  const results = useMemo((): PickerFile[] => {
-    if (query.trim())
-      return rankFiles(entries, query, PICKER_ROWS).map(({ file }) => file);
-    const byPath = new Map(entries.map((entry) => [entry.path, entry]));
-    return recent.flatMap((path) => byPath.get(path) ?? []).slice(0, 8);
-  }, [entries, query, recent]);
+  const results = useMemo(
+    () => matchFiles(entries, query, recent),
+    [entries, query, recent]
+  );
 
   const index = Math.min(selected, Math.max(results.length - 1, 0));
 
@@ -225,5 +240,77 @@ export function AttachPicker({
         )}
       </div>
     </>
+  );
+}
+
+/**
+ * The files an `@` in the composer is offering, as the caret types the name.
+ *
+ * The attach picker's rows without its input: the keys that move through
+ * this arrive at the composer's textarea, the way the `/` menu's do, so the
+ * name is typed once, in the message, where it is going to stay.
+ */
+export function MentionMenu({
+  files,
+  selected,
+  attached,
+  onHover,
+  onPick,
+}: {
+  files: PickerFile[];
+  selected: number;
+  attached: Set<string>;
+  onHover: (index: number) => void;
+  onPick: (file: PickerFile) => void;
+}) {
+  const list = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    list.current
+      ?.querySelector('[data-selected="true"]')
+      ?.scrollIntoView({ block: 'nearest' });
+  }, [selected, files]);
+
+  return (
+    <div
+      ref={list}
+      role="listbox"
+      className="absolute right-0 bottom-full left-0 z-50 mb-2 flex max-h-72 flex-col overflow-y-auto rounded-lg border border-pane-border bg-input p-1 shadow-lg"
+    >
+      {files.map((file, position) => (
+        <button
+          key={file.path}
+          role="option"
+          aria-selected={position === selected}
+          data-selected={position === selected}
+          onMouseMove={() => onHover(position)}
+          // On mouse down, ahead of the blur, so the caret stays in the
+          // message — the `/` menu's reason.
+          onMouseDown={(event) => {
+            event.preventDefault();
+            onPick(file);
+          }}
+          className={cn(
+            'flex w-full shrink-0 cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-left',
+            position === selected ? 'bg-row-selected text-fg' : 'text-fg-muted',
+            { 'opacity-50': attached.has(file.path) }
+          )}
+        >
+          <FileIcon
+            file={{ name: file.name, path: file.path, isDir: file.isDir }}
+            className="size-3.5"
+          />
+          <span className="max-w-[60%] shrink-0 truncate text-[12px]">
+            {file.name}
+            {file.isDir ? '/' : ''}
+          </span>
+          {file.dir ? (
+            <span className="min-w-0 flex-1 truncate text-[11px] text-fg-subtle">
+              {file.dir}
+            </span>
+          ) : null}
+        </button>
+      ))}
+    </div>
   );
 }

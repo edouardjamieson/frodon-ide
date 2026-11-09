@@ -408,3 +408,27 @@ export function fileReference(
     ? { path, line: line ? parseInt(line, 10) : null }
     : null;
 }
+
+/** An `@` being typed, and what has been typed after it. */
+export interface Mention {
+  /** Where the `@` is in the draft. */
+  start: number;
+  query: string;
+}
+
+/**
+ * The `@mention` the caret is in the middle of, or null.
+ *
+ * Only an `@` at the start of the draft or after whitespace counts, so an
+ * email address or `@types/node` pasted mid-sentence does not open a menu
+ * over it. Read up to the caret and no further, so a mention can be added
+ * in the middle of a message already written.
+ */
+export function mentionAt(draft: string, caret: number): Mention | null {
+  const match = /(^|\s)@([^\s@]*)$/.exec(draft.slice(0, caret));
+  if (!match) return null;
+  return {
+    start: match.index + (match[1]?.length ?? 0),
+    query: match[2] ?? '',
+  };
+}

@@ -140,6 +140,10 @@ a name main trimmed is the name everything is re-keyed to.
   main resolves.
 - **The exclusion list has one home.** `main/ignore/` — the tree, the search
   and the picker all inherit it, and a second list would be a second answer.
+- **A drag carries a reference, never a move.** A row dragged out sets
+  `PROJECT_ENTRY_TYPE` and nothing else — not `text/plain`, which CodeMirror
+  would type into whatever file the drop missed into. Only targets that ask
+  for that type, the agent's composer today, receive it.
 - **A context menu that opens a field must defer.** A Radix context menu traps
   focus until its content unmounts, so an item that opens an inline field has
   to park the action and run it from `onCloseAutoFocus`. See
@@ -147,7 +151,9 @@ a name main trimmed is the name everything is re-keyed to.
 
 ## Not there yet
 
-- Drag to move a file.
+- Drag to move a file. Rows are already draggable, but only as a
+  reference for the agent's composer; a move would need a drop target in
+  the tree and a confirm for anything with unsaved tabs.
 - Multi-select.
 - A personal exclude list, for what only you want hidden. It waits for the
   `.frodon/config.local.json` layer in [migration.md](../migration.md).

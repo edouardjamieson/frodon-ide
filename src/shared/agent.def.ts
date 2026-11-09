@@ -49,6 +49,17 @@ export type AgentAvailability = (
       path: string;
       /** What the agent reports itself as, e.g. `2.1.308`. */
       version: string;
+      /**
+       * The version Frodon's own copy of the agent's SDK was released
+       * against, or null for a driver with no such thing.
+       */
+      builtFor: string | null;
+      /**
+       * How far `version` is from `builtFor`: `none`; `patch`, the same
+       * major and minor, which in practice works; or `line`, a different
+       * major or minor, where the protocol between them may have moved.
+       */
+      drift: 'none' | 'patch' | 'line';
     }
   | {
       status: 'missing';

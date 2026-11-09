@@ -209,7 +209,10 @@ electron-builder never sees its optional binaries. Main's bundle grows from
 **Cost.** Without `claude` installed, the tile can only say so — a fork of
 Frodon needs Claude Code to use it. The SDK and the installed CLI are
 versioned separately and talk a protocol, so an update on either side can
-break the other; nothing checks compatibility yet. Installing an agent into a
+break the other. Since 2026-11-09 `locate` compares the installed version
+with the SDK's `claudeCodeVersion`, read at build time, and the tile warns
+when they are a major or minor apart; it warns, and does not refuse, since a
+newer CLI usually still speaks an older protocol. Installing an agent into a
 directory new to `PATH` needs a restart, because the shell is asked once.
 
 ---

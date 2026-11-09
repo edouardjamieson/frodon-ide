@@ -11,11 +11,12 @@ import type { File } from '@shared/fs.def';
 import { useProjectStore } from '~/lib/project';
 import { collectFiles } from '~/lib/file-picker';
 import { CONFIG_SAVE_MS, useConfigStore } from '~/lib/config';
-import type {
-  AgentAttachment,
-  AgentKind,
-  AgentReply,
-  AgentRewind,
+import {
+  AGENT_LABELS,
+  type AgentAttachment,
+  type AgentKind,
+  type AgentReply,
+  type AgentRewind,
 } from '@shared/agent.def';
 import { useAgentStore } from './agent.store';
 import type { TranscriptEntry } from './agent.def';
@@ -366,7 +367,8 @@ export function useFindFile(): (text: string) => FileReference | null {
 }
 
 /**
- * Why an agent cannot be started right now, or null when it can.
+ * Why an agent cannot be started right now — or is far enough from the
+ * version Frodon was built for to be likely to fail — or null when neither.
  *
  * Asked when a tile mounts and again whenever that agent's path in the
  * settings changes — after the config has been written, since main reads the
@@ -381,7 +383,15 @@ export function useAgentProblem(kind: AgentKind): string | null {
     let live = true;
     const timer = setTimeout(() => {
       void window.frodon.agent.availability(kind).then((found) => {
-        if (live) setProblem(found.status === 'missing' ? found.reason : null);
+        if (!live) return;
+        if (found.status === 'missing') setProblem(found.reason);
+        // A different major or minor from the one the SDK was built for is
+        // worth saying before it misbehaves; a patch apart is not.
+        else if (found.drift === 'line' && found.builtFor)
+          setProblem(
+            `${AGENT_LABELS[kind]} ${found.version} is installed, and Frodon was built for ${found.builtFor}. They may not understand each other — update one or the other if conversations misbehave.`
+          );
+        else setProblem(null);
       });
     }, AVAILABILITY_DELAY_MS);
     return () => {

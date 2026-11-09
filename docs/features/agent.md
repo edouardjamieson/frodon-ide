@@ -81,6 +81,16 @@ already installed, and the SDK is pointed at it with
 main by Vite as plain JavaScript — its runtime imports are Node built-ins
 only — so electron-builder never packages the optional binary. ADR-0043.
 
+**The version is checked, and only warned about.** The SDK names the Claude
+Code it was released against (`claudeCodeVersion` in its `package.json`),
+which the build writes into main as `__CLAUDE_CODE_VERSION__`. `locate`
+compares the installed version with it: the same, a patch apart — which in
+practice works, and Settings → Agents says so — or a different major or
+minor, where the protocol may have moved, and the agent tile's warning strip
+says so before anything fails. It never refuses to start: a newer CLI
+usually still speaks an older SDK's protocol, and a check that blocked
+would block the update that fixes it.
+
 The agent runs in the **login shell's environment**, asked once per run by
 `loginEnvironment`. A Mac app started from the Dock inherits launchd's, whose
 `PATH` holds nothing a developer installed and which has none of what the

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { cn } from 'cn';
 import {
   AGENT_LABELS,
   type AgentAvailability,
@@ -176,6 +177,17 @@ function Located({
       {label} {found.version},{' '}
       {found.configured ? 'from this path' : 'found on your PATH'}. Left empty,
       the first one on your login shell&rsquo;s PATH runs.
+      {found.builtFor && found.drift !== 'none' ? (
+        <span
+          className={cn('mt-1 block', {
+            'text-fg-danger': found.drift === 'line',
+          })}
+        >
+          {found.drift === 'line'
+            ? `Frodon was built for ${label} ${found.builtFor}. Versions this far apart may not understand each other — update one or the other if conversations fail to start or behave oddly.`
+            : `Frodon was built for ${label} ${found.builtFor}. Versions a patch apart work together.`}
+        </span>
+      ) : null}
     </>
   );
 }

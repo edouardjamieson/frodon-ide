@@ -100,7 +100,14 @@ export const claudeDriver: AgentDriver = {
       };
     }
 
-    return { ...about, status: 'ready', path, version };
+    return {
+      ...about,
+      status: 'ready',
+      path,
+      version,
+      builtFor: CLAUDE_CODE_VERSION,
+      drift: driftOf(version, CLAUDE_CODE_VERSION),
+    };
   },
 
   start(options) {
@@ -155,6 +162,27 @@ export const claudeDriver: AgentDriver = {
     }
   },
 };
+
+/**
+ * The Claude Code the bundled SDK speaks to best. The SDK drives the CLI
+ * over a protocol both sides version separately, so an installed `claude`
+ * far from this one can fail in ways that look like neither's fault.
+ */
+const CLAUDE_CODE_VERSION = __CLAUDE_CODE_VERSION__;
+
+/**
+ * How far an installed version is from the one the SDK was built against.
+ * Read from the leading numbers only — `2.1.309 (Claude Code)` is how
+ * `--version` answers — and treated as no drift when either will not parse,
+ * since a warning on a version nobody can read helps no one.
+ */
+function driftOf(installed: string, built: string): 'none' | 'patch' | 'line' {
+  const a = /^(\d+)\.(\d+)\.(\d+)/.exec(installed);
+  const b = /^(\d+)\.(\d+)\.(\d+)/.exec(built);
+  if (!a || !b) return 'none';
+  if (a[1] !== b[1] || a[2] !== b[2]) return 'line';
+  return a[3] === b[3] ? 'none' : 'patch';
+}
 
 /** Where an administrator's Claude settings live, by platform. */
 const MANAGED_SETTINGS: Partial<Record<NodeJS.Platform, string>> = {

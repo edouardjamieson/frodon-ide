@@ -364,17 +364,22 @@ just put back. Separately: resuming with `resumeSessionAt` keeps the
 session's id rather than forking a new one, which is what lets a favorite
 survive a rewind.
 
-### Radix's ScrollArea makes its only child a table
+### Radix's ScrollArea wraps its content in a table
 `code` · 2026-11-09 · `components/modules/workbench/sidebar/favorites/`
 
-`@radix-ui/react-scroll-area` 1.3 measures its content with an element
-styled `display: table; min-width: 100%`, and when it is given a single
-child it no longer wraps it: the style is slotted onto the child, inline.
-So a `flex flex-col` list inside a ScrollArea is silently a table, sized to
-its widest row, and `truncate` on the rows never has a width to cut at — the
-Favorites list ran off the side of the sidebar with a long name. The fix is
-an inline `display` on the child, which wins the merge. Anything that
-expects to be the width of its ScrollArea needs it.
+Radix's ScrollArea puts a `div` between its viewport and the content,
+styled `display: table; min-width: 100%` inline, to measure what it holds.
+A table is as wide as its widest row, so a list inside a ScrollArea is too:
+`truncate` on the rows never has a width to cut at, and a long name in
+Favorites pushed the list — and the row's menu button — past the edge of
+the sidebar. An inline style on the list does nothing, since the table is
+its parent; the first fix tried exactly that, from reading a copy of
+`react-scroll-area` in `node_modules` that is not the one `radix-ui`
+bundles, which slots the style onto the child instead. Rendering the real
+component to HTML showed the wrapper. The fix is an `!important` rule on the
+wrapper — `[&_[data-radix-scroll-area-viewport]>div]:block!` on the
+ScrollArea — since nothing else beats an inline style. Any ScrollArea whose
+rows should truncate needs it.
 
 ### A subagent's call returns before the subagent has done anything
 `code` · 2026-11-08 · `src/main/agent/agent-claude.service.ts`

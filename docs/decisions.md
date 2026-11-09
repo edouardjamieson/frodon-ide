@@ -55,7 +55,9 @@ shape the IPC layer did not have, with a timeout to tune and a window that
 may be busy. The tools are worded for Claude and pre-allowed, so a driver
 for another agent has to offer its own equivalent or go without. Boards and
 terminals are not reachable yet; each would be another tool and another
-thing for the window to answer.
+thing for the window to answer. (Since 2026-11-09 they are: `terminal_output`,
+`show_in_git`, `list_boards`, `read_board` and `draw_on_board` join the two,
+over the same question-and-answer, now typed by `AgentWorkbenchAsk`.)
 
 ### ADR-0046 — A reply is parsed by the editor's markdown parser and drawn as React elements
 

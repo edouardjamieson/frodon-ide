@@ -150,9 +150,10 @@ two.
 - Images.
 - Connectors that stay attached to the shapes they join.
 - Export to anything.
-- A nodes-and-edges model at a higher altitude than absolute geometry — see the
-  parked MCP note in [migration.md](../migration.md), which concluded the flat
-  point arrays are the wrong thing to expose to anything but the canvas.
+- A nodes-and-edges model at a higher altitude than absolute geometry. An
+  agent in an agent tile reads and draws boards one element per line, in
+  board units — see [agent.md](agent.md) — but nothing keeps an arrow
+  attached to the boxes it was drawn between.
 
 ## See also
 

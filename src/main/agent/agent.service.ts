@@ -26,6 +26,7 @@ import type {
   FavoriteEntry,
 } from '@shared/agent.def';
 import type { AgentSettings } from '@shared/config.def';
+import type { BoardRef } from '@shared/board.def';
 import { AGENT_LABELS, isAgentKind, isSessionToken } from '@shared/agent.def';
 import {
   DAY_MS,
@@ -42,9 +43,13 @@ import { cleanAttachments } from './agent-attachment.service';
 import {
   readTerminals,
   readWorkbench,
+  drawOnBoard,
+  readBoardElements,
   showFile,
   showGit,
 } from './agent-workbench.service';
+import { elementsFrom } from './agent-board.service';
+import { listBoards } from '@main/board';
 
 const log = createLogger('agent');
 
@@ -201,6 +206,21 @@ export async function startConversation(
         read: () => readWorkbench(senderId, cwd),
         terminals: () => readTerminals(senderId),
         showGit: (commit) => showGit(senderId, cwd, commit),
+        boards: () => listBoards(cwd),
+        // Both checked against the list first: a board that is not there
+        // reads as an empty one, by design, and drawing on a misspelled name
+        // would quietly create a new board.
+        readBoard: async (ref) =>
+          (await boardExists(cwd, ref))
+            ? readBoardElements(senderId, ref)
+            : noBoard(ref),
+        draw: async (ref, shapes) => {
+          if (!(await boardExists(cwd, ref))) return noBoard(ref);
+          const elements = elementsFrom(shapes);
+          return typeof elements === 'string'
+            ? elements
+            : drawOnBoard(senderId, ref, elements);
+        },
         open: (path, line) => showFile(senderId, cwd, path, line),
       },
       emit: (event) => emit(conversation, event),
@@ -346,6 +366,16 @@ export async function runShellCommand(
  */
 function tail(text: string, limit: number): string {
   return text.length <= limit ? text : `…${text.slice(text.length - limit)}`;
+}
+
+async function boardExists(cwd: string, ref: BoardRef): Promise<boolean> {
+  return (await listBoards(cwd)).some(
+    (board) => board.scope === ref.scope && board.name === ref.name
+  );
+}
+
+function noBoard(ref: BoardRef): string {
+  return `There is no ${ref.scope === 'local' ? 'private ' : ''}board called ${ref.name}. list_boards gives their names.`;
 }
 
 /** The answer every way out of a question that is not a click gives. */

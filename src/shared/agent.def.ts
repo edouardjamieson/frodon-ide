@@ -16,6 +16,7 @@
  * carried here "in case": a field nothing reads is a field every future
  * driver has to fill in.
  */
+import type { BoardElement, BoardRef } from './board.def';
 
 /**
  * The agents Frodon can drive. One driver each, in `main/agent/`.
@@ -384,7 +385,16 @@ export interface AgentWorkbench {
  * window answers them all from its own stores, and main cleans each answer
  * with the rule for its kind before an agent sees it.
  */
-export type AgentWorkbenchAsk = { kind: 'editors' } | { kind: 'terminals' };
+export type AgentWorkbenchAsk =
+  | { kind: 'editors' }
+  | { kind: 'terminals' }
+  /** A board's elements — the open session's, unsaved strokes and all. */
+  | { kind: 'board'; ref: BoardRef }
+  /**
+   * Elements to add to a board: to the open session as one undoable step,
+   * or to the file when the board is not open in this window.
+   */
+  | { kind: 'draw'; ref: BoardRef; elements: BoardElement[] };
 
 /** One terminal tab, as an agent is shown it. */
 export interface AgentTerminal {

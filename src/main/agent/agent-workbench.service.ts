@@ -17,6 +17,7 @@ import { randomUUID } from 'node:crypto';
 import { stat } from 'node:fs/promises';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { webContents } from 'electron';
+import type { BoardElement, BoardRef } from '@shared/board.def';
 import type {
   AgentEditorTile,
   AgentSelection,
@@ -249,4 +250,43 @@ function resolveCommit(root: string, commit: string): Promise<string | null> {
       (error, stdout) => done(error ? null : stdout.trim() || null)
     );
   });
+}
+
+/** A board's elements as the window has them, or why not. */
+export async function readBoardElements(
+  senderId: number,
+  ref: BoardRef
+): Promise<BoardElement[] | string> {
+  const answer = await askWindow(senderId, { kind: 'board', ref }, (raw) => {
+    const r = raw as { elements?: unknown; error?: unknown } | null;
+    if (typeof r?.error === 'string') return r.error;
+    // Elements went from main's file through the renderer and back, so
+    // the shape is trusted only as far as describing them needs.
+    return Array.isArray(r?.elements)
+      ? (r.elements.filter(
+          (element) => typeof element === 'object' && element !== null
+        ) as BoardElement[])
+      : 'The board could not be read.';
+  });
+  return answer ?? 'The window did not answer.';
+}
+
+/** Adds elements to a board through the window. Why not, or null. */
+export async function drawOnBoard(
+  senderId: number,
+  ref: BoardRef,
+  elements: BoardElement[]
+): Promise<string | null> {
+  const answer = await askWindow(
+    senderId,
+    { kind: 'draw', ref, elements },
+    (raw) => {
+      const r = raw as { ok?: unknown; error?: unknown } | null;
+      if (r?.ok === true) return null;
+      return typeof r?.error === 'string'
+        ? r.error
+        : 'The board was not changed.';
+    }
+  );
+  return answer === null ? null : answer;
 }

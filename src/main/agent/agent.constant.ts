@@ -70,3 +70,6 @@ export const MAX_TERMINALS = 12;
 
 /** The most of one terminal's output an agent is shown, in characters. */
 export const TERMINAL_OUTPUT_LIMIT = 16_000;
+
+/** The most shapes an agent may add to a board in one call. */
+export const MAX_BOARD_SHAPES = 200;

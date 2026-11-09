@@ -33,6 +33,7 @@ import {
   type SlashCommand,
 } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
+import { isValidBoardName, type BoardRef } from '@shared/board.def';
 import { createLogger } from '@main/logger';
 import type {
   AgentAction,
@@ -59,6 +60,7 @@ import type {
   StartOptions,
 } from './agent.def';
 import { findExecutable, isExecutable } from './agent-environment.service';
+import { describeBoard } from './agent-board.service';
 
 const log = createLogger('agent');
 
@@ -1015,6 +1017,9 @@ const WORKBENCH_TOOLS = [
   'open_file',
   'terminal_output',
   'show_in_git',
+  'list_boards',
+  'read_board',
+  'draw_on_board',
 ] as const;
 /** The same tools by the names Claude calls them. */
 const WORKBENCH_TOOL_NAMES: ReadonlySet<string> = new Set(
@@ -1042,7 +1047,9 @@ function workbenchServer(host: AgentHost) {
       'to see what they mean. To show them a place in the code, call ' +
       'open_file rather than only naming it. When they ask about a command ' +
       'they ran or something a terminal shows, call terminal_output. To ' +
-      'show them a commit or their pending changes, call show_in_git.',
+      'show them a commit or their pending changes, call show_in_git. ' +
+      'Frodon has boards for sketching; to draw a diagram for them, use ' +
+      'list_boards, read_board and draw_on_board.',
     tools: [
       tool(
         'editor_state',
@@ -1117,6 +1124,123 @@ function workbenchServer(host: AgentHost) {
         }
       ),
       tool(
+        'list_boards',
+        "The project's Frodon boards — sketches and diagrams the person " +
+          'draws in the IDE — by name, each saved with the project or kept ' +
+          'privately on this machine.',
+        {},
+        async () => {
+          const boards = await host.workbench.boards();
+          return {
+            content: [
+              {
+                type: 'text',
+                text:
+                  boards.length === 0
+                    ? 'The project has no boards.'
+                    : boards
+                        .map(
+                          (board) =>
+                            `${board.name} (${board.scope === 'project' ? 'saved with the project' : 'private'})`
+                        )
+                        .join('\n'),
+              },
+            ],
+          };
+        }
+      ),
+      tool(
+        'read_board',
+        'What is on one of the boards: each element on a line — text with ' +
+          'its words, boxes, ellipses, diamonds, arrows and lines with ' +
+          'where they are, pen strokes as their bounds. Coordinates are ' +
+          'board units with y pointing down.',
+        {
+          board: z.string().describe('Its name, as list_boards gives it.'),
+          scope: z
+            .enum(['project', 'local'])
+            .optional()
+            .describe('project (the default) or local, for a private one.'),
+        },
+        async ({ board, scope }) => {
+          const ref = boardRefOf(board, scope);
+          const elements = ref
+            ? await host.workbench.readBoard(ref)
+            : `${board} is not a board name.`;
+          const refused = typeof elements === 'string';
+          return {
+            content: [
+              {
+                type: 'text',
+                text: refused ? elements : describeBoard(elements),
+              },
+            ],
+            ...(refused ? { isError: true } : {}),
+          };
+        }
+      ),
+      tool(
+        'draw_on_board',
+        'Adds to one of the boards, as one step the person can undo: ' +
+          'text, rectangles, ellipses and diamonds by their top-left corner ' +
+          'and size, arrows and lines from (x, y) to (toX, toY). For ' +
+          'sketching a diagram for them — boxes with text set inside them, ' +
+          'joined by arrows. A box has no label of its own: to name one, add ' +
+          'a text shape inside it. Read the board first to place things ' +
+          'clear of what is there.',
+        {
+          board: z.string().describe('Its name, as list_boards gives it.'),
+          scope: z.enum(['project', 'local']).optional(),
+          shapes: z
+            .array(
+              z.object({
+                kind: z.enum([
+                  'text',
+                  'rectangle',
+                  'ellipse',
+                  'diamond',
+                  'arrow',
+                  'line',
+                ]),
+                x: z.number(),
+                y: z.number(),
+                width: z.number().optional(),
+                height: z.number().optional(),
+                toX: z.number().optional(),
+                toY: z.number().optional(),
+                text: z.string().optional(),
+                color: z
+                  .enum([
+                    'default',
+                    'red',
+                    'green',
+                    'yellow',
+                    'blue',
+                    'magenta',
+                    'cyan',
+                  ])
+                  .optional(),
+              })
+            )
+            .describe('What to add, in order.'),
+        },
+        async ({ board, scope, shapes }) => {
+          const ref = boardRefOf(board, scope);
+          const refused = ref
+            ? await host.workbench.draw(ref, shapes)
+            : `${board} is not a board name.`;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: refused ?? `Added ${shapes.length} to ${board}.`,
+              },
+            ],
+            ...(refused ? { isError: true } : {}),
+          };
+        }
+      ),
+      tool(
         'open_file',
         "Opens a file of the project in Frodon's editor so the person can " +
           'see it, scrolled to a line. For showing them something — not for ' +
@@ -1148,6 +1272,14 @@ function workbenchServer(host: AgentHost) {
       ),
     ],
   });
+}
+
+/** A board named by the agent, as a ref, or null for a name boards refuse. */
+function boardRefOf(
+  name: string,
+  scope: 'project' | 'local' | undefined
+): BoardRef | null {
+  return isValidBoardName(name) ? { scope: scope ?? 'project', name } : null;
 }
 
 /** `terminal_output`'s answer, as text a model reads well. */
@@ -1429,6 +1561,20 @@ function actionOf(
       return { id, kind: 'read', title: 'Look at the editor' };
     case `mcp__${WORKBENCH_SERVER}__terminal_output`:
       return { id, kind: 'read', title: 'Look at the terminals' };
+    case `mcp__${WORKBENCH_SERVER}__list_boards`:
+      return { id, kind: 'read', title: 'List the boards' };
+    case `mcp__${WORKBENCH_SERVER}__read_board`:
+      return {
+        id,
+        kind: 'read',
+        title: `Read the board ${str('board') ?? ''}`.trim(),
+      };
+    case `mcp__${WORKBENCH_SERVER}__draw_on_board`:
+      return {
+        id,
+        kind: 'change',
+        title: `Draw on the board ${str('board') ?? ''}`.trim(),
+      };
     case `mcp__${WORKBENCH_SERVER}__show_in_git`:
       return {
         id,

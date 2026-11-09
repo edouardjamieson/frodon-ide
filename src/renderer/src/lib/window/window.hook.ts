@@ -11,6 +11,9 @@ import { useAgentStore } from '~/lib/agent';
 import { selectionOf } from '~/lib/editor';
 import { terminalOutputOf } from '~/lib/terminal';
 import { useGitStore } from '~/lib/git';
+import { useBoardStore } from '~/lib/board';
+import { boardKey } from '@shared/board.def';
+import type { AgentWorkbenchAsk } from '@shared/agent.def';
 import { useWindowStore } from './window.store';
 import { useWindowDragStore } from './window-drag.store';
 import { canSplit, rowsOf } from './window.service';
@@ -193,6 +196,11 @@ export const useAgentWorkbenchEffect = (): void => {
       const answer = (value: unknown) =>
         void window.frodon.agent.answerWorkbench(requestId, value);
 
+      if (ask.kind === 'board' || ask.kind === 'draw') {
+        void answerBoard(ask).then(answer);
+        return;
+      }
+
       if (ask.kind === 'terminals') {
         const terminals = windows
           .filter((tile): tile is TerminalWindow => tile.type === 'terminal')
@@ -251,6 +259,45 @@ export const useAgentWorkbenchEffect = (): void => {
     };
   }, []);
 };
+
+/**
+ * A board question from an agent, answered from the board open in this
+ * window when there is one — its unsaved strokes are the board as the
+ * person sees it, and drawing into its session is what keeps the agent's
+ * shapes from being overwritten by the next autosave — or from the file.
+ */
+async function answerBoard(
+  ask: Extract<AgentWorkbenchAsk, { kind: 'board' | 'draw' }>
+): Promise<unknown> {
+  const key = boardKey(ask.ref);
+  const session = useBoardStore.getState().sessions[key];
+  const open = session?.status === 'ready' ? session : null;
+
+  if (ask.kind === 'board') {
+    if (open) return { elements: open.elements };
+    try {
+      return { elements: (await window.frodon.board.read(ask.ref)).elements };
+    } catch {
+      return { error: `There is no board called ${ask.ref.name}.` };
+    }
+  }
+
+  if (open) {
+    // One commit, so one undo takes the agent's whole drawing back out.
+    useBoardStore.getState().commit(key, [...open.elements, ...ask.elements]);
+    return { ok: true };
+  }
+  try {
+    const document = await window.frodon.board.read(ask.ref);
+    const result = await window.frodon.board.write(ask.ref, {
+      ...document,
+      elements: [...document.elements, ...ask.elements],
+    });
+    return result.ok ? { ok: true } : { error: result.error ?? 'Not saved.' };
+  } catch {
+    return { error: `There is no board called ${ask.ref.name}.` };
+  }
+}
 
 /** Everything a browser window's tabs need. */
 export const useBrowserWindow = (window: BrowserWindow) => {

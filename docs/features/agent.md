@@ -443,6 +443,25 @@ answered with "not a commit in this repository" rather than an empty pane.
 The window then opens or focuses the git window, picks the history or the
 commit tab, and opens the commit's detail through `openCommitDetail`.
 
+### The agent can read a board and draw on it
+
+`list_boards`, `read_board` and `draw_on_board` let the agent sketch a
+diagram for the person. A board's own format is geometry for a canvas, so
+the agent is shown each element as one line — "rectangle at (100, 100),
+160×80", "text at (147, 125): \"main\"" — and draws in the same terms: text
+and boxes by their corner and size, arrows from one point to another.
+`agent-board.service.ts` turns those into elements, in the canvas's default
+brush and with an arrow seated the way `normalizeElement` seats a drawn
+one, and refuses the whole drawing if one shape is wrong. Main checks the
+board exists first, since a missing board reads as an empty one and a
+drawing would quietly create it.
+
+Reading and drawing go through the window, not the file: a board open in a
+tile has strokes not yet saved, and its next autosave would overwrite
+anything written behind it. So the window reads the open session, and adds
+the agent's shapes to it in one `commit` — one undo takes the drawing back
+out. A board not open in the window is read and written as a file.
+
 ### Work handed off is drawn under the call that started it
 
 A subagent, or a command left running in the background, is a **task**:
@@ -741,8 +760,9 @@ arrives.
 - **More markdown.** Most HTML entities show as written, and a table's
   columns line up by its cells as the parser found them, so a row with an
   empty cell can shift its alignment by one.
-- **More of the workbench.** Boards are not reachable from a conversation
-  yet.
+- **A board open in another window.** A drawing goes into the board open in
+  the conversation's own window, or to the file; the same board open in a
+  second window does not see it until reopened, and could save over it.
 - **A subagent's approvals in its own card.** What a subagent asks to do is
   asked on an ordinary card in the transcript, not under the task it
   belongs to.

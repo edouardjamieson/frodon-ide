@@ -8,6 +8,7 @@
  * which window owns which, batching, approvals waiting on a click — lives in
  * `agent.service.ts` and is written once for every driver. ADR-0042.
  */
+import type { BoardElement, BoardRef, BoardSummary } from '@shared/board.def';
 import type {
   AgentAction,
   AgentAttachment,
@@ -39,6 +40,14 @@ export interface AgentHost {
      * null. Why not, or null when it was shown.
      */
     showGit: (commit: string | null) => Promise<string | null>;
+    /** The project's boards, both scopes. */
+    boards: () => Promise<BoardSummary[]>;
+    /** A board's elements, or why not. */
+    readBoard: (ref: BoardRef) => Promise<BoardElement[] | string>;
+    /**
+     * Adds shapes, in the agent's own terms, to a board. Why not, or null.
+     */
+    draw: (ref: BoardRef, shapes: unknown) => Promise<string | null>;
   };
   /** Reports something that happened. Batched before it crosses. */
   emit: (event: AgentEvent) => void;

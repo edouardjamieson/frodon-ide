@@ -10,7 +10,11 @@ import {
   MAX_AGENT_PATH_LENGTH,
   type AgentSettings,
 } from '@shared/config.def';
+import { ChevronRight } from 'lucide-react';
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
   Input,
   Select,
   SelectContent,
@@ -19,7 +23,8 @@ import {
   SelectValue,
 } from '~/components/ui';
 import { CONFIG_SAVE_MS, useUserConfig } from '~/lib/config';
-import { Field, FieldGroup } from './settings-field.component';
+import { AgentIcon } from '~/components/modules/agent';
+import { Field } from './settings-field.component';
 
 /**
  * How long a path has to stop changing before the agent is looked for —
@@ -37,6 +42,10 @@ const AGENT_DECIDES = '__agent__';
 /**
  * How each coding agent starts: which copy runs, and the permission mode a
  * new conversation begins in.
+ *
+ * Each agent is a panel that folds, wearing its logo and, folded, whether it
+ * was found and which version — a page meant to hold several agents should
+ * show one line for each until one is opened.
  *
  * One group per agent, because nothing here carries from one to another —
  * a Claude permission mode means nothing to any other agent. Every field is a
@@ -72,36 +81,55 @@ function AgentGroup({ kind }: { kind: AgentKind }) {
   };
 
   return (
-    <FieldGroup title={label}>
-      <Field
-        label="Executable"
-        htmlFor={`settings-agent-${kind}-path`}
-        hint={<Located found={found} label={label} />}
-      >
-        <PathInput
-          id={`settings-agent-${kind}-path`}
-          value={settings.path}
-          placeholder={
-            found && found.status === 'ready' && !found.configured
-              ? found.path
-              : 'Found on your PATH'
-          }
-          onChange={(path) => change({ path })}
-        />
-      </Field>
+    <Collapsible className="rounded-lg border border-pane-border">
+      <CollapsibleTrigger className="group/agent flex w-full cursor-pointer items-center gap-2.5 px-3 py-2.5 text-left">
+        <ChevronRight className="size-3.5 shrink-0 text-fg-subtle transition-transform group-data-[state=open]/agent:rotate-90" />
+        <AgentIcon kind={kind} className="size-4 shrink-0" />
+        <span className="text-xs font-medium text-fg">{label}</span>
+        {/* What the open panel would say first, so a closed one still
+            answers the question this page is usually opened to ask: is the
+            agent there, and which one is it. */}
+        <span className="ml-auto min-w-0 truncate text-[11px]">
+          {!found ? (
+            <span className="text-fg-subtle">Looking…</span>
+          ) : found.status === 'missing' ? (
+            <span className="text-fg-danger">Not found</span>
+          ) : (
+            <span className="text-fg-subtle">{found.version}</span>
+          )}
+        </span>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="flex flex-col gap-4 border-t border-pane-border px-3 pt-3 pb-4">
+        <Field
+          label="Executable"
+          htmlFor={`settings-agent-${kind}-path`}
+          hint={<Located found={found} label={label} />}
+        >
+          <PathInput
+            id={`settings-agent-${kind}-path`}
+            value={settings.path}
+            placeholder={
+              found && found.status === 'ready' && !found.configured
+                ? found.path
+                : 'Found on your PATH'
+            }
+            onChange={(path) => change({ path })}
+          />
+        </Field>
 
-      <Field
-        label="Permissions"
-        hint={`How much a new conversation asks before acting. The picker under a conversation still changes it for that one. Left to ${label}, its own settings decide, as they would in a terminal.`}
-      >
-        <ModeSelect
-          modes={found?.modes ?? []}
-          value={settings.permissionMode}
-          agent={label}
-          onChange={(permissionMode) => change({ permissionMode })}
-        />
-      </Field>
-    </FieldGroup>
+        <Field
+          label="Permissions"
+          hint={`How much a new conversation asks before acting. The picker under a conversation still changes it for that one. Left to ${label}, its own settings decide, as they would in a terminal.`}
+        >
+          <ModeSelect
+            modes={found?.modes ?? []}
+            value={settings.permissionMode}
+            agent={label}
+            onChange={(permissionMode) => change({ permissionMode })}
+          />
+        </Field>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 

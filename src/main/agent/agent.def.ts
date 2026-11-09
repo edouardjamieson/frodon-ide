@@ -121,6 +121,13 @@ export interface AgentDriver {
    */
   lastActive: (cwd: string, session: string) => Promise<number | null>;
   /**
+   * How many days after its last activity the agent deletes a conversation
+   * it keeps for `cwd`, or null when it does not delete them, or cannot be
+   * told. Read from the agent's own settings, since it is the agent that
+   * deletes.
+   */
+  keepsFor: (cwd: string) => Promise<number | null>;
+  /**
    * One conversation, replayed as the events that would have drawn it, or
    * null when the agent has no such conversation in `cwd`.
    *

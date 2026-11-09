@@ -45,3 +45,8 @@ export const WORKBENCH_TIMEOUT_MS = 2000;
 
 /** The most of a selection an agent is handed, in characters. */
 export const SELECTION_LIMIT = 20_000;
+
+export const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** How long Claude Code keeps a conversation when its settings do not say. */
+export const CLAUDE_DEFAULT_KEEP_DAYS = 30;

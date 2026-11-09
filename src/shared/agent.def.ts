@@ -432,6 +432,12 @@ export interface FavoriteConversation {
  */
 export interface FavoriteEntry extends FavoriteConversation {
   lastActive: number | null;
+  /**
+   * When the agent will delete the conversation, in milliseconds since the
+   * epoch — its last activity plus how long the agent keeps one — or null
+   * when it keeps them for good, cannot say, or already has.
+   */
+  expiresAt: number | null;
 }
 
 /** The longest name a favorite can carry. */

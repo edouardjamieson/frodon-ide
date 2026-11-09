@@ -527,8 +527,10 @@ arrives.
 
 ### Reopening one
 
-1. The heart in the sidebar's rail, or `mod+shift+h`, opens **Favorites**: each conversation
-   by name, with when it was last active.
+1. The heart in the sidebar's rail, or `mod+shift+h`, opens **Favorites**:
+   each conversation by name, with when it was last active and when Claude
+   Code will delete it — "deleted in 27 days", in red for the last week.
+   The tooltip gives the date and names the setting that decides it.
 2. Clicking one brings forward the tab already on it — in this window or
    another, which is raised — or opens a new tab that draws the
    conversation as it was and carries on from there.
@@ -606,7 +608,9 @@ arrives.
   can draw its history without a running agent.
 - **A favorite surviving the agent's cleanup.** It does not: Claude deletes
   sessions after 30 days by default (`cleanupPeriodDays`), and a favorite
-  then reads as gone. Preventing that means copying transcripts, which is
+  then reads as gone. The row says when that will be — the driver's
+  `keepsFor` reads `cleanupPeriodDays` from Claude's settings files in
+  their order of precedence, managed last — but cannot stop it. Preventing that means copying transcripts, which is
   the storage this design set out not to own.
 - **The name in Claude's own list.** `renameSession` could write a
   favorite's name where `claude --resume` shows it. Left out: it writes into the

@@ -116,6 +116,8 @@ function Row({
   // Gone is the agent's doing — Claude deletes old conversations on its own
   // schedule — so the row stays, says so, and can only be taken off.
   const gone = favorite.lastActive === null;
+  const expiry = expiryOf(favorite.expiresAt);
+  const label = AGENT_LABELS[favorite.kind];
 
   return (
     <div
@@ -123,8 +125,10 @@ function Row({
       onDoubleClick={onRename}
       title={
         gone
-          ? `${AGENT_LABELS[favorite.kind]} no longer has this conversation`
-          : undefined
+          ? `${label} no longer has this conversation`
+          : expiry
+            ? `${label} deletes conversations it has not used in a while — this one after ${new Date(favorite.expiresAt ?? 0).toLocaleDateString()}, unless it is used again first. Its cleanupPeriodDays setting decides how long.`
+            : undefined
       }
       className={cn(
         'group/favorite flex items-center gap-2 rounded-md py-1 pr-1 pl-2 text-[12px] transition-colors',
@@ -141,9 +145,20 @@ function Row({
           {favorite.name}
         </span>
         <span className="truncate text-[10px] text-fg-subtle">
-          {gone
-            ? 'No longer available'
-            : `Active ${relativeTime(new Date(favorite.lastActive ?? 0).toISOString())}`}
+          {gone ? (
+            'No longer available'
+          ) : (
+            <>
+              Active{' '}
+              {relativeTime(new Date(favorite.lastActive ?? 0).toISOString())}
+              {expiry ? (
+                <span className={cn({ 'text-fg-danger': expiry.soon })}>
+                  {' · '}
+                  {expiry.text}
+                </span>
+              ) : null}
+            </>
+          )}
         </span>
       </span>
 
@@ -170,4 +185,27 @@ function Row({
       </DropdownMenu>
     </div>
   );
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** How close a deletion has to be before the row says it in red. */
+const SOON_DAYS = 7;
+
+/**
+ * When the agent will delete a favorite, as the row says it, or null when it
+ * will not or cannot say. Counted in whole days from now: the agent deletes
+ * on its own schedule — Claude, when it next starts — so an hour is more
+ * precision than the date has.
+ */
+function expiryOf(
+  expiresAt: number | null
+): { text: string; soon: boolean } | null {
+  if (expiresAt === null) return null;
+  const days = Math.ceil((expiresAt - Date.now()) / DAY_MS);
+  if (days <= 0) return { text: 'due for deletion', soon: true };
+  return {
+    text: days === 1 ? 'deleted tomorrow' : `deleted in ${days} days`,
+    soon: days <= SOON_DAYS,
+  };
 }

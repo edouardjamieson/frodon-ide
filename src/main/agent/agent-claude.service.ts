@@ -16,6 +16,9 @@
  */
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import {
   createSdkMcpServer,
   getSessionInfo,
@@ -42,7 +45,11 @@ import type {
   AgentTask,
   AgentWorkbench,
 } from '@shared/agent.def';
-import { OUTPUT_LIMIT, VERSION_TIMEOUT_MS } from './agent.constant';
+import {
+  CLAUDE_DEFAULT_KEEP_DAYS,
+  OUTPUT_LIMIT,
+  VERSION_TIMEOUT_MS,
+} from './agent.constant';
 import type {
   AgentDriver,
   AgentHost,
@@ -113,6 +120,27 @@ export const claudeDriver: AgentDriver = {
     }
   },
 
+  async keepsFor(cwd) {
+    // Every settings file Claude reads, lowest precedence first, so the last
+    // one that says anything wins — the order Claude itself applies them in.
+    // A managed file is an administrator's and outranks the rest.
+    const configDir =
+      process.env['CLAUDE_CONFIG_DIR'] ?? join(homedir(), '.claude');
+    const files = [
+      join(configDir, 'settings.json'),
+      join(cwd, '.claude', 'settings.json'),
+      join(cwd, '.claude', 'settings.local.json'),
+      MANAGED_SETTINGS[process.platform] ?? null,
+    ];
+    let days: number | null = CLAUDE_DEFAULT_KEEP_DAYS;
+    for (const file of files) {
+      if (!file) continue;
+      const value = await cleanupPeriodIn(file);
+      if (value !== undefined) days = value;
+    }
+    return days;
+  },
+
   async history(cwd, session) {
     if (!SESSION_ID.test(session)) return null;
     try {
@@ -126,6 +154,35 @@ export const claudeDriver: AgentDriver = {
     }
   },
 };
+
+/** Where an administrator's Claude settings live, by platform. */
+const MANAGED_SETTINGS: Partial<Record<NodeJS.Platform, string>> = {
+  darwin: '/Library/Application Support/ClaudeCode/managed-settings.json',
+  linux: '/etc/claude-code/managed-settings.json',
+  win32: 'C:\\Program Files\\ClaudeCode\\managed-settings.json',
+};
+
+/**
+ * `cleanupPeriodDays` in one settings file: the number of days, null for a
+ * value that means Claude keeps nothing past a session or that Frodon cannot
+ * read as a period, and undefined when the file does not say — missing,
+ * unreadable, or silent on it.
+ */
+async function cleanupPeriodIn(
+  file: string
+): Promise<number | null | undefined> {
+  try {
+    const value = (
+      JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>
+    )['cleanupPeriodDays'];
+    if (value === undefined) return undefined;
+    return typeof value === 'number' && Number.isFinite(value) && value > 0
+      ? value
+      : null;
+  } catch {
+    return undefined;
+  }
+}
 
 /**
  * What a Claude session id looks like. Narrower than `isSessionToken`,

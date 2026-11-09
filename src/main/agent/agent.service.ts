@@ -26,7 +26,7 @@ import type {
 } from '@shared/agent.def';
 import type { AgentSettings } from '@shared/config.def';
 import { AGENT_LABELS, isSessionToken } from '@shared/agent.def';
-import { FLUSH_MS } from './agent.constant';
+import { DAY_MS, FLUSH_MS } from './agent.constant';
 import type { AgentDriver, AgentRun } from './agent.def';
 import { claudeDriver } from './agent-claude.service';
 import { loginEnvironment } from './agent-environment.service';
@@ -292,14 +292,27 @@ export async function listFavorites(
 ): Promise<FavoriteEntry[]> {
   if (!cwd) return [];
   const favorites = await readFavorites(cwd);
+  // Asked once per agent, not once per favorite: it is a few settings files,
+  // the same for every conversation the agent keeps for this project.
+  const keeps = new Map<AgentKind, Promise<number | null>>();
   return Promise.all(
-    favorites.map(async (favorite) => ({
-      ...favorite,
-      lastActive: await DRIVERS[favorite.kind].lastActive(
-        cwd,
-        favorite.session
-      ),
-    }))
+    favorites.map(async (favorite) => {
+      const driver = DRIVERS[favorite.kind];
+      if (!keeps.has(favorite.kind))
+        keeps.set(favorite.kind, driver.keepsFor(cwd));
+      const [lastActive, days] = await Promise.all([
+        driver.lastActive(cwd, favorite.session),
+        keeps.get(favorite.kind) ?? null,
+      ]);
+      return {
+        ...favorite,
+        lastActive,
+        expiresAt:
+          lastActive !== null && days !== null
+            ? lastActive + days * DAY_MS
+            : null,
+      };
+    })
   );
 }
 

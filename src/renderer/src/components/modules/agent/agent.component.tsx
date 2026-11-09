@@ -54,6 +54,7 @@ import {
   MentionMenu,
 } from './agent-attach.component';
 import { CommandMenu } from './agent-command.component';
+import { WorkingRow } from './agent-working.component';
 
 /**
  * How full the context window is before the status line says it in red —
@@ -397,6 +398,24 @@ export default function Agent({ conversationId, active }: AgentProps) {
             }
           />
         ))}
+
+        {working ? (
+          <WorkingRow
+            kind={conversation.kind}
+            waiting={approvals.length > 0}
+            writing={conversation.entries.at(-1)?.kind === 'assistant'}
+            running={
+              // A call that has started and not come back, other than one
+              // waiting on the person — that one says so itself.
+              conversation.entries.some(
+                (entry) =>
+                  entry.kind === 'action' &&
+                  entry.result === null &&
+                  !approvals.some((open) => open.action.id === entry.id)
+              )
+            }
+          />
+        ) : null}
       </div>
 
       {background.length > 0 ? (

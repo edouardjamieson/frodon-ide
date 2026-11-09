@@ -507,7 +507,11 @@ arrives.
    narrows the list; the arrows move through it; Tab or Enter puts the name
    in the box with a space after it, ready for arguments; Escape closes it
    until the text changes. Nothing is sent until Shift+Enter.
-5. While a turn runs, the send button becomes a stop button, which interrupts
+5. While a turn runs, a line at the foot of the transcript says so: the
+   agent's logo, pulsing, with **Thinking…**, **Writing…**, **Working…**
+   while one of its calls runs, or "waiting for you" on an approval — and
+   how long the turn has taken, so a long think does not read as a hang.
+6. While a turn runs, the send button becomes a stop button, which interrupts
    the turn and answers every open question no.
 
 ### Running a command yourself

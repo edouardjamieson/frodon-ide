@@ -242,11 +242,6 @@ function startClaude({
       // Frodon's own tools, in process: no socket, no second program, and
       // gone with the conversation. ADR-0047.
       mcpServers: { [WORKBENCH_SERVER]: workbenchServer(host) },
-      // Allowed without a card. Neither changes a file: one reads what the
-      // person already has on screen, the other puts a file on it.
-      allowedTools: WORKBENCH_TOOLS.map(
-        (name) => `mcp__${WORKBENCH_SERVER}__${name}`
-      ),
       // Deltas, so the reply is drawn as it is written rather than appearing
       // whole once the turn is over.
       includePartialMessages: true,
@@ -260,6 +255,14 @@ function startClaude({
         input,
         { signal, toolUseID, suggestions, suppressAlwaysAllowRule }
       ) => {
+        // Frodon's own tools go ahead without a card: neither changes a
+        // file — one reads what the person already has on screen, the other
+        // puts a file on it. Allowed here rather than through
+        // `allowedTools`, which would approve them before this callback is
+        // consulted and has the SDK warn, on every start, that it did.
+        if (WORKBENCH_TOOL_NAMES.has(toolName))
+          return { behavior: 'allow', updatedInput: input };
+
         // Claude's own "don't ask again": the rules its terminal would save
         // if that option were picked there. Withheld when Claude says the
         // rule would grant more than this one action, and for a question,
@@ -752,6 +755,10 @@ function replay(messages: SessionMessage[]): AgentEvent[] {
 /** The name Claude knows Frodon's tools under: `mcp__frodon__…`. */
 const WORKBENCH_SERVER = 'frodon';
 const WORKBENCH_TOOLS = ['editor_state', 'open_file'] as const;
+/** The same tools by the names Claude calls them. */
+const WORKBENCH_TOOL_NAMES: ReadonlySet<string> = new Set(
+  WORKBENCH_TOOLS.map((name) => `mcp__${WORKBENCH_SERVER}__${name}`)
+);
 
 /**
  * The tools that let an agent see and point at the workbench it runs in.

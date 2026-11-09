@@ -337,7 +337,10 @@ driver (ADR-0047). `editor_state` tells the agent what its window's editors
 show: every editor tile with its tabs, which one is focused, and the
 selection in the tab on screen — or the caret's line, since "here" is a
 reference too. `open_file` shows the person a project file at a line. Both
-are allowed without a card: neither changes anything. The server also tells
+are allowed without a card: neither changes anything. They are allowed in
+`canUseTool` rather than listed in `allowedTools`, which would approve them
+before the callback is consulted and makes the SDK warn about it on every
+start. The server also tells
 the agent it is running in an IDE beside an editor, so "what does this do?"
 with a block selected is answered about the block.
 

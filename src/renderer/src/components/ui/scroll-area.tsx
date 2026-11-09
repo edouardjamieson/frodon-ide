@@ -2,15 +2,29 @@ import * as React from 'react';
 import { cn } from 'cn';
 import { ScrollArea as ScrollAreaPrimitive } from 'radix-ui';
 
+/**
+ * `fitWidth`: Radix wraps the content in a div styled `display: table`
+ * inline, which grows to the widest row — so rows that should truncate
+ * never do, and push whatever sits at their end out of view. This makes the
+ * wrapper a block, which takes `!important` to beat an inline style. For any
+ * list of rows that truncate; see docs/learned.md.
+ */
 function ScrollArea({
   className,
   children,
+  fitWidth,
   ...props
-}: React.ComponentProps<typeof ScrollAreaPrimitive.Root>) {
+}: React.ComponentProps<typeof ScrollAreaPrimitive.Root> & {
+  fitWidth?: boolean;
+}) {
   return (
     <ScrollAreaPrimitive.Root
       data-slot="scroll-area"
-      className={cn('relative', className)}
+      className={cn(
+        'relative',
+        fitWidth && '[&_[data-radix-scroll-area-viewport]>div]:block!',
+        className
+      )}
       {...props}
     >
       <ScrollAreaPrimitive.Viewport

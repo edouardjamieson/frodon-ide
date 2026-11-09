@@ -105,7 +105,7 @@ export default function Worktrees() {
         </p>
       ) : null}
 
-      <ScrollArea className="min-h-0 flex-1">
+      <ScrollArea className="min-h-0 flex-1" fitWidth>
         <div className="flex flex-col gap-0.5 p-1.5">
           {linked.length === 0 && !listing ? (
             <p className="px-1.5 py-6 text-center text-[11px] leading-relaxed text-fg-subtle">

@@ -377,9 +377,9 @@ its parent; the first fix tried exactly that, from reading a copy of
 `react-scroll-area` in `node_modules` that is not the one `radix-ui`
 bundles, which slots the style onto the child instead. Rendering the real
 component to HTML showed the wrapper. The fix is an `!important` rule on the
-wrapper — `[&_[data-radix-scroll-area-viewport]>div]:block!` on the
-ScrollArea — since nothing else beats an inline style. Any ScrollArea whose
-rows should truncate needs it.
+wrapper, since nothing else beats an inline style: the vendored
+`ScrollArea` takes `fitWidth` for it. Any ScrollArea whose rows should
+truncate needs it — Favorites, Boards and Worktrees use it.
 
 ### A subagent's call returns before the subagent has done anything
 `code` · 2026-11-08 · `src/main/agent/agent-claude.service.ts`

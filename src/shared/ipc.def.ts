@@ -26,6 +26,7 @@ import type {
   AgentEvents,
   AgentKind,
   AgentReply,
+  AgentWorkbench,
   AgentStartResult,
   FavoriteEntry,
 } from './agent.def';
@@ -488,6 +489,15 @@ export interface IpcContract {
    * opens one.
    */
   'agent:reveal': { req: { kind: AgentKind; session: string }; res: boolean };
+  /**
+   * The window's answer to `agent:workbench-request`: what its editors are
+   * showing. Matched to the question by `requestId`, and accepted only from
+   * the window it was asked of.
+   */
+  'agent:workbench': {
+    req: { requestId: string; workbench: AgentWorkbench };
+    res: void;
+  };
 
   /**
    * Every board in both scopes, newest first.
@@ -666,6 +676,17 @@ export interface IpcEvents {
    * `agent:reveal`. Sent only to the window holding it.
    */
   'agent:reveal': { id: string };
+  /**
+   * An agent asked what the editors are showing. Answered with
+   * `agent:workbench`. Sent only to the window the conversation lives in.
+   */
+  'agent:workbench-request': { requestId: string };
+  /**
+   * An agent asked to show the person a file, at a line. The path is
+   * absolute and already checked to be a file inside the project. Sent only
+   * to the window the conversation lives in.
+   */
+  'agent:open-file': { path: string; line: number | null };
 
   /**
    * The updater moved — a download started, finished, or failed. Sent to
@@ -855,6 +876,17 @@ export interface FrodonApi {
     onFavoritesChanged: (listener: () => void) => () => void;
     /** Subscribes to requests to show a tab. Returns an unsubscribe. */
     onReveal: (listener: (id: string) => void) => () => void;
+    /** Answers an `onWorkbenchRequest`. */
+    answerWorkbench: (
+      requestId: string,
+      workbench: AgentWorkbench
+    ) => Promise<void>;
+    /** Subscribes to an agent asking what the editors show. */
+    onWorkbenchRequest: (listener: (requestId: string) => void) => () => void;
+    /** Subscribes to an agent asking for a file to be shown. */
+    onOpenFile: (
+      listener: (target: { path: string; line: number | null }) => void
+    ) => () => void;
     /**
      * Subscribes to one conversation's events, filtered in the preload for
      * the same reason a terminal's output is. Returns an unsubscribe function.

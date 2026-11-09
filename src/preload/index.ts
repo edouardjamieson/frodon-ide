@@ -157,6 +157,23 @@ const api: FrodonApi = {
       ipcRenderer.on('agent:reveal', handler);
       return () => ipcRenderer.removeListener('agent:reveal', handler);
     },
+    answerWorkbench: (requestId, workbench) =>
+      ipcRenderer.invoke('agent:workbench', { requestId, workbench }),
+    onWorkbenchRequest: (listener) => {
+      const handler = (_event: unknown, payload: { requestId: string }) =>
+        listener(payload.requestId);
+      ipcRenderer.on('agent:workbench-request', handler);
+      return () =>
+        ipcRenderer.removeListener('agent:workbench-request', handler);
+    },
+    onOpenFile: (listener) => {
+      const handler = (
+        _event: unknown,
+        payload: { path: string; line: number | null }
+      ) => listener(payload);
+      ipcRenderer.on('agent:open-file', handler);
+      return () => ipcRenderer.removeListener('agent:open-file', handler);
+    },
     // Filtered here, like a terminal's output: one channel carries every
     // conversation, and a reply streaming in one tile must not wake the rest.
     onEvents: (id, listener) => {

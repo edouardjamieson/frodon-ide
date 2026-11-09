@@ -105,6 +105,7 @@ import {
   setConversationModel,
   setConversationMode,
   respondTo,
+  answerWorkbench,
   sendMessage,
   startConversation,
   stopConversation,
@@ -586,6 +587,12 @@ export function registerIpcHandlers(): void {
 
   handle('agent:respond', ({ id, requestId, reply }) =>
     respondTo(id, requestId, reply)
+  );
+
+  // Accepted only from the window that was asked — `answerWorkbench` checks
+  // the sender against the question.
+  handle('agent:workbench', ({ requestId, workbench }, event) =>
+    answerWorkbench(event.sender.id, requestId, workbench)
   );
 
   handle('agent:interrupt', ({ id }) => interruptConversation(id));

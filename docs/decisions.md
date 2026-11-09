@@ -18,6 +18,45 @@ their reasoning is the reasoning recorded at the time, not reconstructed.
 
 ---
 
+### ADR-0047 — An agent in a tile reaches the workbench through an in-process MCP server, and only its own window
+
+**When** 2026-11-09 · **Status** active · **Touches** agent, editor, workbench
+
+**What.** A conversation's driver registers Frodon's own tools with the agent
+as an SDK MCP server living in main's process: `editor_state` (the tabs, the
+focused pane and the selection in the conversation's window) and `open_file`
+(show the person a project file at a line). Both are pre-allowed. Each
+conversation gets its own server, bound to its own window and project.
+
+**Why.** ADR-0027 parked an MCP server for agents in a *terminal* because
+reaching them meant a socket with a lifecycle, a fourth build output and a
+shipped dependency. A tile's agent is driven by the SDK in main, which takes
+an in-process server as an option: none of those costs exist on this path.
+And the value is different here. In a terminal, `open_file` saved `mod+p`;
+beside a conversation, "what does this do" with a block selected is the most
+natural question there is, and without the tool the agent cannot see what
+"this" is. Pushing the selection to main on every move was rejected: a
+structured clone per keystroke for something read a few times a
+conversation. So main asks the window when the agent asks main.
+
+**How.** `workbenchServer` in `agent-claude.service.ts` defines the tools
+against `AgentHost.workbench`, which the registry implements with
+`agent-workbench.service.ts`: `readWorkbench` sends
+`agent:workbench-request` to the conversation's window and waits for
+`agent:workbench`, accepting the answer only from that window and cleaning
+it field by field; `showFile` resolves the agent's path against the project,
+refuses anything outside it or not a file, and sends `agent:open-file`. In
+the renderer, `useAgentWorkbenchEffect` answers from the window store and
+`selectionOf`, which reads each editor tile's CodeMirror state through a
+reader the tile registered with `provideSelection`.
+
+**Cost.** Main now asks a window a question and waits for the answer — a
+shape the IPC layer did not have, with a timeout to tune and a window that
+may be busy. The tools are worded for Claude and pre-allowed, so a driver
+for another agent has to offer its own equivalent or go without. Boards and
+terminals are not reachable yet; each would be another tool and another
+thing for the window to answer.
+
 ### ADR-0046 — A reply is parsed by the editor's markdown parser and drawn as React elements
 
 **When** 2026-11-08 · **Status** active · **Touches** agent, editor, theme
@@ -950,6 +989,9 @@ inherited down the process tree) that made it tempting.
 **Cost.** Two pieces were kept because they earn their place alone: commands
 with arguments and a target window (which the palette needs anyway), and the
 env stamp in `createSession`.
+
+Still parked for agents in a terminal. An agent in an agent tile reaches the
+workbench another way, without the socket — ADR-0047.
 
 ---
 

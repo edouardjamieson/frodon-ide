@@ -14,10 +14,22 @@ import type {
   AgentAvailability,
   AgentEvent,
   AgentReply,
+  AgentWorkbench,
 } from '@shared/agent.def';
 
 /** What a driver can do to the conversation it is running. */
 export interface AgentHost {
+  /**
+   * The window the conversation lives in, for an agent that can be given
+   * tools: what its editors show, and a way to show the person a file.
+   * Paths in and out are relative to the project.
+   */
+  workbench: {
+    /** Null when the window is gone or would not say. */
+    read: () => Promise<AgentWorkbench | null>;
+    /** Why the file could not be shown, or null when it was. */
+    open: (path: string, line: number | null) => Promise<string | null>;
+  };
   /** Reports something that happened. Batched before it crosses. */
   emit: (event: AgentEvent) => void;
   /**

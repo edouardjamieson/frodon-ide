@@ -306,6 +306,41 @@ export interface AgentChoice {
 }
 
 /**
+ * What the person has in front of them in Frodon's editor, as an agent may
+ * ask for it.
+ *
+ * Gathered by the window the conversation lives in — the editor's state is
+ * the renderer's, and main holds none of it — and only when asked: a
+ * selection changes with every keystroke, and pushing it to main on each one
+ * would be a structured clone per character for something an agent reads a
+ * few times a conversation.
+ */
+export interface AgentWorkbench {
+  /** Every editor tile in the window, the focused one first. */
+  editors: AgentEditorTile[];
+}
+
+export interface AgentEditorTile {
+  /** The tile's tabs, as paths. */
+  files: string[];
+  /** The tab on screen. */
+  active: string | null;
+  /** Whether this tile has the focus — the one "this file" means. */
+  focused: boolean;
+  /** The selection in the tab on screen, or the caret's line when empty. */
+  selection: AgentSelection | null;
+}
+
+export interface AgentSelection {
+  path: string;
+  /** 1-based, inclusive. */
+  fromLine: number;
+  toLine: number;
+  /** Empty when nothing is selected and this is only where the caret is. */
+  text: string;
+}
+
+/**
  * Something running apart from the conversation's own turn.
  *
  * Drawn on the card of the action that started it, when there is one: a

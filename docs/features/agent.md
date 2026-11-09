@@ -26,6 +26,7 @@ and a member on `AgentKind`. ADR-0042.
 | `main/agent/agent-claude.service.ts` | the Claude driver — the only file that imports the Agent SDK or spells a Claude tool name |
 | `main/agent/agent-environment.service.ts` | the login shell's environment, and finding an executable on its `PATH` |
 | `main/agent/agent-favorite.service.ts` | the favorites, `~/.frodon/agent-favorites.json` |
+| `main/agent/agent-workbench.service.ts` | what an agent may read from, and show in, its window's editors |
 | `main/agent/agent-attachment.service.ts` | `cleanAttachments`: what a message carries, checked before a driver sees it |
 | `main/agent/agent.constant.ts` | `FLUSH_MS`, `OUTPUT_LIMIT`, the probe timeouts, how many sessions are listed |
 | `renderer/src/lib/agent/` | the transcript store, `reduce`, and `useConversationLifetime` |
@@ -298,6 +299,27 @@ thing that turns events into entries. Text arrives as deltas keyed by message
 id and is appended; a message that never streamed — an API error, "Not logged
 in" — arrives whole and is shown whole.
 
+### The agent can see the editor, and point at it
+
+Each conversation brings two tools of Frodon's own, served in process by the
+driver (ADR-0047). `editor_state` tells the agent what its window's editors
+show: every editor tile with its tabs, which one is focused, and the
+selection in the tab on screen — or the caret's line, since "here" is a
+reference too. `open_file` shows the person a project file at a line. Both
+are allowed without a card: neither changes anything. The server also tells
+the agent it is running in an IDE beside an editor, so "what does this do?"
+with a block selected is answered about the block.
+
+Nothing is pushed. When the agent calls `editor_state`, main asks the
+conversation's window (`agent:workbench-request`), which answers from the
+window store and from each editor tile's own CodeMirror state, read through
+`selectionOf`; main accepts the answer only from that window, makes every
+path relative to the project, drops any outside it, and trims a selection
+past 20,000 characters. `open_file` is checked the other way: the agent's
+path must land on a file inside the project, or the agent is told why not.
+The window then opens it through `openFile`, which routes it to an editor
+the way any other open does.
+
 ### Work handed off is drawn under the call that started it
 
 A subagent, or a command left running in the background, is a **task**:
@@ -548,9 +570,9 @@ arrives.
   to.
 - **More markdown.** Table alignment, reference-style links and most HTML
   entities show as written.
-- **Workbench context.** An in-process MCP server in the driver could give the
-  agent `open_file`, the selection and boards without the socket ADR-0027
-  parked — the cost that made it not worth building is gone on this path.
+- **More of the workbench.** Boards, terminals and the git window are not
+  reachable from a conversation yet; each would be another tool beside
+  `editor_state` and `open_file`.
 - **What a subagent says.** Its steps and its report are shown; the words
   it writes along the way are not, and neither is anything it was asked to
   approve beyond the ordinary card.

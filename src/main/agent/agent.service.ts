@@ -30,6 +30,7 @@ import { claudeDriver } from './agent-claude.service';
 import { loginEnvironment } from './agent-environment.service';
 import { readFavorites } from './agent-favorite.service';
 import { cleanAttachments } from './agent-attachment.service';
+import { readWorkbench, showFile } from './agent-workbench.service';
 
 const log = createLogger('agent');
 
@@ -162,6 +163,10 @@ export async function startConversation(
     env,
     resume,
     host: {
+      workbench: {
+        read: () => readWorkbench(senderId, cwd),
+        open: (path, line) => showFile(senderId, cwd, path, line),
+      },
       emit: (event) => emit(conversation, event),
       ask: (action, signal, always) =>
         ask(conversation, action, signal, always),

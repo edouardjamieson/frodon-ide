@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import type { AgentKind } from '@shared/agent.def';
 import { useAgentStore } from '~/lib/agent';
+import { selectionOf } from '~/lib/editor';
 import { useWindowStore } from './window.store';
 import { useWindowDragStore } from './window-drag.store';
 import { canSplit, rowsOf } from './window.service';
@@ -173,6 +174,48 @@ export const useConversationRevealEffect = (): void => {
       }),
     []
   );
+};
+
+/**
+ * Answers an agent's questions about this window's editors, and shows the
+ * files it asks to show. Mounted once, in `App`.
+ *
+ * Read from the stores at the moment of asking rather than subscribed to:
+ * an agent asks a few times a conversation, and nothing here needs to
+ * re-render for it.
+ */
+export const useAgentWorkbenchEffect = (): void => {
+  useEffect(() => {
+    const unasked = window.frodon.agent.onWorkbenchRequest((requestId) => {
+      const { windows, focusedId } = useWindowStore.getState();
+      const editors = windows
+        .filter((tile): tile is EditorWindow => tile.type === 'editor')
+        .map((tile) => ({
+          files: tile.files,
+          active: tile.activeFile,
+          focused: tile.id === focusedId,
+          selection: selectionOf(tile.id),
+        }))
+        // The focused tile first: it is the one "this file" means.
+        .sort((a, b) => Number(b.focused) - Number(a.focused));
+      void window.frodon.agent.answerWorkbench(requestId, { editors });
+    });
+
+    const unopened = window.frodon.agent.onOpenFile(({ path, line }) =>
+      useWindowStore
+        .getState()
+        .openFile(
+          path,
+          undefined,
+          line ? { line, column: 1, length: 0 } : undefined
+        )
+    );
+
+    return () => {
+      unasked();
+      unopened();
+    };
+  }, []);
 };
 
 /** Everything a browser window's tabs need. */

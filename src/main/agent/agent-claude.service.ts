@@ -17,9 +17,11 @@
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import {
+  createSdkMcpServer,
   getSessionInfo,
   getSessionMessages,
   query,
+  tool,
   type PermissionMode,
   type PermissionUpdate,
   type SDKMessage,
@@ -27,6 +29,7 @@ import {
   type SDKUserMessage,
   type SlashCommand,
 } from '@anthropic-ai/claude-agent-sdk';
+import { z } from 'zod';
 import { createLogger } from '@main/logger';
 import type {
   AgentAction,
@@ -37,6 +40,7 @@ import type {
   AgentEvent,
   AgentQuestion,
   AgentTask,
+  AgentWorkbench,
 } from '@shared/agent.def';
 import { OUTPUT_LIMIT, VERSION_TIMEOUT_MS } from './agent.constant';
 import type {
@@ -206,6 +210,14 @@ function startClaude({ cwd, path, env, host, resume }: StartOptions): AgentRun {
       // `.claude/settings.json` — a quiet loss a dependency bump could bring
       // back.
       settingSources: ['user', 'project', 'local'],
+      // Frodon's own tools, in process: no socket, no second program, and
+      // gone with the conversation. ADR-0047.
+      mcpServers: { [WORKBENCH_SERVER]: workbenchServer(host) },
+      // Allowed without a card. Neither changes a file: one reads what the
+      // person already has on screen, the other puts a file on it.
+      allowedTools: WORKBENCH_TOOLS.map(
+        (name) => `mcp__${WORKBENCH_SERVER}__${name}`
+      ),
       // Deltas, so the reply is drawn as it is written rather than appearing
       // whole once the turn is over.
       includePartialMessages: true,
@@ -441,7 +453,9 @@ class Translator {
   private readonly streamed = new Set<string>();
   private readonly tasks = new Map<string, AgentTask>();
 
-  constructor(private readonly host: AgentHost) {}
+  // Only `emit`: a translator reports, and never asks or reaches into the
+  // workbench — which is what lets `replay` run one with nothing behind it.
+  constructor(private readonly host: Pick<AgentHost, 'emit'>) {}
 
   read(message: SDKMessage): void {
     switch (message.type) {
@@ -667,12 +681,9 @@ const TASK_STATUS: Record<
  */
 function replay(messages: SessionMessage[]): AgentEvent[] {
   const events: AgentEvent[] = [];
-  const translator = new Translator({
-    emit: (event) => events.push(event),
-    // A stored conversation asks nothing. The question it asked, if it was
-    // left open, is answered no by the agent itself when it resumes.
-    ask: async () => ({ allow: false }),
-  });
+  // A stored conversation asks nothing. The question it asked, if it was
+  // left open, is answered no by the agent itself when it resumes.
+  const translator = new Translator({ emit: (event) => events.push(event) });
 
   for (const stored of messages) {
     if (stored.parent_tool_use_id) continue;
@@ -705,6 +716,116 @@ function replay(messages: SessionMessage[]): AgentEvent[] {
     }
   }
   return events;
+}
+
+/** The name Claude knows Frodon's tools under: `mcp__frodon__…`. */
+const WORKBENCH_SERVER = 'frodon';
+const WORKBENCH_TOOLS = ['editor_state', 'open_file'] as const;
+
+/**
+ * The tools that let an agent see and point at the workbench it runs in.
+ *
+ * One server per conversation, because the server is the conversation's
+ * window: what `editor_state` reads and where `open_file` opens are that
+ * window's editors and nobody else's. Both are worded for the model —
+ * when to call them matters as much as what they return — and loaded up
+ * front rather than behind tool search, so "this file" is understood
+ * without the agent having to go looking for a way to see it.
+ */
+function workbenchServer(host: AgentHost) {
+  return createSdkMcpServer({
+    name: WORKBENCH_SERVER,
+    alwaysLoad: true,
+    instructions:
+      'You are running inside Frodon, a desktop IDE. The person can see an ' +
+      'editor beside this conversation. When they say "this", "here", "the ' +
+      'selected code" or "this file" without naming one, call editor_state ' +
+      'to see what they mean. To show them a place in the code, call ' +
+      'open_file rather than only naming it.',
+    tools: [
+      tool(
+        'editor_state',
+        "What the person has open in Frodon's editor right now: each editor " +
+          'pane with its tabs, which tab is showing, which pane has the focus, ' +
+          'and the text they have selected (or the line the caret is on). ' +
+          'Paths are relative to the project.',
+        {},
+        async () => {
+          const workbench = await host.workbench.read();
+          return {
+            content: [
+              {
+                type: 'text',
+                text: workbench
+                  ? describeWorkbench(workbench)
+                  : 'The editor could not be read.',
+              },
+            ],
+          };
+        }
+      ),
+      tool(
+        'open_file',
+        "Opens a file of the project in Frodon's editor so the person can " +
+          'see it, scrolled to a line. For showing them something — not for ' +
+          'reading a file yourself; use Read for that.',
+        {
+          path: z
+            .string()
+            .describe('Relative to the project root, or absolute inside it.'),
+          line: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .describe('1-based line to scroll to.'),
+        },
+        async ({ path, line }) => {
+          const refused = await host.workbench.open(path, line ?? null);
+          return {
+            content: [
+              {
+                type: 'text',
+                text:
+                  refused ?? `Opened ${path}${line ? ` at line ${line}` : ''}.`,
+              },
+            ],
+            ...(refused ? { isError: true } : {}),
+          };
+        }
+      ),
+    ],
+  });
+}
+
+/** `editor_state`'s answer, as text a model reads well. */
+function describeWorkbench(workbench: AgentWorkbench): string {
+  if (workbench.editors.length === 0) return 'No editor is open.';
+
+  return workbench.editors
+    .map((editor, index) => {
+      const lines = [
+        `Editor ${index + 1}${editor.focused ? ' (focused)' : ''}: ` +
+          (editor.active ? `showing ${editor.active}` : 'no file showing'),
+      ];
+      const others = editor.files.filter((file) => file !== editor.active);
+      if (others.length > 0) lines.push(`Other tabs: ${others.join(', ')}`);
+
+      const { selection } = editor;
+      if (selection) {
+        const range =
+          selection.fromLine === selection.toLine
+            ? `line ${selection.fromLine}`
+            : `lines ${selection.fromLine}-${selection.toLine}`;
+        lines.push(
+          selection.text
+            ? `Selected in ${selection.path}, ${range}:\n\`\`\`\n${selection.text}\n\`\`\``
+            : `Caret in ${selection.path} at ${range}, nothing selected.`
+        );
+      }
+      return lines.join('\n');
+    })
+    .join('\n\n');
 }
 
 /**
@@ -914,6 +1035,18 @@ function actionOf(
             ? (questions[0] as AgentQuestion).question
             : `${questions.length} questions`,
         questions,
+      };
+    }
+    case `mcp__${WORKBENCH_SERVER}__editor_state`:
+      return { id, kind: 'read', title: 'Look at the editor' };
+    case `mcp__${WORKBENCH_SERVER}__open_file`: {
+      const line = input['line'];
+      const shown = str('path');
+      return {
+        id,
+        kind: 'other',
+        title: `Show ${shown ?? 'a file'}${typeof line === 'number' ? `:${line}` : ''} in the editor`,
+        path: shown,
       };
     }
     case 'Agent':

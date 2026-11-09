@@ -35,3 +35,13 @@ export const VERSION_TIMEOUT_MS = 10_000;
  * point a teammate at nothing.
  */
 export const FAVORITES_FILENAME = 'agent-favorites.json';
+
+/**
+ * How long a window has to say what its editors show. It answers from
+ * memory, so anything past a frame or two means the window is busy or gone,
+ * and the agent is better told "nothing" than kept waiting.
+ */
+export const WORKBENCH_TIMEOUT_MS = 2000;
+
+/** The most of a selection an agent is handed, in characters. */
+export const SELECTION_LIMIT = 20_000;

@@ -30,6 +30,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
           entries: [],
           approvals: [],
           tasks: {},
+          context: null,
           costUsd: 0,
           session: null,
         },

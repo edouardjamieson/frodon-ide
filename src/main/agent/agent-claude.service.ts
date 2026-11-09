@@ -394,7 +394,31 @@ function startClaude({
     });
 
     const child: Process = { conversation, inbox, abort, replaced: false };
-    void pump(conversation, host, abort.signal, () => child.replaced);
+
+    // After every turn, how full the context window is now — the number the
+    // terminal's footer warns with. `summary` answers from the last
+    // response's usage, a few milliseconds, rather than counting anew.
+    const reporting: AgentHost = {
+      ...host,
+      emit: (event) => {
+        host.emit(event);
+        if (event.type !== 'turn-ended') return;
+        conversation
+          .getContextUsage({ detail: 'summary' })
+          .then((usage) =>
+            host.emit({
+              type: 'context',
+              used: usage.totalTokens,
+              limit: usage.maxTokens,
+              percent: usage.percentage,
+            })
+          )
+          // A process gone between the turn and the question: the next turn
+          // of its successor says it again.
+          .catch(() => {});
+      },
+    };
+    void pump(conversation, reporting, abort.signal, () => child.replaced);
 
     host.emit({
       type: 'modes',

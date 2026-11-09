@@ -259,6 +259,20 @@ export type AgentEvent =
    */
   | { type: 'mode'; mode: string }
   /**
+   * How full the agent's context window is, after a turn: what the next
+   * message will be read alongside, and how close the agent is to
+   * compacting the conversation to make room.
+   */
+  | {
+      type: 'context';
+      /** Tokens in use. */
+      used: number;
+      /** The window's size. */
+      limit: number;
+      /** `used` of `limit`, as the agent rounds it. */
+      percent: number;
+    }
+  /**
    * Work the agent handed off and is not doing in the turn itself — a
    * subagent, a command left running in the background. Sent whole on every
    * change and replaced by `id`, so a late event never has to be merged into

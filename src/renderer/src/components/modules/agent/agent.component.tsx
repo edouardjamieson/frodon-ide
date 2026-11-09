@@ -55,6 +55,13 @@ import {
 } from './agent-attach.component';
 import { CommandMenu } from './agent-command.component';
 
+/**
+ * How full the context window is before the status line says it in red —
+ * the point at which a long conversation is worth wrapping up or compacting
+ * by choice, before the agent does it on its own.
+ */
+const CONTEXT_WARN_PERCENT = 80;
+
 interface AgentProps {
   conversationId: string;
   /** Whether this conversation is the visible tab in its window. */
@@ -635,6 +642,17 @@ export default function Agent({ conversationId, active }: AgentProps) {
               </>
             )}
           </div>
+          {conversation.context ? (
+            <span
+              title={`${conversation.context.used.toLocaleString()} of ${conversation.context.limit.toLocaleString()} tokens in the context window. ${AGENT_LABELS[conversation.kind]} compacts the conversation to make room as it fills.`}
+              className={cn('rounded-md border px-1.5 py-1', {
+                'text-fg-danger':
+                  conversation.context.percent >= CONTEXT_WARN_PERCENT,
+              })}
+            >
+              Context {conversation.context.percent}%
+            </span>
+          ) : null}
           {conversation.costUsd > 0 ? (
             <span className="border px-1.5 py-1 rounded-md">
               ${conversation.costUsd.toFixed(2)}

@@ -167,6 +167,16 @@ function apply(conversation: Conversation, event: AgentEvent): Conversation {
     case 'mode':
       return { ...conversation, mode: event.mode };
 
+    case 'context':
+      return {
+        ...conversation,
+        context: {
+          used: event.used,
+          limit: event.limit,
+          percent: event.percent,
+        },
+      };
+
     case 'task': {
       const { task } = event;
       const key = task.actionId ?? task.id;

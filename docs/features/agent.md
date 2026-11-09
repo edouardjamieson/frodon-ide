@@ -93,6 +93,20 @@ siblings it answers "Not logged in". The shell's own bookkeeping — `PWD`,
 `OLDPWD`, `SHLVL`, `_` — is left behind. An export added to the profile
 reaches a new agent after a restart, not before.
 
+### The status line says how full the context is
+
+After every turn the driver asks Claude how full its context window is —
+`getContextUsage` with `detail: 'summary'`, which answers from the last
+response's usage in a few milliseconds — and the status line shows it beside
+the cost: "Context 34%", in red from 80%, with the token counts in its
+tooltip. That is the number the terminal's footer warns with as a
+conversation nears compaction.
+
+The terminal's custom status line — a command named in Claude's
+`statusLine` setting, handed the session as JSON — is not run. Its input
+format is Claude Code's and undocumented in the SDK, and a status line
+built on a guessed format would be worse than none.
+
 ### A `!` command runs in your shell, and the agent reads it
 
 A message that starts with `!` is not sent to the agent: main runs it with

@@ -112,6 +112,8 @@ export interface Conversation {
    * instead of sitting beside it.
    */
   tasks: Record<string, AgentTask>;
+  /** How full the context window was after the last turn, once known. */
+  context: { used: number; limit: number; percent: number } | null;
   /** What the conversation has cost so far, when the agent reports it. */
   costUsd: number;
   /**

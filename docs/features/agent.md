@@ -408,7 +408,11 @@ arrives.
 
 ### Starting a conversation
 
-1. Pick **Agent** on an empty tile.
+1. Pick **Agent** on an empty tile, or press `mod+shift+i` anywhere. The
+   shortcut adds a tab the way opening a file does: to the focused agent
+   tile, else to any agent tile, else to an empty tile, else to a new one.
+   The model and permission pickers start on the defaults from Settings →
+   Agents, when there are any.
 2. The tile mounts a conversation, which asks main to start it. Main finds
    `claude`, starts it in the project root, and says the conversation is
    ready — the status line shows the version. Which model is running
@@ -610,7 +614,6 @@ arrives.
   started is tracked by the driver and has nowhere on the tile to go.
 - **Choosing the agent.** One driver, so `DEFAULT_AGENT` is a constant. With
   two, the `+` becomes a choice and the default a user setting.
-- **A keyboard shortcut** to open one.
 - **A pick that becomes the default.** The pickers change one conversation;
   making that choice the default means opening Settings → Agents.
 

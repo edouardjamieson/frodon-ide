@@ -44,6 +44,13 @@ export const DEFAULT_KEYBINDINGS: Keybinding[] = [
   // all — so nothing above the page is listening for this one.
   { chord: 'mod+shift+w', command: 'sidebar.worktrees' },
   { chord: 'mod+shift+g', command: 'git.open' },
+  // A new conversation, routed the way a file is: a tab in the focused agent
+  // tile, else in any agent tile, else a tile of its own. `i` rather than
+  // the `e` first asked for, which the explorer has held since VS Code
+  // taught everyone it. Free on macOS — the View menu's DevTools item is
+  // `opt+cmd+i` there — but on Windows and Linux that same item is
+  // `ctrl+shift+i`, and a menu accelerator is handled before the page.
+  { chord: 'mod+shift+i', command: 'agent.new' },
   // The chord every app on the platform uses for this, and one no menu here
   // claims: the hand-built menu has no Preferences item, and Electron's
   // `appMenu` role does not add one. See `main/app/menu.service.ts`.
@@ -85,6 +92,7 @@ export const COMMAND_LABELS: Record<CommandId, string> = {
   'sidebar.boards': 'Boards',
   'sidebar.worktrees': 'Worktrees',
   'git.open': 'Source control',
+  'agent.new': 'New conversation with an agent',
   'settings.open': 'Settings',
   'window.splitRight': 'Split to the right',
   'window.splitDown': 'Split downwards',

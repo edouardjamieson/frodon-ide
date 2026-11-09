@@ -108,6 +108,7 @@ the app is in the background, which is right for a media key and wrong for
 | `mod+shift+b` | `sidebar.boards` | |
 | `mod+shift+w` | `sidebar.worktrees` | free: Close All Windows is `opt+cmd+w` |
 | `mod+shift+g` | `git.open` | |
+| `mod+shift+i` | `agent.new` | a new conversation tab, routed like a file; on Windows and Linux the View menu's DevTools item takes this chord first |
 | `mod+,` | `settings.open` | no menu claims it |
 | `mod+shift+right` | `window.splitRight` | the arrow points where it appears |
 | `mod+shift+down` | `window.splitDown` | |

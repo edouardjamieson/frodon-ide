@@ -22,6 +22,7 @@ export function useCommands(): Record<CommandId, () => void> {
   const split = useWindowStore((state) => state.split);
   const swap = useWindowStore((state) => state.swap);
   const openGit = useWindowStore((state) => state.openGit);
+  const openAgent = useWindowStore((state) => state.openAgent);
   const openPicker = useFilePickerStore((state) => state.openPicker);
   const openSettings = useSettingsStore((state) => state.openSettings);
   const requestSave = useEditorStore((state) => state.requestSave);
@@ -119,6 +120,7 @@ export function useCommands(): Record<CommandId, () => void> {
       'sidebar.boards': () => showModule('BOARDS'),
       'sidebar.worktrees': () => showModule('WORKTREES'),
       'git.open': () => openGit(),
+      'agent.new': () => void openAgent(),
       // No section named, so the dialog reopens on the page it was last left
       // on — the chord is for going back to settings, and the places that
       // mean a *particular* setting pass one.
@@ -146,6 +148,7 @@ export function useCommands(): Record<CommandId, () => void> {
       toggleCollapsed,
       showModule,
       openGit,
+      openAgent,
       openSettings,
       split,
       swap,

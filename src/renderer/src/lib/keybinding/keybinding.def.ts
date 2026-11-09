@@ -20,6 +20,7 @@ export type CommandId =
   | 'sidebar.boards'
   | 'sidebar.worktrees'
   | 'git.open'
+  | 'agent.new'
   | 'settings.open'
   | 'window.splitRight'
   | 'window.splitDown'

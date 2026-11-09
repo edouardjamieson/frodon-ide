@@ -1,12 +1,15 @@
 import { cn } from 'cn';
-import { Heart, LoaderCircle, Plus, X } from 'lucide-react';
+import { Heart, LoaderCircle, Plus, TriangleAlert, X } from 'lucide-react';
 import {
+  DEFAULT_AGENT,
+  useAgentProblem,
   useConversationKind,
   useConversationStatus,
   useConversationWaiting,
   useFavoriteName,
 } from '~/lib/agent';
 import { useAgentWindow, type AgentWindow } from '~/lib/window';
+import { useOpenSettings } from '~/lib/settings';
 import Agent, { AgentIcon } from '~/components/modules/agent';
 
 /**
@@ -127,30 +130,56 @@ function ConversationTab({
 
 export function AgentWindowBody({ window: win }: { window: AgentWindow }) {
   const { conversations, activeConversation, open } = useAgentWindow(win);
+  const problem = useAgentProblem(DEFAULT_AGENT);
+  const openSettings = useOpenSettings();
+
+  /**
+   * Above the conversations rather than in one, because it is about the next
+   * one: a conversation already running keeps the agent it started with, and
+   * it is the tab opened after this that would fail.
+   */
+  const warning = problem ? (
+    <div className="flex shrink-0 items-start gap-2 border-b border-pane-border bg-input px-3 py-2 text-[12px] text-fg-muted">
+      <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-fg-danger" />
+      <span className="min-w-0 flex-1">{problem}</span>
+      <button
+        onClick={() => openSettings('user.agents')}
+        className="shrink-0 cursor-pointer text-project hover:underline"
+      >
+        Open settings
+      </button>
+    </div>
+  ) : null;
 
   if (conversations.length === 0) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3">
-        <p className="text-[12px] text-fg-subtle">No agent running here.</p>
-        <button
-          onClick={open}
-          className="cursor-pointer rounded-lg border border-pane-border bg-button px-3 py-1.5 text-[12px] text-button-fg transition-colors hover:border-pane-border-focused hover:bg-button-hover"
-        >
-          New conversation
-        </button>
+      <div className="flex h-full flex-col">
+        {warning}
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3">
+          <p className="text-[12px] text-fg-subtle">No agent running here.</p>
+          <button
+            onClick={open}
+            className="cursor-pointer rounded-lg border border-pane-border bg-button px-3 py-1.5 text-[12px] text-button-fg transition-colors hover:border-pane-border-focused hover:bg-button-hover"
+          >
+            New conversation
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="relative h-full w-full">
-      {conversations.map((id) => (
-        <Agent
-          key={id}
-          conversationId={id}
-          active={id === activeConversation}
-        />
-      ))}
+    <div className="flex h-full w-full flex-col">
+      {warning}
+      <div className="relative min-h-0 w-full flex-1">
+        {conversations.map((id) => (
+          <Agent
+            key={id}
+            conversationId={id}
+            active={id === activeConversation}
+          />
+        ))}
+      </div>
     </div>
   );
 }

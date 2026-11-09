@@ -114,6 +114,13 @@ them too — it is a new process carrying on a stored session. The renderer
 seeds a new tab's mode picker from the same file, so it shows the default
 before the agent has said anything.
 
+An agent tile asks for the agent's availability when it mounts and again
+whenever that agent's path in the settings changes, and shows a strip above
+its conversations when the agent cannot be started — the reason, and a
+button to Settings → Agents. Above them rather than in one, because it is
+about the next tab: a conversation already running keeps the agent it
+started with.
+
 The settings page has no conversation to ask, so `agent:availability`
 carries the driver's modes and whether the path came from the settings.
 

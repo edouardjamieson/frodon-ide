@@ -6,11 +6,11 @@
  * window store's `closeConversation` signals nothing — dropping the id
  * unmounts this, and this is what tells main.
  */
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { File } from '@shared/fs.def';
 import { useProjectStore } from '~/lib/project';
 import { collectFiles } from '~/lib/file-picker';
-import { useConfigStore } from '~/lib/config';
+import { CONFIG_SAVE_MS, useConfigStore } from '~/lib/config';
 import type { AgentAttachment, AgentKind, AgentReply } from '@shared/agent.def';
 import { useAgentStore } from './agent.store';
 import { DEFAULT_AGENT } from './agent.constant';
@@ -252,6 +252,9 @@ export function useOpenSessions(): Set<string> {
  */
 const projectFiles = new WeakMap<File[], Set<string>>();
 
+/** Past the config's own save debounce, so main reads the path just set. */
+const AVAILABILITY_DELAY_MS = CONFIG_SAVE_MS + 200;
+
 function filesOf(files: File[], root: string): Set<string> {
   let set = projectFiles.get(files);
   if (!set) {
@@ -274,4 +277,32 @@ export function useFindFile(): (text: string) => FileReference | null {
       root ? fileReference(text, root, filesOf(files, root)) : null,
     [files, root]
   );
+}
+
+/**
+ * Why an agent cannot be started right now, or null when it can.
+ *
+ * Asked when a tile mounts and again whenever that agent's path in the
+ * settings changes — after the config has been written, since main reads the
+ * file, not this window's copy of it. So a path mistyped in Settings → Agents
+ * shows on every agent tile before anyone opens a tab and watches it fail.
+ */
+export function useAgentProblem(kind: AgentKind): string | null {
+  const path = useConfigStore((state) => state.user.agents?.[kind]?.path);
+  const [problem, setProblem] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    const timer = setTimeout(() => {
+      void window.frodon.agent.availability(kind).then((found) => {
+        if (live) setProblem(found.status === 'missing' ? found.reason : null);
+      });
+    }, AVAILABILITY_DELAY_MS);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [kind, path]);
+
+  return problem;
 }

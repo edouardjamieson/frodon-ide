@@ -34,6 +34,11 @@ export interface AgentHost {
     terminals: () => Promise<AgentTerminal[] | null>;
     /** Why the file could not be shown, or null when it was. */
     open: (path: string, line: number | null) => Promise<string | null>;
+    /**
+     * Shows a commit in the git window, or the uncommitted changes with
+     * null. Why not, or null when it was shown.
+     */
+    showGit: (commit: string | null) => Promise<string | null>;
   };
   /** Reports something that happened. Batched before it crosses. */
   emit: (event: AgentEvent) => void;

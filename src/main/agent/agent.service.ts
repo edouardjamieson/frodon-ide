@@ -43,6 +43,7 @@ import {
   readTerminals,
   readWorkbench,
   showFile,
+  showGit,
 } from './agent-workbench.service';
 
 const log = createLogger('agent');
@@ -199,6 +200,7 @@ export async function startConversation(
       workbench: {
         read: () => readWorkbench(senderId, cwd),
         terminals: () => readTerminals(senderId),
+        showGit: (commit) => showGit(senderId, cwd, commit),
         open: (path, line) => showFile(senderId, cwd, path, line),
       },
       emit: (event) => emit(conversation, event),

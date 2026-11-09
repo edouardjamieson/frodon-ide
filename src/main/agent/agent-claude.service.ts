@@ -1014,6 +1014,7 @@ const WORKBENCH_TOOLS = [
   'editor_state',
   'open_file',
   'terminal_output',
+  'show_in_git',
 ] as const;
 /** The same tools by the names Claude calls them. */
 const WORKBENCH_TOOL_NAMES: ReadonlySet<string> = new Set(
@@ -1040,7 +1041,8 @@ function workbenchServer(host: AgentHost) {
       'selected code" or "this file" without naming one, call editor_state ' +
       'to see what they mean. To show them a place in the code, call ' +
       'open_file rather than only naming it. When they ask about a command ' +
-      'they ran or something a terminal shows, call terminal_output.',
+      'they ran or something a terminal shows, call terminal_output. To ' +
+      'show them a commit or their pending changes, call show_in_git.',
     tools: [
       tool(
         'editor_state',
@@ -1081,6 +1083,36 @@ function workbenchServer(host: AgentHost) {
                   : 'The terminals could not be read.',
               },
             ],
+          };
+        }
+      ),
+      tool(
+        'show_in_git',
+        "Opens Frodon's git window for the person: at a commit's detail — " +
+          'its message and every file it changed — when a commit hash is ' +
+          'given, or at the changes not yet committed when it is not. For ' +
+          'showing them a commit or their own pending changes, not for ' +
+          'reading history yourself; use git for that.',
+        {
+          commit: z
+            .string()
+            .optional()
+            .describe('A commit hash, short or full. Omit for the changes.'),
+        },
+        async ({ commit }) => {
+          const refused = await host.workbench.showGit(commit ?? null);
+          return {
+            content: [
+              {
+                type: 'text',
+                text:
+                  refused ??
+                  (commit
+                    ? `Showing commit ${commit} in the git window.`
+                    : 'Showing the uncommitted changes in the git window.'),
+              },
+            ],
+            ...(refused ? { isError: true } : {}),
           };
         }
       ),
@@ -1397,6 +1429,14 @@ function actionOf(
       return { id, kind: 'read', title: 'Look at the editor' };
     case `mcp__${WORKBENCH_SERVER}__terminal_output`:
       return { id, kind: 'read', title: 'Look at the terminals' };
+    case `mcp__${WORKBENCH_SERVER}__show_in_git`:
+      return {
+        id,
+        kind: 'other',
+        title: str('commit')
+          ? `Show commit ${str('commit')} in git`
+          : 'Show the uncommitted changes in git',
+      };
     case `mcp__${WORKBENCH_SERVER}__open_file`: {
       const line = input['line'];
       const shown = str('path');

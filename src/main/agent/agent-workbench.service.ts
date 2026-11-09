@@ -12,6 +12,7 @@
  * it goes to the editor. Both are checked here, against the conversation's
  * project, because this is the one place both are seen.
  */
+import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { stat } from 'node:fs/promises';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
@@ -209,4 +210,43 @@ function cleanSelection(raw: unknown, root: string): AgentSelection | null {
     // what it needs from here is what the person is pointing at.
     text: text.length > SELECTION_LIMIT ? text.slice(0, SELECTION_LIMIT) : text,
   };
+}
+
+/**
+ * Shows the person a commit in the git window, or the uncommitted changes
+ * when `commit` is null. Answers why not, or null when it was sent.
+ *
+ * The sha is the agent's, so it is checked twice: for the shape of one,
+ * since it becomes an argument to `git`, and by `git` itself, which says
+ * whether it names a commit here — an agent that misremembers a hash should
+ * be told, not shown an empty pane.
+ */
+export async function showGit(
+  senderId: number,
+  root: string,
+  commit: string | null
+): Promise<string | null> {
+  let sha: string | null = null;
+  if (commit !== null) {
+    if (!/^[0-9a-f]{4,64}$/i.test(commit))
+      return `${commit} is not a commit hash.`;
+    sha = await resolveCommit(root, commit);
+    if (!sha) return `${commit} is not a commit in this repository.`;
+  }
+  const target = webContents.fromId(senderId);
+  if (!target || target.isDestroyed()) return 'The window has closed.';
+  target.send('agent:show-git', { commit: sha });
+  return null;
+}
+
+/** The full sha a short or long one names, or null when it names no commit. */
+function resolveCommit(root: string, commit: string): Promise<string | null> {
+  return new Promise((done) => {
+    execFile(
+      'git',
+      ['rev-parse', '--verify', '--quiet', `${commit}^{commit}`],
+      { cwd: root, encoding: 'utf8', timeout: WORKBENCH_TIMEOUT_MS },
+      (error, stdout) => done(error ? null : stdout.trim() || null)
+    );
+  });
 }

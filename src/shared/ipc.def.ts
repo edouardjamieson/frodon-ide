@@ -725,6 +725,12 @@ export interface IpcEvents {
    * to the window the conversation lives in.
    */
   'agent:open-file': { path: string; line: number | null };
+  /**
+   * An agent asked to show the person a commit — or, with null, the changes
+   * not yet committed — in the git window. The sha is already checked to be
+   * a commit of the project. Sent only to the conversation's window.
+   */
+  'agent:show-git': { commit: string | null };
 
   /**
    * The updater moved — a download started, finished, or failed. Sent to
@@ -937,6 +943,8 @@ export interface FrodonApi {
     onOpenFile: (
       listener: (target: { path: string; line: number | null }) => void
     ) => () => void;
+    /** Subscribes to an agent asking for the git window. */
+    onShowGit: (listener: (commit: string | null) => void) => () => void;
     /**
      * Subscribes to one conversation's events, filtered in the preload for
      * the same reason a terminal's output is. Returns an unsubscribe function.

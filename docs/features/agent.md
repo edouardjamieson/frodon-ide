@@ -432,6 +432,17 @@ own xterm buffer with `provideTerminalOutput`, nothing is copied until the
 agent asks, and main keeps at most twelve tabs and the last 16,000
 characters of each.
 
+### The agent can show a commit
+
+`show_in_git` opens the git window for the person — at a commit's detail
+when the agent gives a hash, or at the uncommitted changes when it gives
+none. The hash is the agent's, so main checks it twice before anything
+opens: its shape, since it becomes an argument to `git`, and with
+`git rev-parse --verify` in the project, so a misremembered hash is
+answered with "not a commit in this repository" rather than an empty pane.
+The window then opens or focuses the git window, picks the history or the
+commit tab, and opens the commit's detail through `openCommitDetail`.
+
 ### Work handed off is drawn under the call that started it
 
 A subagent, or a command left running in the background, is a **task**:
@@ -730,8 +741,8 @@ arrives.
 - **More markdown.** Most HTML entities show as written, and a table's
   columns line up by its cells as the parser found them, so a row with an
   empty cell can shift its alignment by one.
-- **More of the workbench.** Boards and the git window are not reachable
-  from a conversation yet.
+- **More of the workbench.** Boards are not reachable from a conversation
+  yet.
 - **A subagent's approvals in its own card.** What a subagent asks to do is
   asked on an ordinary card in the transcript, not under the task it
   belongs to.

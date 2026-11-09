@@ -10,6 +10,7 @@ import type { AgentKind } from '@shared/agent.def';
 import { useAgentStore } from '~/lib/agent';
 import { selectionOf } from '~/lib/editor';
 import { terminalOutputOf } from '~/lib/terminal';
+import { useGitStore } from '~/lib/git';
 import { useWindowStore } from './window.store';
 import { useWindowDragStore } from './window-drag.store';
 import { canSplit, rowsOf } from './window.service';
@@ -230,9 +231,23 @@ export const useAgentWorkbenchEffect = (): void => {
         )
     );
 
+    const unshown = window.frodon.agent.onShowGit((commit) => {
+      const { openGit, setGitTab } = useWindowStore.getState();
+      openGit();
+      const git = useWindowStore
+        .getState()
+        .windows.find((tile) => tile.type === 'git');
+      if (!git) return;
+      // A commit opens in the history, where its detail is drawn; no commit
+      // means the changes, which is the commit tab.
+      setGitTab(git.id, commit ? 'history' : 'commit');
+      if (commit) useGitStore.getState().openCommitDetail(commit);
+    });
+
     return () => {
       unasked();
       unopened();
+      unshown();
     };
   }, []);
 };

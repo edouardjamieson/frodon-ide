@@ -181,6 +181,12 @@ const api: FrodonApi = {
       ipcRenderer.on('agent:open-file', handler);
       return () => ipcRenderer.removeListener('agent:open-file', handler);
     },
+    onShowGit: (listener) => {
+      const handler = (_event: unknown, payload: { commit: string | null }) =>
+        listener(payload.commit);
+      ipcRenderer.on('agent:show-git', handler);
+      return () => ipcRenderer.removeListener('agent:show-git', handler);
+    },
     // Filtered here, like a terminal's output: one channel carries every
     // conversation, and a reply streaming in one tile must not wake the rest.
     onEvents: (id, listener) => {

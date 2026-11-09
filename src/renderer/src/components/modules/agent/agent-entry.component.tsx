@@ -7,6 +7,7 @@ import {
   FileText,
   LoaderCircle,
   MessageCircleQuestion,
+  RotateCcw,
   SquareTerminal,
   Wrench,
   X,
@@ -17,9 +18,16 @@ import type {
   AgentActionKind,
   AgentChange,
   AgentReply,
+  AgentRewind,
   AgentTask,
   AgentTaskStep,
 } from '@shared/agent.def';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '~/components/ui';
 import type { OpenApproval, TranscriptEntry } from '~/lib/agent';
 import { QuestionForm } from './agent-question.component';
 import { AttachmentChip } from './agent-attach.component';
@@ -39,6 +47,7 @@ export function TranscriptRow({
   approval,
   onRespond,
   onOpenFile,
+  onRewind,
 }: {
   entry: TranscriptEntry;
   /** What this action set running, if it started anything. */
@@ -47,14 +56,22 @@ export function TranscriptRow({
   approval: OpenApproval | null;
   onRespond: (requestId: string, reply: AgentReply) => void;
   onOpenFile: (path: string, line?: number) => void;
+  /**
+   * Goes back to before this message, for a user message that can be — set
+   * only between turns, and only on a message the agent has an id for.
+   */
+  onRewind?: (restore: AgentRewind) => void;
 }) {
   switch (entry.kind) {
     case 'user':
       return (
-        <div className="ml-8 flex flex-col items-end gap-1.5 self-end">
+        <div className="group/message ml-8 flex flex-col items-end gap-1.5 self-end">
           {entry.text ? (
-            <div className="rounded-lg bg-tab-active px-3 py-2 whitespace-pre-wrap text-fg select-text">
-              {entry.text}
+            <div className="flex items-start gap-1.5">
+              {onRewind ? <RewindMenu onRewind={onRewind} /> : null}
+              <div className="rounded-lg bg-tab-active px-3 py-2 whitespace-pre-wrap text-fg select-text">
+                {entry.text}
+              </div>
             </div>
           ) : null}
           {entry.attachments ? (
@@ -333,6 +350,61 @@ function StepRow({ step, whole }: { step: AgentTaskStep; whole?: boolean }) {
     >
       {step.text}
     </li>
+  );
+}
+
+/**
+ * The terminal's rewind, on the message it goes back to: the conversation
+ * and the code, the conversation alone, or the code alone. On hover, since
+ * it is a correction made now and then, not something every message needs
+ * to wear.
+ */
+function RewindMenu({
+  onRewind,
+}: {
+  onRewind: (restore: AgentRewind) => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          aria-label="Rewind to before this message"
+          title="Rewind to before this message"
+          className="mt-1.5 flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-fg-subtle opacity-0 transition-opacity group-hover/message:opacity-100 hover:text-fg data-[state=open]:opacity-100"
+        >
+          <RotateCcw className="size-3.5" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-72">
+        <DropdownMenuItem
+          onSelect={() => onRewind('both')}
+          className="flex-col items-start gap-0"
+        >
+          <span>Rewind conversation and code</span>
+          <span className="text-[11px] text-fg-subtle">
+            Back to before this message, with the files as they were then
+          </span>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() => onRewind('conversation')}
+          className="flex-col items-start gap-0"
+        >
+          <span>Rewind conversation only</span>
+          <span className="text-[11px] text-fg-subtle">
+            The agent forgets from here on; the files stay as they are
+          </span>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() => onRewind('code')}
+          className="flex-col items-start gap-0"
+        >
+          <span>Restore code only</span>
+          <span className="text-[11px] text-fg-subtle">
+            The files go back; the conversation carries on
+          </span>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

@@ -105,6 +105,7 @@ import {
   setConversationModel,
   setConversationMode,
   respondTo,
+  rewindConversation,
   answerWorkbench,
   sendMessage,
   startConversation,
@@ -581,8 +582,12 @@ export function registerIpcHandlers(): void {
     )
   );
 
-  handle('agent:send', ({ id, text, attachments }, event) =>
-    sendMessage(id, text, attachments, askingRoot(event))
+  handle('agent:send', ({ id, text, attachments, messageId }, event) =>
+    sendMessage(id, text, attachments, askingRoot(event), messageId)
+  );
+
+  handle('agent:rewind', ({ id, messageId, restore }) =>
+    rewindConversation(id, messageId, restore)
   );
 
   handle('agent:respond', ({ id, requestId, reply }) =>

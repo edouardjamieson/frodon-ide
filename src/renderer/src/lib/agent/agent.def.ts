@@ -35,6 +35,12 @@ export type TranscriptEntry =
       text: string;
       /** What was sent with it. Absent on a message replayed from history. */
       attachments?: AgentAttachment[];
+      /**
+       * The id the agent stores the message under, which a rewind names —
+       * minted here for a message typed in this tile, read from the agent's
+       * record for one replayed. Absent when the agent kept none.
+       */
+      messageId?: string;
     }
   | { kind: 'assistant'; id: string; text: string }
   | {

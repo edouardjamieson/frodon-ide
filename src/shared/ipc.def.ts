@@ -26,6 +26,8 @@ import type {
   AgentEvents,
   AgentKind,
   AgentReply,
+  AgentRewind,
+  AgentRewindResult,
   AgentWorkbench,
   AgentStartResult,
   FavoriteEntry,
@@ -445,8 +447,19 @@ export interface IpcContract {
    * per keystroke. Attachments are checked in main — see `cleanAttachments`.
    */
   'agent:send': {
-    req: { id: string; text: string; attachments: AgentAttachment[] };
+    req: {
+      id: string;
+      text: string;
+      attachments: AgentAttachment[];
+      /** A UUID the renderer minted, for a later rewind to name it by. */
+      messageId: string;
+    };
     res: void;
+  };
+  /** Back to before a message — see `AgentRewind`. Between turns only. */
+  'agent:rewind': {
+    req: { id: string; messageId: string; restore: AgentRewind };
+    res: AgentRewindResult;
   };
   /** A yes, a no, or the answers to an open approval. */
   'agent:respond': {
@@ -846,8 +859,14 @@ export interface FrodonApi {
     send: (
       id: string,
       text: string,
-      attachments: AgentAttachment[]
+      attachments: AgentAttachment[],
+      messageId: string
     ) => Promise<void>;
+    rewind: (
+      id: string,
+      messageId: string,
+      restore: AgentRewind
+    ) => Promise<AgentRewindResult>;
     respond: (
       id: string,
       requestId: string,

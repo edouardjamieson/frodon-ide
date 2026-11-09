@@ -14,6 +14,8 @@ import type {
   AgentAvailability,
   AgentEvent,
   AgentReply,
+  AgentRewind,
+  AgentRewindResult,
   AgentWorkbench,
 } from '@shared/agent.def';
 
@@ -61,8 +63,25 @@ export interface AgentRun {
    * registry replaces it when a later `started` reports another.
    */
   session: string | null;
-  /** Sends the next message. Queued by the agent if a turn is under way. */
-  send: (text: string, attachments: AgentAttachment[]) => void;
+  /**
+   * Sends the next message. Queued by the agent if a turn is under way.
+   * `messageId` is the renderer's id for it, for a later rewind to name.
+   */
+  send: (
+    text: string,
+    attachments: AgentAttachment[],
+    messageId: string | null
+  ) => void;
+  /**
+   * Goes back to before a message: the conversation, the files the agent
+   * changed since, or both. Asked only between turns: the tile offers it
+   * only then, since a turn still running would carry on in the process
+   * being replaced.
+   */
+  rewind: (
+    messageId: string,
+    restore: AgentRewind
+  ) => Promise<AgentRewindResult>;
   /** Stops the turn in progress. The conversation stays open. */
   interrupt: () => Promise<void>;
   /**

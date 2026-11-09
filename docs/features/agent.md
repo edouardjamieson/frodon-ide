@@ -93,6 +93,25 @@ siblings it answers "Not logged in". The shell's own bookkeeping — `PWD`,
 `OLDPWD`, `SHLVL`, `_` — is left behind. An export added to the profile
 reaches a new agent after a restart, not before.
 
+### Rewinding is a new process on the same session
+
+A message the person sends carries an id minted in the renderer, which
+Claude stores as the message's own; one replayed from history carries the
+id Claude stored. Those ids are what a rewind names, and the tile offers one
+on any message that has an id, between turns.
+
+Code goes back first, while the Claude process that took the backups is
+still running: every conversation starts with `enableFileCheckpointing`, so
+`rewindFiles` can put the files the agent changed since that message back
+as they were. It is asked once as a dry run, because only the preview says
+which files it touches, then for real. The conversation goes back by
+replacing the process: the driver closes it and resumes the same session
+with `resumeSessionAt` set to whatever Claude stored just before the
+message, so Claude has no memory of anything after it. The session id stays
+the same, so a favorite still points at it. Rewinding to the first message
+is starting over, in a fresh session `started` reports. The old process's
+end is marked as replaced, so it does not end the conversation.
+
 ### Settings, per agent
 
 `~/.frodon/config.json` holds an `agents` entry per kind — user scope,
@@ -459,6 +478,17 @@ arrives.
    until the text changes. Nothing is sent until Shift+Enter.
 5. While a turn runs, the send button becomes a stop button, which interrupts
    the turn and answers every open question no.
+
+### Rewinding
+
+1. Between turns, hover a message you sent and click the arrow beside it.
+2. Pick **Rewind conversation and code**, **Rewind conversation only**, or
+   **Restore code only**.
+3. For the first two, the message and everything after it leave the
+   transcript, the agent forgets them, and the message comes back into the
+   box with its attachments, ready to be asked another way. A line says
+   how many files were put back. **Restore code only** leaves the
+   conversation as it is and says what it restored.
 
 ### Allowing an action
 

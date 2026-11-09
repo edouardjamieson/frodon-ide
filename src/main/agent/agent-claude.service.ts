@@ -262,176 +262,262 @@ function startClaude({
   // by the config sanitizer, not known to be one of Claude's.
   const startMode = MODES.find(({ id }) => id === permissionMode)?.id;
 
-  const inbox = new Inbox<SDKUserMessage>();
-  const abort = new AbortController();
-
   // Picked here rather than learnt from Claude's `init`, which only arrives
   // with the first reply: a conversation that knows its own id from the
   // start can be kept, and found again, without waiting on the agent. A
   // resumed conversation carries on under the id it already had.
   const session = resume && SESSION_ID.test(resume) ? resume : randomUUID();
 
-  const conversation = query({
-    // A stream rather than a string: one process for the whole conversation,
-    // fed a message at a time, instead of a process per turn that has to
-    // reload the session from disk before it can answer.
-    prompt: inbox,
-    options: {
-      cwd,
-      env,
-      pathToClaudeCodeExecutable: path,
-      ...(session === resume ? { resume: session } : { sessionId: session }),
-      abortController: abort,
-      // Claude Code's own system prompt. Left out, the SDK does not fall back
-      // to it: it sends an empty custom prompt, and the agent introduces
-      // itself as "a Claude agent, built on Anthropic's Claude Agent SDK" —
-      // `CLAUDE.md` still arrives as context, but nothing tells it how to
-      // work in a repository, when to reach for a skill, or that it keeps a
-      // memory. The SDK records the prompt into the session on the first
-      // request, so a conversation started without it keeps that empty prompt
-      // on resume until it is compacted. `docs/learned.md`.
-      systemPrompt: { type: 'preset', preset: 'claude_code' },
-      // Named rather than left to the default. Omitted means "all of them" in
-      // this version, but it meant "none" in an earlier one, and without
-      // `project` there is no `CLAUDE.md`, no project skills and no
-      // `.claude/settings.json` — a quiet loss a dependency bump could bring
-      // back.
-      settingSources: ['user', 'project', 'local'],
-      // Frodon's own tools, in process: no socket, no second program, and
-      // gone with the conversation. ADR-0047.
-      mcpServers: { [WORKBENCH_SERVER]: workbenchServer(host) },
-      // Deltas, so the reply is drawn as it is written rather than appearing
-      // whole once the turn is over.
-      includePartialMessages: true,
-      // A mode only when Frodon's settings name one. Otherwise none, so the
-      // person's own Claude settings choose it, exactly as they would for
-      // `claude` in a terminal. Whatever that mode decides to ask about
-      // arrives here.
-      ...(startMode ? { permissionMode: startMode } : {}),
-      canUseTool: async (
-        toolName,
-        input,
-        { signal, toolUseID, suggestions, suppressAlwaysAllowRule }
-      ) => {
-        // Frodon's own tools go ahead without a card: neither changes a
-        // file — one reads what the person already has on screen, the other
-        // puts a file on it. Allowed here rather than through
-        // `allowedTools`, which would approve them before this callback is
-        // consulted and has the SDK warn, on every start, that it did.
-        if (WORKBENCH_TOOL_NAMES.has(toolName))
-          return { behavior: 'allow', updatedInput: input };
+  /**
+   * One Claude process for this conversation, and what feeds it. Replaced
+   * whole by a rewind, which resumes the same session cut off before a
+   * message — the only way to make Claude forget what came after it.
+   */
+  interface Process {
+    conversation: ReturnType<typeof query>;
+    inbox: Inbox<SDKUserMessage>;
+    abort: AbortController;
+    /** Set when a rewind replaced it, so its end is not the conversation's. */
+    replaced: boolean;
+  }
 
-        // Claude's own "don't ask again": the rules its terminal would save
-        // if that option were picked there. Withheld when Claude says the
-        // rule would grant more than this one action, and for a question,
-        // which is answered rather than allowed.
-        const standing =
-          suppressAlwaysAllowRule || toolName === 'AskUserQuestion'
-            ? []
-            : (suggestions ?? []);
-        const reply = await host.ask(
-          actionOf(toolUseID, toolName, input),
-          signal,
-          standingLabel(standing, cwd)
-        );
-        if (!reply.allow) {
+  const open = (
+    from: { resume: string; at?: string } | { sessionId: string }
+  ): Process => {
+    const inbox = new Inbox<SDKUserMessage>();
+    const abort = new AbortController();
+    const conversation = query({
+      // A stream rather than a string: one process for the whole conversation,
+      // fed a message at a time, instead of a process per turn that has to
+      // reload the session from disk before it can answer.
+      prompt: inbox,
+      options: {
+        cwd,
+        env,
+        pathToClaudeCodeExecutable: path,
+        ...('sessionId' in from
+          ? { sessionId: from.sessionId }
+          : {
+              resume: from.resume,
+              ...(from.at ? { resumeSessionAt: from.at } : {}),
+            }),
+        abortController: abort,
+        // Backups of every file before Claude changes it, so a rewind can put
+        // the code back as well as the conversation — what the terminal's
+        // rewind offers, and on by default there.
+        enableFileCheckpointing: true,
+        // Claude Code's own system prompt. Left out, the SDK does not fall back
+        // to it: it sends an empty custom prompt, and the agent introduces
+        // itself as "a Claude agent, built on Anthropic's Claude Agent SDK" —
+        // `CLAUDE.md` still arrives as context, but nothing tells it how to
+        // work in a repository, when to reach for a skill, or that it keeps a
+        // memory. The SDK records the prompt into the session on the first
+        // request, so a conversation started without it keeps that empty prompt
+        // on resume until it is compacted. `docs/learned.md`.
+        systemPrompt: { type: 'preset', preset: 'claude_code' },
+        // Named rather than left to the default. Omitted means "all of them" in
+        // this version, but it meant "none" in an earlier one, and without
+        // `project` there is no `CLAUDE.md`, no project skills and no
+        // `.claude/settings.json` — a quiet loss a dependency bump could bring
+        // back.
+        settingSources: ['user', 'project', 'local'],
+        // Frodon's own tools, in process: no socket, no second program, and
+        // gone with the conversation. ADR-0047.
+        mcpServers: { [WORKBENCH_SERVER]: workbenchServer(host) },
+        // Deltas, so the reply is drawn as it is written rather than appearing
+        // whole once the turn is over.
+        includePartialMessages: true,
+        // A mode only when Frodon's settings name one. Otherwise none, so the
+        // person's own Claude settings choose it, exactly as they would for
+        // `claude` in a terminal. Whatever that mode decides to ask about
+        // arrives here.
+        ...(startMode ? { permissionMode: startMode } : {}),
+        canUseTool: async (
+          toolName,
+          input,
+          { signal, toolUseID, suggestions, suppressAlwaysAllowRule }
+        ) => {
+          // Frodon's own tools go ahead without a card: neither changes a
+          // file — one reads what the person already has on screen, the other
+          // puts a file on it. Allowed here rather than through
+          // `allowedTools`, which would approve them before this callback is
+          // consulted and has the SDK warn, on every start, that it did.
+          if (WORKBENCH_TOOL_NAMES.has(toolName))
+            return { behavior: 'allow', updatedInput: input };
+
+          // Claude's own "don't ask again": the rules its terminal would save
+          // if that option were picked there. Withheld when Claude says the
+          // rule would grant more than this one action, and for a question,
+          // which is answered rather than allowed.
+          const standing =
+            suppressAlwaysAllowRule || toolName === 'AskUserQuestion'
+              ? []
+              : (suggestions ?? []);
+          const reply = await host.ask(
+            actionOf(toolUseID, toolName, input),
+            signal,
+            standingLabel(standing, cwd)
+          );
+          if (!reply.allow) {
+            return {
+              behavior: 'deny',
+              message:
+                toolName === 'AskUserQuestion'
+                  ? 'The user dismissed the question without answering.'
+                  : 'Declined in Frodon.',
+            };
+          }
+          const always = reply.always === true && standing.length > 0;
+          // A mode granted for the rest of the conversation is a switch the
+          // picker should show now; Claude would only say so with the next
+          // turn's `init`.
+          const mode = always
+            ? standing.find((update) => update.type === 'setMode')
+            : undefined;
+          if (mode?.type === 'setMode')
+            host.emit({ type: 'mode', mode: mode.mode });
           return {
-            behavior: 'deny',
-            message:
+            behavior: 'allow',
+            updatedInput:
               toolName === 'AskUserQuestion'
-                ? 'The user dismissed the question without answering.'
-                : 'Declined in Frodon.',
+                ? withAnswers(input, reply.answers ?? [])
+                : input,
+            // Handed back as Claude wrote them, so the rule lands where
+            // Claude's terminal would have put it — the project's
+            // `.claude/settings.local.json` for a command, this session for
+            // a mode — and reads the same in `/permissions`.
+            ...(always ? { updatedPermissions: standing } : {}),
           };
-        }
-        const always = reply.always === true && standing.length > 0;
-        // A mode granted for the rest of the conversation is a switch the
-        // picker should show now; Claude would only say so with the next
-        // turn's `init`.
-        const mode = always
-          ? standing.find((update) => update.type === 'setMode')
-          : undefined;
-        if (mode?.type === 'setMode')
-          host.emit({ type: 'mode', mode: mode.mode });
-        return {
-          behavior: 'allow',
-          updatedInput:
-            toolName === 'AskUserQuestion'
-              ? withAnswers(input, reply.answers ?? [])
-              : input,
-          // Handed back as Claude wrote them, so the rule lands where
-          // Claude's terminal would have put it — the project's
-          // `.claude/settings.local.json` for a command, this session for
-          // a mode — and reads the same in `/permissions`.
-          ...(always ? { updatedPermissions: standing } : {}),
-        };
+        },
+        stderr: (data) => log.info(`claude: ${data.trimEnd()}`),
       },
-      stderr: (data) => log.info(`claude: ${data.trimEnd()}`),
-    },
-  });
-
-  void pump(conversation, host, abort.signal);
-
-  host.emit({
-    type: 'modes',
-    modes: MODES.map(({ id, label, description }) => ({
-      id,
-      label,
-      description,
-    })),
-  });
-
-  // The models and the commands are answered by the handshake the SDK makes
-  // on its own, so they arrive in a fraction of a second — before the first
-  // message, which is what lets a model be chosen, or a command typed, before
-  // anything has been said. Everything else Claude reports waits until it is
-  // spoken to.
-  conversation
-    .initializationResult()
-    .then(({ models, commands }) => {
-      host.emit({
-        type: 'models',
-        models: models.map((model) => ({
-          id: model.value,
-          label: model.displayName,
-          description: model.description,
-        })),
-      });
-      host.emit({ type: 'commands', commands: commandsOf(commands) });
-    })
-    .catch((error: unknown) => {
-      // A process that died on start says so through `pump`; this is only
-      // the picker going missing, and is not worth a second notice.
-      if (!abort.signal.aborted) log.error('claude models unavailable', error);
     });
+
+    const child: Process = { conversation, inbox, abort, replaced: false };
+    void pump(conversation, host, abort.signal, () => child.replaced);
+
+    host.emit({
+      type: 'modes',
+      modes: MODES.map(({ id, label, description }) => ({
+        id,
+        label,
+        description,
+      })),
+    });
+
+    // The models and the commands are answered by the handshake the SDK makes
+    // on its own, so they arrive in a fraction of a second — before the first
+    // message, which is what lets a model be chosen, or a command typed, before
+    // anything has been said. Everything else Claude reports waits until it is
+    // spoken to.
+    conversation
+      .initializationResult()
+      .then(({ models, commands }) => {
+        host.emit({
+          type: 'models',
+          models: models.map((model) => ({
+            id: model.value,
+            label: model.displayName,
+            description: model.description,
+          })),
+        });
+        host.emit({ type: 'commands', commands: commandsOf(commands) });
+      })
+      .catch((error: unknown) => {
+        // A process that died on start says so through `pump`; this is only
+        // the picker going missing, and is not worth a second notice.
+        if (!abort.signal.aborted)
+          log.error('claude models unavailable', error);
+      });
+
+    return child;
+  };
+
+  let current = open(
+    session === resume ? { resume: session } : { sessionId: session }
+  );
 
   return {
     session,
-    send(text, attachments) {
-      inbox.push({
+    send(text, attachments, messageId) {
+      current.inbox.push({
         type: 'user',
+        // Ours, so a rewind can name this message to Claude later — Claude
+        // stores it as the message's own id.
+        ...(messageId
+          ? {
+              uuid: messageId as `${string}-${string}-${string}-${string}-${string}`,
+            }
+          : {}),
         message: { role: 'user', content: contentOf(text, attachments, cwd) },
         parent_tool_use_id: null,
       });
     },
+    async rewind(messageId, restore) {
+      // Code first, while the process that made the backups is still the
+      // one running: a replacement starts with none of them.
+      let files = 0;
+      if (restore !== 'conversation') {
+        // Asked as a dry run first: the real rewind answers whether it
+        // worked, and only the preview says which files it touches.
+        const preview = await current.conversation.rewindFiles(messageId, {
+          dryRun: true,
+        });
+        if (!preview.canRewind)
+          return {
+            ok: false,
+            error: preview.error ?? 'Claude could not restore the files.',
+          };
+        const result = await current.conversation.rewindFiles(messageId);
+        if (!result.canRewind)
+          return {
+            ok: false,
+            error: result.error ?? 'Claude could not restore the files.',
+          };
+        files = preview.filesChanged?.length ?? 0;
+      }
+      if (restore === 'code') return { ok: true, files };
+
+      // The point to resume at is whatever Claude stored just before the
+      // message — the end of the turn being kept.
+      const stored = await getSessionMessages(session, { dir: cwd });
+      const at = stored.findIndex((message) => message.uuid === messageId);
+      if (at < 0)
+        return { ok: false, error: 'Claude has no record of that message.' };
+      const before = stored[at - 1]?.uuid;
+
+      const old = current;
+      old.replaced = true;
+      old.inbox.close();
+      old.abort.abort();
+      // Rewinding to the first message is starting over: nothing before it
+      // to resume at, so a fresh session, which `started` reports.
+      current = open(
+        before ? { resume: session, at: before } : { sessionId: randomUUID() }
+      );
+      return { ok: true, files };
+    },
     async interrupt() {
-      await conversation.interrupt();
+      await current.conversation.interrupt();
     },
     async setModel(model) {
       // `default` is a row in Claude's list, but the SDK's documented way to
       // say "whatever the settings say" is no model at all — so the row is
       // sent as that, rather than trusting the alias to round-trip.
-      await conversation.setModel(model === 'default' ? undefined : model);
+      await current.conversation.setModel(
+        model === 'default' ? undefined : model
+      );
     },
     async setMode(mode) {
       // Checked against the list, because the id came from the renderer and
       // the SDK's own type is the only thing that would otherwise vouch for
       // it.
       const known = MODES.find((offered) => offered.id === mode);
-      if (known) await conversation.setPermissionMode(known.id);
+      if (known) await current.conversation.setPermissionMode(known.id);
     },
     close() {
-      inbox.close();
-      abort.abort();
+      current.inbox.close();
+      current.abort.abort();
     },
   };
 }
@@ -498,13 +584,17 @@ function relativePath(root: string, path: string): string {
 async function pump(
   conversation: AsyncIterable<SDKMessage>,
   host: AgentHost,
-  closing: AbortSignal
+  closing: AbortSignal,
+  replaced: () => boolean
 ): Promise<void> {
   const translator = new Translator(host);
   try {
     for await (const message of conversation) translator.read(message);
-    host.emit({ type: 'exited', error: null });
+    if (!replaced()) host.emit({ type: 'exited', error: null });
   } catch (error) {
+    // A process a rewind replaced has ended, and the conversation has not:
+    // its successor is already running.
+    if (replaced()) return;
     // An abort is how `close` ends it, and is not an error worth showing.
     // Asked of our own signal rather than of the error: the SDK throws its
     // own class for it, minified, so neither its name nor `instanceof` can be
@@ -792,7 +882,12 @@ function replay(messages: SessionMessage[]): AgentEvent[] {
     if (stored.parent_tool_use_id) continue;
     if (stored.type === 'user') {
       const text = promptOf(stored.message);
-      if (text) events.push({ type: 'prompt', text });
+      if (text)
+        events.push({
+          type: 'prompt',
+          text,
+          messageId: typeof stored.uuid === 'string' ? stored.uuid : null,
+        });
     }
     if (stored.type === 'user' || stored.type === 'assistant') {
       translator.read({

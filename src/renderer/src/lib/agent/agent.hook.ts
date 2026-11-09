@@ -11,12 +11,19 @@ import type { File } from '@shared/fs.def';
 import { useProjectStore } from '~/lib/project';
 import { collectFiles } from '~/lib/file-picker';
 import { CONFIG_SAVE_MS, useConfigStore } from '~/lib/config';
-import type { AgentAttachment, AgentKind, AgentReply } from '@shared/agent.def';
+import type {
+  AgentAttachment,
+  AgentKind,
+  AgentReply,
+  AgentRewind,
+} from '@shared/agent.def';
 import { useAgentStore } from './agent.store';
+import type { TranscriptEntry } from './agent.def';
 import { DEFAULT_AGENT } from './agent.constant';
 import {
   fileReference,
   reduce,
+  rewoundTo,
   withMessage,
   withNotice,
   type FileReference,
@@ -79,10 +86,15 @@ export function useConversation(id: string) {
     (text: string, attachments: AgentAttachment[] = []) => {
       const message = text.trim();
       if (!message && attachments.length === 0) return;
+      // Minted here, so the entry knows its own id the moment it is drawn
+      // and a rewind can name it before the agent has said anything back.
+      const messageId = crypto.randomUUID();
       useAgentStore
         .getState()
-        .update(id, (current) => withMessage(current, message, attachments));
-      void window.frodon.agent.send(id, message, attachments);
+        .update(id, (current) =>
+          withMessage(current, message, attachments, messageId)
+        );
+      void window.frodon.agent.send(id, message, attachments, messageId);
     },
     [id]
   );
@@ -116,7 +128,68 @@ export function useConversation(id: string) {
     [id]
   );
 
-  return { conversation, send, interrupt, respond, chooseModel, chooseMode };
+  /**
+   * Goes back to before a message. Answers the message, so the composer can
+   * be filled with it again — what the terminal does, since a rewind is
+   * nearly always followed by asking the same thing differently — or null
+   * when nothing was taken out of the conversation.
+   */
+  const rewind = useCallback(
+    async (
+      messageId: string,
+      restore: AgentRewind
+    ): Promise<Extract<TranscriptEntry, { kind: 'user' }> | null> => {
+      const result = await window.frodon.agent.rewind(id, messageId, restore);
+      const { update, conversations } = useAgentStore.getState();
+      if (!result.ok) {
+        update(id, (current) =>
+          withNotice(current, `Could not rewind: ${result.error}`, 'danger')
+        );
+        return null;
+      }
+
+      const files =
+        result.files === 0
+          ? 'no file needed putting back'
+          : `${result.files} ${result.files === 1 ? 'file' : 'files'} put back`;
+      if (restore === 'code') {
+        update(id, (current) =>
+          withNotice(
+            current,
+            `Code restored to before that message: ${files}. The conversation is unchanged.`,
+            'muted'
+          )
+        );
+        return null;
+      }
+
+      const message = conversations[id]?.entries.find(
+        (entry): entry is Extract<TranscriptEntry, { kind: 'user' }> =>
+          entry.kind === 'user' && entry.messageId === messageId
+      );
+      update(id, (current) =>
+        rewoundTo(
+          current,
+          messageId,
+          restore === 'both'
+            ? `Rewound to before that message, and ${files}.`
+            : 'Rewound the conversation to before that message. The files are as they are now.'
+        )
+      );
+      return message ?? null;
+    },
+    [id]
+  );
+
+  return {
+    conversation,
+    send,
+    interrupt,
+    respond,
+    chooseModel,
+    chooseMode,
+    rewind,
+  };
 }
 
 /**

@@ -71,8 +71,15 @@ interface AgentProps {
  */
 export default function Agent({ conversationId, active }: AgentProps) {
   useConversationLifetime(conversationId);
-  const { conversation, send, interrupt, respond, chooseModel, chooseMode } =
-    useConversation(conversationId);
+  const {
+    conversation,
+    send,
+    interrupt,
+    respond,
+    chooseModel,
+    chooseMode,
+    rewind,
+  } = useConversation(conversationId);
   const favoriteName = useFavoriteName(conversationId);
 
   const root = useProjectStore((state) => state.root);
@@ -341,6 +348,22 @@ export default function Agent({ conversationId, active }: AgentProps) {
                 : null
             }
             onRespond={respond}
+            onRewind={
+              entry.kind === 'user' && entry.messageId && status === 'idle'
+                ? (restore) => {
+                    const messageId = entry.messageId as string;
+                    void rewind(messageId, restore).then((message) => {
+                      // The message comes back to the box, as in the
+                      // terminal: a rewind is nearly always followed by
+                      // asking the same thing another way.
+                      if (!message) return;
+                      edit(message.text);
+                      setAttachments(message.attachments ?? []);
+                      inputRef.current?.focus();
+                    });
+                  }
+                : undefined
+            }
             onOpenFile={(path, line) =>
               openFile(
                 resolvePath(root, path),

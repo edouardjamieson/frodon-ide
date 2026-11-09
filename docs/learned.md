@@ -342,6 +342,18 @@ Packaging will also need `prebuilds/` unpacked from the asar.
 
 ## The libraries
 
+### `rewindFiles` says which files it changed only in a dry run
+`code` · 2026-11-09 · `src/main/agent/agent-claude.service.ts`
+
+`Query.rewindFiles(messageId)` restores the files and answers
+`{ canRewind: true, skippedLinks: 0 }` — no `filesChanged`, no counts, though
+the type has room for them. `{ dryRun: true }` is what fills them in. So
+"3 files put back" takes two calls, the preview and then the rewind.
+Found when the tile said "no file needed putting back" over a file it had
+just put back. Separately: resuming with `resumeSessionAt` keeps the
+session's id rather than forking a new one, which is what lets a favorite
+survive a rewind.
+
 ### Radix's ScrollArea makes its only child a table
 `code` · 2026-11-09 · `components/modules/workbench/sidebar/favorites/`
 

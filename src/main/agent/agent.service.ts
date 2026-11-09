@@ -21,6 +21,7 @@ import type {
   AgentEvent,
   AgentKind,
   AgentReply,
+  AgentRewindResult,
   AgentStartResult,
   FavoriteEntry,
 } from '@shared/agent.def';
@@ -159,6 +160,7 @@ export async function startConversation(
     run: {
       session: null,
       send: () => {},
+      rewind: async () => ({ ok: false, error: 'The agent is starting.' }),
       interrupt: async () => {},
       setModel: async () => {},
       setMode: async () => {},
@@ -218,14 +220,56 @@ export async function sendMessage(
   id: string,
   text: string,
   attachments: unknown,
-  cwd: string | null
+  cwd: string | null,
+  messageId: unknown
 ): Promise<void> {
   const conversation = conversations.get(id);
   if (!conversation) return;
   const cleaned = await cleanAttachments(attachments, cwd);
   const message = typeof text === 'string' ? text : '';
   if (!message.trim() && cleaned.length === 0) return;
-  conversation.run.send(message, cleaned);
+  conversation.run.send(
+    message,
+    cleaned,
+    isMessageId(messageId) ? messageId : null
+  );
+}
+
+/**
+ * Goes back to before one of the conversation's messages. The id is the
+ * renderer's, checked for shape before it reaches the agent; whether the
+ * agent knows it is the agent's to say.
+ */
+export async function rewindConversation(
+  id: string,
+  messageId: unknown,
+  restore: unknown
+): Promise<AgentRewindResult> {
+  const conversation = conversations.get(id);
+  if (!conversation) return { ok: false, error: 'The conversation has ended.' };
+  if (!isMessageId(messageId))
+    return { ok: false, error: 'That message cannot be rewound to.' };
+  if (restore !== 'both' && restore !== 'conversation' && restore !== 'code')
+    return { ok: false, error: 'Nothing to rewind.' };
+  try {
+    return await conversation.run.rewind(messageId, restore);
+  } catch (error) {
+    log.error(`rewind of ${id} failed`, error);
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+/** A message id as the renderer mints them: a UUID, and nothing else. */
+function isMessageId(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      value
+    )
+  );
 }
 
 /** The answer every way out of a question that is not a click gives. */

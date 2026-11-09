@@ -70,7 +70,12 @@ function apply(conversation: Conversation, event: AgentEvent): Conversation {
         ...conversation,
         entries: [
           ...conversation.entries,
-          { kind: 'user', id: nextEntryId(), text: event.text },
+          {
+            kind: 'user',
+            id: nextEntryId(),
+            text: event.text,
+            ...(event.messageId ? { messageId: event.messageId } : {}),
+          },
         ],
       };
 
@@ -228,7 +233,8 @@ function apply(conversation: Conversation, event: AgentEvent): Conversation {
 export function withMessage(
   conversation: Conversation,
   text: string,
-  attachments: AgentAttachment[]
+  attachments: AgentAttachment[],
+  messageId: string
 ): Conversation {
   return {
     ...conversation,
@@ -239,6 +245,7 @@ export function withMessage(
         kind: 'user',
         id: nextEntryId(),
         text,
+        messageId,
         ...(attachments.length > 0 ? { attachments } : {}),
       },
     ],
@@ -483,5 +490,31 @@ export function isBackground(
 export function runningBackground(conversation: Conversation): AgentTask[] {
   return Object.values(conversation.tasks).filter(
     (task) => task.status === 'running' && isBackground(conversation, task)
+  );
+}
+
+/**
+ * The conversation as it was before a message: that message and everything
+ * after it gone, nothing left waiting on an approval, and a line saying what
+ * was put back. What the renderer shows once the agent has rewound.
+ */
+export function rewoundTo(
+  conversation: Conversation,
+  messageId: string,
+  said: string
+): Conversation {
+  const at = conversation.entries.findIndex(
+    (entry) => entry.kind === 'user' && entry.messageId === messageId
+  );
+  if (at < 0) return withNotice(conversation, said, 'muted');
+  return withNotice(
+    {
+      ...conversation,
+      status: 'idle',
+      entries: conversation.entries.slice(0, at),
+      approvals: [],
+    },
+    said,
+    'muted'
   );
 }

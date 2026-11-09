@@ -148,6 +148,17 @@ export type AgentReply =
   { allow: false } | { allow: true; answers?: string[]; always?: boolean };
 
 /**
+ * What a rewind puts back: the conversation, the files the agent changed, or
+ * both — the terminal's three choices.
+ */
+export type AgentRewind = 'both' | 'conversation' | 'code';
+
+/** What `agent:rewind` answers. */
+export type AgentRewindResult =
+  | { ok: true; /** How many files were put back. */ files: number }
+  | { ok: false; error: string };
+
+/**
  * Everything a conversation can report, in the order it happened.
  *
  * A union rather than a set of channels, so one batch can carry a turn's
@@ -182,7 +193,12 @@ export type AgentEvent =
    * Never sent live: a message typed in the tile is drawn the moment it is
    * sent, by the renderer, and an echo from the driver would draw it twice.
    */
-  | { type: 'prompt'; text: string }
+  | {
+      type: 'prompt';
+      text: string;
+      /** The agent's own id for the message, which a rewind names. */
+      messageId: string | null;
+    }
   /**
    * More text for one message. Appended, never replaced: the driver streams
    * deltas, and a message is the concatenation of every delta sharing its id.

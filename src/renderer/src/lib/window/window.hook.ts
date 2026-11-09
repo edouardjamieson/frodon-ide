@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo } from 'react';
 import type { AgentKind } from '@shared/agent.def';
 import { useAgentStore } from '~/lib/agent';
 import { selectionOf } from '~/lib/editor';
+import { terminalOutputOf } from '~/lib/terminal';
 import { useWindowStore } from './window.store';
 import { useWindowDragStore } from './window-drag.store';
 import { canSplit, rowsOf } from './window.service';
@@ -186,8 +187,26 @@ export const useConversationRevealEffect = (): void => {
  */
 export const useAgentWorkbenchEffect = (): void => {
   useEffect(() => {
-    const unasked = window.frodon.agent.onWorkbenchRequest((requestId) => {
+    const unasked = window.frodon.agent.onWorkbenchRequest((requestId, ask) => {
       const { windows, focusedId } = useWindowStore.getState();
+      const answer = (value: unknown) =>
+        void window.frodon.agent.answerWorkbench(requestId, value);
+
+      if (ask.kind === 'terminals') {
+        const terminals = windows
+          .filter((tile): tile is TerminalWindow => tile.type === 'terminal')
+          .flatMap((tile) =>
+            tile.sessions.map((session) => ({
+              focused: tile.id === focusedId && session === tile.activeSession,
+              showing: session === tile.activeSession,
+              output: terminalOutputOf(session) ?? '',
+            }))
+          )
+          .sort((a, b) => Number(b.focused) - Number(a.focused));
+        answer(terminals);
+        return;
+      }
+
       const editors = windows
         .filter((tile): tile is EditorWindow => tile.type === 'editor')
         .map((tile) => ({
@@ -198,7 +217,7 @@ export const useAgentWorkbenchEffect = (): void => {
         }))
         // The focused tile first: it is the one "this file" means.
         .sort((a, b) => Number(b.focused) - Number(a.focused));
-      void window.frodon.agent.answerWorkbench(requestId, { editors });
+      answer({ editors });
     });
 
     const unopened = window.frodon.agent.onOpenFile(({ path, line }) =>

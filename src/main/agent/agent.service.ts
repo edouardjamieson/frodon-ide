@@ -39,7 +39,11 @@ import { runShell } from './agent-shell.service';
 import { loginEnvironment } from './agent-environment.service';
 import { readFavorites } from './agent-favorite.service';
 import { cleanAttachments } from './agent-attachment.service';
-import { readWorkbench, showFile } from './agent-workbench.service';
+import {
+  readTerminals,
+  readWorkbench,
+  showFile,
+} from './agent-workbench.service';
 
 const log = createLogger('agent');
 
@@ -194,6 +198,7 @@ export async function startConversation(
     host: {
       workbench: {
         read: () => readWorkbench(senderId, cwd),
+        terminals: () => readTerminals(senderId),
         open: (path, line) => showFile(senderId, cwd, path, line),
       },
       emit: (event) => emit(conversation, event),

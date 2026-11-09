@@ -421,6 +421,17 @@ path must land on a file inside the project, or the agent is told why not.
 The window then opens it through `openFile`, which routes it to an editor
 the way any other open does.
 
+### The agent can read the terminals
+
+`terminal_output` gives the agent the last 200 lines of each terminal tab in
+its window, which is showing and which has the focus — for "why did that
+fail?" about a command run in a terminal tile, or what a server is logging.
+It is the same question-and-answer as `editor_state`, now one kind among
+several (`AgentWorkbenchAsk`): each terminal tab registers a reader of its
+own xterm buffer with `provideTerminalOutput`, nothing is copied until the
+agent asks, and main keeps at most twelve tabs and the last 16,000
+characters of each.
+
 ### Work handed off is drawn under the call that started it
 
 A subagent, or a command left running in the background, is a **task**:
@@ -719,9 +730,8 @@ arrives.
 - **More markdown.** Most HTML entities show as written, and a table's
   columns line up by its cells as the parser found them, so a row with an
   empty cell can shift its alignment by one.
-- **More of the workbench.** Boards, terminals and the git window are not
-  reachable from a conversation yet; each would be another tool beside
-  `editor_state` and `open_file`.
+- **More of the workbench.** Boards and the git window are not reachable
+  from a conversation yet.
 - **A subagent's approvals in its own card.** What a subagent asks to do is
   asked on an ordinary card in the transcript, not under the task it
   belongs to.

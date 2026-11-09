@@ -19,29 +19,37 @@ import { webContents } from 'electron';
 import type {
   AgentEditorTile,
   AgentSelection,
+  AgentTerminal,
   AgentWorkbench,
+  AgentWorkbenchAsk,
 } from '@shared/agent.def';
-import { SELECTION_LIMIT, WORKBENCH_TIMEOUT_MS } from './agent.constant';
+import {
+  MAX_TERMINALS,
+  SELECTION_LIMIT,
+  TERMINAL_OUTPUT_LIMIT,
+  WORKBENCH_TIMEOUT_MS,
+} from './agent.constant';
 
 interface Pending {
   senderId: number;
-  root: string;
-  resolve: (workbench: AgentWorkbench | null) => void;
+  /** Rebuilds the window's answer by the rule for what was asked. */
+  resolve: (raw: unknown) => void;
 }
 
 /** Questions asked of a window and not yet answered, by request id. */
 const pending = new Map<string, Pending>();
 
 /**
- * Asks a window what its editors show, with paths relative to `root`.
+ * Asks a window one of the questions it can answer, and cleans the answer.
  *
  * Resolves null when the window is gone or does not answer in time — an
  * agent waiting on a window that has closed should hear "nothing", not hang.
  */
-export function readWorkbench(
+function askWindow<T>(
   senderId: number,
-  root: string
-): Promise<AgentWorkbench | null> {
+  ask: AgentWorkbenchAsk,
+  clean: (raw: unknown) => T
+): Promise<T | null> {
   const target = webContents.fromId(senderId);
   if (!target || target.isDestroyed()) return Promise.resolve(null);
 
@@ -53,21 +61,37 @@ export function readWorkbench(
     }, WORKBENCH_TIMEOUT_MS);
     pending.set(requestId, {
       senderId,
-      root,
-      resolve: (workbench) => {
+      resolve: (raw) => {
         clearTimeout(timer);
         pending.delete(requestId);
-        done(workbench);
+        done(clean(raw));
       },
     });
-    target.send('agent:workbench-request', { requestId });
+    target.send('agent:workbench-request', { requestId, ask });
   });
+}
+
+/** What a window's editors show, with paths relative to `root`. */
+export function readWorkbench(
+  senderId: number,
+  root: string
+): Promise<AgentWorkbench | null> {
+  return askWindow(senderId, { kind: 'editors' }, (raw) =>
+    cleanWorkbench(raw, root)
+  );
+}
+
+/** The recent output of each terminal tab in a window. */
+export function readTerminals(
+  senderId: number
+): Promise<AgentTerminal[] | null> {
+  return askWindow(senderId, { kind: 'terminals' }, cleanTerminals);
 }
 
 /**
  * A window's answer. Ignored unless it is the window that was asked, and
- * rebuilt field by field: it came from the renderer, and it is going to an
- * agent.
+ * rebuilt field by field by the question's own rule: it came from the
+ * renderer, and it is going to an agent.
  */
 export function answerWorkbench(
   senderId: number,
@@ -76,7 +100,27 @@ export function answerWorkbench(
 ): void {
   const question = pending.get(requestId);
   if (!question || question.senderId !== senderId) return;
-  question.resolve(cleanWorkbench(raw, question.root));
+  question.resolve(raw);
+}
+
+function cleanTerminals(raw: unknown): AgentTerminal[] {
+  const list = Array.isArray(raw) ? raw.slice(0, MAX_TERMINALS) : [];
+  return list.flatMap((entry): AgentTerminal[] => {
+    const t = entry as Record<string, unknown> | null;
+    if (!t || typeof t['output'] !== 'string') return [];
+    const output = t['output'];
+    return [
+      {
+        focused: t['focused'] === true,
+        showing: t['showing'] === true,
+        // The end, where the last command and what it said are.
+        output:
+          output.length > TERMINAL_OUTPUT_LIMIT
+            ? output.slice(output.length - TERMINAL_OUTPUT_LIMIT)
+            : output,
+      },
+    ];
+  });
 }
 
 /**

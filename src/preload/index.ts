@@ -19,7 +19,7 @@
  * holding a reference to the emitter.
  */
 import { contextBridge, ipcRenderer } from 'electron';
-import type { AgentEvents } from '@shared/agent.def';
+import type { AgentEvents, AgentWorkbenchAsk } from '@shared/agent.def';
 import type { BoardDocument, BoardRef, BoardScope } from '@shared/board.def';
 import type { Bookmark, BookmarkScope } from '@shared/bookmark.def';
 import type { File, FileChange } from '@shared/fs.def';
@@ -162,11 +162,13 @@ const api: FrodonApi = {
       ipcRenderer.on('agent:reveal', handler);
       return () => ipcRenderer.removeListener('agent:reveal', handler);
     },
-    answerWorkbench: (requestId, workbench) =>
-      ipcRenderer.invoke('agent:workbench', { requestId, workbench }),
+    answerWorkbench: (requestId, answer) =>
+      ipcRenderer.invoke('agent:workbench', { requestId, answer }),
     onWorkbenchRequest: (listener) => {
-      const handler = (_event: unknown, payload: { requestId: string }) =>
-        listener(payload.requestId);
+      const handler = (
+        _event: unknown,
+        payload: { requestId: string; ask: AgentWorkbenchAsk }
+      ) => listener(payload.requestId, payload.ask);
       ipcRenderer.on('agent:workbench-request', handler);
       return () =>
         ipcRenderer.removeListener('agent:workbench-request', handler);

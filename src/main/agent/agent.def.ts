@@ -16,6 +16,7 @@ import type {
   AgentReply,
   AgentRewind,
   AgentRewindResult,
+  AgentTerminal,
   AgentWorkbench,
 } from '@shared/agent.def';
 
@@ -29,6 +30,8 @@ export interface AgentHost {
   workbench: {
     /** Null when the window is gone or would not say. */
     read: () => Promise<AgentWorkbench | null>;
+    /** The window's terminal tabs and their recent output. Null likewise. */
+    terminals: () => Promise<AgentTerminal[] | null>;
     /** Why the file could not be shown, or null when it was. */
     open: (path: string, line: number | null) => Promise<string | null>;
   };

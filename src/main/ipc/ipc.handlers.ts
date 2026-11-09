@@ -605,8 +605,8 @@ export function registerIpcHandlers(): void {
 
   // Accepted only from the window that was asked — `answerWorkbench` checks
   // the sender against the question.
-  handle('agent:workbench', ({ requestId, workbench }, event) =>
-    answerWorkbench(event.sender.id, requestId, workbench)
+  handle('agent:workbench', ({ requestId, answer }, event) =>
+    answerWorkbench(event.sender.id, requestId, answer)
   );
 
   handle('agent:interrupt', ({ id }) => interruptConversation(id));

@@ -64,3 +64,9 @@ export const SHELL_COMMAND_TIMEOUT_MS = 120_000;
  * because a build log can be megabytes and a context window cannot.
  */
 export const NOTE_OUTPUT_LIMIT = 30_000;
+
+/** The most terminal tabs an agent is shown at once. */
+export const MAX_TERMINALS = 12;
+
+/** The most of one terminal's output an agent is shown, in characters. */
+export const TERMINAL_OUTPUT_LIMIT = 16_000;

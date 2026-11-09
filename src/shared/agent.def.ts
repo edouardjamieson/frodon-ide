@@ -378,6 +378,24 @@ export interface AgentWorkbench {
   editors: AgentEditorTile[];
 }
 
+/**
+ * What main can ask a conversation's window about. One question and answer
+ * pair over the same channel for each kind, rather than a channel each: the
+ * window answers them all from its own stores, and main cleans each answer
+ * with the rule for its kind before an agent sees it.
+ */
+export type AgentWorkbenchAsk = { kind: 'editors' } | { kind: 'terminals' };
+
+/** One terminal tab, as an agent is shown it. */
+export interface AgentTerminal {
+  /** Whether its tile has the focus and it is the tab on screen there. */
+  focused: boolean;
+  /** Whether it is the tab on screen in its tile. */
+  showing: boolean;
+  /** The last lines it printed, as text. */
+  output: string;
+}
+
 export interface AgentEditorTile {
   /** The tile's tabs, as paths. */
   files: string[];

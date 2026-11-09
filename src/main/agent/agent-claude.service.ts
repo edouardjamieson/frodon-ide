@@ -44,6 +44,7 @@ import type {
   AgentQuestion,
   AgentTask,
   AgentTaskStep,
+  AgentTerminal,
   AgentWorkbench,
 } from '@shared/agent.def';
 import {
@@ -1009,7 +1010,11 @@ function replay(messages: SessionMessage[]): AgentEvent[] {
 
 /** The name Claude knows Frodon's tools under: `mcp__frodon__…`. */
 const WORKBENCH_SERVER = 'frodon';
-const WORKBENCH_TOOLS = ['editor_state', 'open_file'] as const;
+const WORKBENCH_TOOLS = [
+  'editor_state',
+  'open_file',
+  'terminal_output',
+] as const;
 /** The same tools by the names Claude calls them. */
 const WORKBENCH_TOOL_NAMES: ReadonlySet<string> = new Set(
   WORKBENCH_TOOLS.map((name) => `mcp__${WORKBENCH_SERVER}__${name}`)
@@ -1034,7 +1039,8 @@ function workbenchServer(host: AgentHost) {
       'editor beside this conversation. When they say "this", "here", "the ' +
       'selected code" or "this file" without naming one, call editor_state ' +
       'to see what they mean. To show them a place in the code, call ' +
-      'open_file rather than only naming it.',
+      'open_file rather than only naming it. When they ask about a command ' +
+      'they ran or something a terminal shows, call terminal_output.',
     tools: [
       tool(
         'editor_state',
@@ -1052,6 +1058,27 @@ function workbenchServer(host: AgentHost) {
                 text: workbench
                   ? describeWorkbench(workbench)
                   : 'The editor could not be read.',
+              },
+            ],
+          };
+        }
+      ),
+      tool(
+        'terminal_output',
+        "What Frodon's terminal tabs in this window have printed lately — " +
+          'the last 200 lines of each — and which tab is showing and which ' +
+          'has the focus. For "why did that fail?" about a command the ' +
+          'person ran in a terminal, or to see what a server is logging.',
+        {},
+        async () => {
+          const terminals = await host.workbench.terminals();
+          return {
+            content: [
+              {
+                type: 'text',
+                text: terminals
+                  ? describeTerminals(terminals)
+                  : 'The terminals could not be read.',
               },
             ],
           };
@@ -1089,6 +1116,24 @@ function workbenchServer(host: AgentHost) {
       ),
     ],
   });
+}
+
+/** `terminal_output`'s answer, as text a model reads well. */
+function describeTerminals(terminals: AgentTerminal[]): string {
+  if (terminals.length === 0) return 'No terminal is open in this window.';
+  return terminals
+    .map((terminal, index) => {
+      const state = terminal.focused
+        ? ' (focused)'
+        : terminal.showing
+          ? ' (showing)'
+          : ' (in the background)';
+      const output = terminal.output.trim()
+        ? `\n\`\`\`\n${terminal.output}\n\`\`\``
+        : ' — nothing printed.';
+      return `Terminal ${index + 1}${state}:${output}`;
+    })
+    .join('\n\n');
 }
 
 /** `editor_state`'s answer, as text a model reads well. */
@@ -1350,6 +1395,8 @@ function actionOf(
     }
     case `mcp__${WORKBENCH_SERVER}__editor_state`:
       return { id, kind: 'read', title: 'Look at the editor' };
+    case `mcp__${WORKBENCH_SERVER}__terminal_output`:
+      return { id, kind: 'read', title: 'Look at the terminals' };
     case `mcp__${WORKBENCH_SERVER}__open_file`: {
       const line = input['line'];
       const shown = str('path');

@@ -29,7 +29,7 @@ import type {
   AgentReply,
   AgentRewind,
   AgentRewindResult,
-  AgentWorkbench,
+  AgentWorkbenchAsk,
   AgentStartResult,
   FavoriteEntry,
 } from './agent.def';
@@ -533,7 +533,7 @@ export interface IpcContract {
    * the window it was asked of.
    */
   'agent:workbench': {
-    req: { requestId: string; workbench: AgentWorkbench };
+    req: { requestId: string; answer: unknown };
     res: void;
   };
 
@@ -718,7 +718,7 @@ export interface IpcEvents {
    * An agent asked what the editors are showing. Answered with
    * `agent:workbench`. Sent only to the window the conversation lives in.
    */
-  'agent:workbench-request': { requestId: string };
+  'agent:workbench-request': { requestId: string; ask: AgentWorkbenchAsk };
   /**
    * An agent asked to show the person a file, at a line. The path is
    * absolute and already checked to be a file inside the project. Sent only
@@ -927,12 +927,12 @@ export interface FrodonApi {
     /** Subscribes to requests to show a tab. Returns an unsubscribe. */
     onReveal: (listener: (id: string) => void) => () => void;
     /** Answers an `onWorkbenchRequest`. */
-    answerWorkbench: (
-      requestId: string,
-      workbench: AgentWorkbench
-    ) => Promise<void>;
-    /** Subscribes to an agent asking what the editors show. */
-    onWorkbenchRequest: (listener: (requestId: string) => void) => () => void;
+    /** Answers an `onWorkbenchRequest`, in the shape its `ask` calls for. */
+    answerWorkbench: (requestId: string, answer: unknown) => Promise<void>;
+    /** Subscribes to an agent asking about the window — see `AgentWorkbenchAsk`. */
+    onWorkbenchRequest: (
+      listener: (requestId: string, ask: AgentWorkbenchAsk) => void
+    ) => () => void;
     /** Subscribes to an agent asking for a file to be shown. */
     onOpenFile: (
       listener: (target: { path: string; line: number | null }) => void

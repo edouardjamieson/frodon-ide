@@ -37,17 +37,77 @@ export const Markdown = memo(
     const findFile = useFindFile();
     return (
       <div className="flex flex-col gap-2.5 text-fg select-text">
-        {blocks(tree.topNode, { text, onOpenFile, findFile })}
+        {blocks(tree.topNode, {
+          text,
+          onOpenFile,
+          findFile,
+          references: referencesOf(tree.topNode, text),
+          align: null,
+        })}
       </div>
     );
   },
   (before, after) => before.text === after.text
 );
 
+type Align = 'left' | 'center' | 'right' | undefined;
+
 interface Context {
   text: string;
   onOpenFile: (path: string, line?: number) => void;
   findFile: (text: string) => FileReference | null;
+  /** `[label]: url` definitions in the reply, by normalized label. */
+  references: Map<string, string>;
+  /** The alignment of each column, while a table's rows are drawn. */
+  align: Align[] | null;
+}
+
+/** A link label as CommonMark compares them: case and spacing ignored. */
+function normalizeLabel(label: string): string {
+  return label.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+/**
+ * Every `[label]: url` the reply defines. Read before anything is drawn,
+ * because a definition may come after the link that uses it — at the foot
+ * of the reply, which is where they usually are.
+ */
+function referencesOf(root: SyntaxNode, text: string): Map<string, string> {
+  const references = new Map<string, string>();
+  for (const node of childrenOf(root)) {
+    if (node.name !== 'LinkReference') continue;
+    const label = node.getChild('LinkLabel');
+    const url = node.getChild('URL');
+    if (!label || !url) continue;
+    const key = normalizeLabel(text.slice(label.from + 1, label.to - 1));
+    // The first definition of a label wins, as CommonMark has it.
+    if (!references.has(key)) references.set(key, text.slice(url.from, url.to));
+  }
+  return references;
+}
+
+/** Each column's alignment, from a table's `|:--|:-:|--:|` row. */
+function alignmentOf(table: SyntaxNode, text: string): Align[] {
+  const delimiter = childrenOf(table).find(
+    (child) => child.name === 'TableDelimiter'
+  );
+  if (!delimiter) return [];
+  return text
+    .slice(delimiter.from, delimiter.to)
+    .split('|')
+    .map((cell) => cell.trim())
+    .filter(Boolean)
+    .map((cell) => {
+      const left = cell.startsWith(':');
+      const right = cell.endsWith(':');
+      return left && right
+        ? 'center'
+        : right
+          ? 'right'
+          : left
+            ? 'left'
+            : undefined;
+    });
 }
 
 /** Syntax the parser keeps and a reader does not want to see. */
@@ -185,7 +245,9 @@ function block(node: SyntaxNode, context: Context, key: number): ReactNode {
       return (
         <div key={key} className="overflow-x-auto">
           <table className="border-collapse text-[13px]">
-            <tbody>{blocks(node, context)}</tbody>
+            <tbody>
+              {blocks(node, { ...context, align: alignmentOf(node, text) })}
+            </tbody>
           </table>
         </div>
       );
@@ -199,12 +261,19 @@ function block(node: SyntaxNode, context: Context, key: number): ReactNode {
             header ? (
               <th
                 key={index}
+                // Inline, being a layout value from the reply itself; a class
+                // per alignment would be three classes for one property.
+                style={{ textAlign: context.align?.[index] }}
                 className="border border-pane-border px-2 py-1 text-left font-semibold"
               >
                 {inline(cell, context)}
               </th>
             ) : (
-              <td key={index} className="border border-pane-border px-2 py-1">
+              <td
+                key={index}
+                style={{ textAlign: context.align?.[index] }}
+                className="border border-pane-border px-2 py-1"
+              >
                 {inline(cell, context)}
               </td>
             )
@@ -316,8 +385,7 @@ function span(node: SyntaxNode, context: Context, key: number): ReactNode {
       // An image is drawn as a link to it: a remote picture would be a
       // request the agent's words make on the person's behalf, and the
       // page's CSP refuses it anyway.
-      const url = node.getChild('URL');
-      const href = url ? text.slice(url.from, url.to) : null;
+      const href = hrefOf(node, context);
       const label = inline(node, context).filter((part) => part !== null);
       return (
         <ReplyLink key={key} href={href} context={context}>
@@ -344,6 +412,27 @@ function span(node: SyntaxNode, context: Context, key: number): ReactNode {
       // Inline HTML and anything unknown, as its source.
       return text.slice(node.from, node.to);
   }
+}
+
+/**
+ * Where a link points: its own address, or the definition its label names —
+ * `[text][ref]`, `[text][]` and `[text]` all look one up, the last two by
+ * their text. Null when it names nothing defined.
+ */
+function hrefOf(node: SyntaxNode, context: Context): string | null {
+  const { text } = context;
+  const url = node.getChild('URL');
+  if (url) return text.slice(url.from, url.to);
+
+  const label = node.getChild('LinkLabel');
+  const marks = node.getChildren('LinkMark');
+  const named =
+    label && label.to - label.from > 2
+      ? text.slice(label.from + 1, label.to - 1)
+      : marks.length >= 2
+        ? text.slice(marks[0]?.to ?? node.from, marks[1]?.from ?? node.to)
+        : '';
+  return context.references.get(normalizeLabel(named)) ?? null;
 }
 
 /** The handful a reply actually contains. Anything else stays as written. */

@@ -394,7 +394,10 @@ something, so it streams with a stop button like a turn that was sent. See
 
 A reply goes through `@lezer/markdown`, the parser behind the editor's `.md`
 mode, and `Markdown` turns the tree into elements: headings, lists and task
-lists, quotes, tables, inline code and fenced blocks. Nothing on the way is
+lists, quotes, tables with their columns aligned as the `|:-:|` row says,
+inline code and fenced blocks. A `[text][ref]` link — or `[text][]`, or
+`[text]` — points where the reply's `[ref]: url` says, wherever in the
+reply that is defined, and the definitions themselves are not drawn. Nothing on the way is
 an HTML string, so a reply that contains `<script>` shows the text
 `<script>`. ADR-0046.
 
@@ -630,8 +633,9 @@ arrives.
 - **An approval open when the app quit.** It comes back as a card without
   buttons, closed as not finished; the agent asks again if it still needs
   to.
-- **More markdown.** Table alignment, reference-style links and most HTML
-  entities show as written.
+- **More markdown.** Most HTML entities show as written, and a table's
+  columns line up by its cells as the parser found them, so a row with an
+  empty cell can shift its alignment by one.
 - **More of the workbench.** Boards, terminals and the git window are not
   reachable from a conversation yet; each would be another tool beside
   `editor_state` and `open_file`.

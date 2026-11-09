@@ -171,6 +171,7 @@ function SidebarMenu({ collapsed }: { collapsed: boolean }) {
       onClick: () => toggleModule('FAVORITES'),
       label: 'Favorite conversations',
       focused: module === 'FAVORITES' && !collapsed,
+      shortcut: ['mod', 'shift', 'h'],
     },
   ];
 

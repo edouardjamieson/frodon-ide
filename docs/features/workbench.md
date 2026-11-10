@@ -172,7 +172,11 @@ expensive enough to rebuild by hand that losing it is felt.
    `mod+shift+down` do the same thing from the keyboard.
 2. The new window is spawned beside or below, and takes focus.
 3. It is an `EmptyWindow` until told what it is: the welcome tile offers one
-   button per module. A window's type is fixed once set — changing it would
+   row per module, in a single column with a line saying what each is for.
+   A column rather than a grid, because five choices never fill two columns
+   evenly and buttons sized to their labels go ragged as a tile narrows. A
+   small tile drops the lines, then the logo, and scrolls rather than
+   squeezing the rows. A window's type is fixed once set — changing it would
    mean deciding what happens to the contents, and closing the window says that
    unambiguously.
 

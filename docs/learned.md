@@ -17,6 +17,19 @@ architecture, write the ADR too and link them.
 
 ## The platform
 
+### Option as Meta takes half the keyboard away from a non-US Mac layout
+`code` · 2026-11-10 · `src/renderer/src/components/modules/terminal/terminal.hook.ts`
+
+xterm's `macOptionIsMeta` is all or nothing: every Option chord becomes ESC
+and the bare key. On a US layout that only costs `∫` and `ƒ`, which nobody
+types into a shell. On a French one Option+Shift+: is `/`, Option+N is `~`,
+and `|`, `{`, `[` sit behind Option too — so the terminal could not type a
+path. Turning Meta off would cost Option+B/F word movement to fix it. What
+separates the two is what the OS composed: printable ASCII under Option is
+a character the layout puts there on purpose; anything else is a chord the
+person meant as Meta. The custom key handler sends the former as typed, on
+macOS only, because Alt+B on Linux reports a plain `b`.
+
 ### The Agent SDK runs Claude Code without its system prompt unless asked
 `code` · 2026-11-08 · `src/main/agent/agent-claude.service.ts`
 

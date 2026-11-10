@@ -142,6 +142,12 @@ better than a field that always comes back empty.
   Shift+Enter has no encoding of its own and would arrive as `\r`, so it is
   sent as `ESC CR` (Meta+Enter). zsh inserts a newline for that, and so do
   TUIs with multi-line input. This is the same choice VS Code's terminal made.
+- **Option is Meta on a Mac, unless it typed a character.** `macOptionIsMeta`
+  keeps Option+B/F as word movement, but on most non-US layouts Option is how
+  `/`, `~`, `|` and `{` are typed at all. So an Option chord that composed a
+  printable ASCII character sends that character; one that composed `∫` or
+  `ƒ` is Meta. A US layout never composes ASCII under Option and loses
+  nothing. See [learned.md](../learned.md).
 - **`terminal:data` is the one genuinely high-frequency channel in the app.**
   Treat any new per-keystroke or per-frame channel as needing the same
   justification.

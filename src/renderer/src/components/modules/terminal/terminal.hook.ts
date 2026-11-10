@@ -20,6 +20,7 @@ import { useTheme } from '~/lib/theme';
 import { useTerminalText } from '~/lib/config';
 import { terminalFont, xtermTheme } from './terminal.theme';
 import { provideTerminalOutput } from '~/lib/terminal';
+import { useAppStore } from '~/lib/app';
 
 interface UseTerminalOptions {
   /** The session id, shared with main. Changing it is a different shell. */
@@ -82,7 +83,8 @@ export function useTerminal({
       // runaway log doesn't grow without bound.
       scrollback: 5000,
       // Left Option as Meta, which is what a Mac user who has set up their
-      // shell expects — Option+B/F for word movement.
+      // shell expects — Option+B/F for word movement. Except where Option
+      // is how a character is typed at all; see the key handler below.
       macOptionIsMeta: true,
       theme: xtermTheme(latest.current.theme),
     });
@@ -149,7 +151,32 @@ export function useTerminal({
     // kitty keyboard protocol would be the honest answer, but xterm.js does
     // not speak it. Every event type is swallowed, not only the keydown, so
     // xterm never gets a keypress to turn into a second `\r`.
+    //
+    // And one more, for the Mac. With Option as Meta, xterm sends ESC and the
+    // bare key for every Option chord — which on a US layout is what was
+    // wanted, and on most others swallows half the keyboard: a French Mac
+    // types `/` with Option+Shift+:, `~` with Option+N, `|` and `{` the same
+    // way. The line between the two is what the chord produced. When the OS
+    // composed a printable ASCII character, that character is on the keycap
+    // for this layout and the person meant it; when it produced `∫` or `ƒ`,
+    // nobody wanted that in a shell, and Meta is the better reading. A US
+    // layout never composes ASCII under Option, so it loses nothing. Mac
+    // only: Alt+B elsewhere reports `b`, which is ASCII and is Meta.
     term.attachCustomKeyEventHandler((event) => {
+      if (
+        event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        event.key.length === 1 &&
+        event.key >= ' ' &&
+        event.key <= '~' &&
+        useAppStore.getState().info?.platform === 'darwin'
+      ) {
+        if (event.type === 'keydown') term.input(event.key);
+        event.preventDefault();
+        return false;
+      }
+
       const shiftEnter =
         event.key === 'Enter' &&
         event.shiftKey &&

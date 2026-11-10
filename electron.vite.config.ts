@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
 import react from '@vitejs/plugin-react';
@@ -17,9 +18,25 @@ import tailwindcss from '@tailwindcss/vite';
  * renderer imports belongs in `devDependencies` — Vite bundles the renderer
  * wholesale, so its packages must not be externalized.
  */
+/**
+ * The Claude Code the bundled Agent SDK was released against. Read here, at
+ * build time, because the SDK is bundled into main as JavaScript and its
+ * `package.json` is neither shipped nor exported — and the number is what
+ * the driver compares an installed `claude` with. See ADR-0043.
+ */
+const claudeCodeVersion: string = JSON.parse(
+  readFileSync(
+    resolve('node_modules/@anthropic-ai/claude-agent-sdk/package.json'),
+    'utf8'
+  )
+).claudeCodeVersion;
+
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
+    define: {
+      __CLAUDE_CODE_VERSION__: JSON.stringify(claudeCodeVersion),
+    },
     resolve: {
       alias: {
         '@shared': resolve('src/shared'),

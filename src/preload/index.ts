@@ -19,6 +19,7 @@
  * holding a reference to the emitter.
  */
 import { contextBridge, ipcRenderer } from 'electron';
+import type { AgentEvents, AgentWorkbenchAsk } from '@shared/agent.def';
 import type { BoardDocument, BoardRef, BoardScope } from '@shared/board.def';
 import type { Bookmark, BookmarkScope } from '@shared/bookmark.def';
 import type { File, FileChange } from '@shared/fs.def';
@@ -120,6 +121,80 @@ const api: FrodonApi = {
       };
       ipcRenderer.on('terminal:exit', handler);
       return () => ipcRenderer.removeListener('terminal:exit', handler);
+    },
+  },
+  agent: {
+    availability: (kind) => ipcRenderer.invoke('agent:availability', { kind }),
+    start: (id, kind, resume, replayed) =>
+      ipcRenderer.invoke('agent:start', { id, kind, resume, replayed }),
+    history: (kind, session) =>
+      ipcRenderer.invoke('agent:history', { kind, session }),
+    send: (id, text, attachments, messageId) =>
+      ipcRenderer.invoke('agent:send', { id, text, attachments, messageId }),
+    rewind: (id, messageId, restore) =>
+      ipcRenderer.invoke('agent:rewind', { id, messageId, restore }),
+    shell: (id, command) => ipcRenderer.invoke('agent:shell', { id, command }),
+    respond: (id, requestId, reply) =>
+      ipcRenderer.invoke('agent:respond', { id, requestId, reply }),
+    interrupt: (id) => ipcRenderer.invoke('agent:interrupt', { id }),
+    setModel: (id, model) =>
+      ipcRenderer.invoke('agent:set-model', { id, model }),
+    setMode: (id, mode) => ipcRenderer.invoke('agent:set-mode', { id, mode }),
+    stop: (id) => ipcRenderer.invoke('agent:stop', { id }),
+    favorites: () => ipcRenderer.invoke('agent:favorites'),
+    addFavorite: (kind, session, name) =>
+      ipcRenderer.invoke('agent:add-favorite', { kind, session, name }),
+    renameFavorite: (kind, session, name) =>
+      ipcRenderer.invoke('agent:rename-favorite', { kind, session, name }),
+    removeFavorite: (kind, session) =>
+      ipcRenderer.invoke('agent:remove-favorite', { kind, session }),
+    reveal: (kind, session) =>
+      ipcRenderer.invoke('agent:reveal', { kind, session }),
+    onFavoritesChanged: (listener) => {
+      const handler = () => listener();
+      ipcRenderer.on('agent:favorites-changed', handler);
+      return () =>
+        ipcRenderer.removeListener('agent:favorites-changed', handler);
+    },
+    onReveal: (listener) => {
+      const handler = (_event: unknown, payload: { id: string }) =>
+        listener(payload.id);
+      ipcRenderer.on('agent:reveal', handler);
+      return () => ipcRenderer.removeListener('agent:reveal', handler);
+    },
+    answerWorkbench: (requestId, answer) =>
+      ipcRenderer.invoke('agent:workbench', { requestId, answer }),
+    onWorkbenchRequest: (listener) => {
+      const handler = (
+        _event: unknown,
+        payload: { requestId: string; ask: AgentWorkbenchAsk }
+      ) => listener(payload.requestId, payload.ask);
+      ipcRenderer.on('agent:workbench-request', handler);
+      return () =>
+        ipcRenderer.removeListener('agent:workbench-request', handler);
+    },
+    onOpenFile: (listener) => {
+      const handler = (
+        _event: unknown,
+        payload: { path: string; line: number | null }
+      ) => listener(payload);
+      ipcRenderer.on('agent:open-file', handler);
+      return () => ipcRenderer.removeListener('agent:open-file', handler);
+    },
+    onShowGit: (listener) => {
+      const handler = (_event: unknown, payload: { commit: string | null }) =>
+        listener(payload.commit);
+      ipcRenderer.on('agent:show-git', handler);
+      return () => ipcRenderer.removeListener('agent:show-git', handler);
+    },
+    // Filtered here, like a terminal's output: one channel carries every
+    // conversation, and a reply streaming in one tile must not wake the rest.
+    onEvents: (id, listener) => {
+      const handler = (_event: unknown, payload: AgentEvents) => {
+        if (payload.id === id) listener(payload.events);
+      };
+      ipcRenderer.on('agent:events', handler);
+      return () => ipcRenderer.removeListener('agent:events', handler);
     },
   },
   board: {

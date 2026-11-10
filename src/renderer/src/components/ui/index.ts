@@ -25,6 +25,11 @@ export {
 } from './button-group';
 export { Checkbox } from './checkbox';
 export {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from './collapsible';
+export {
   ContextMenu,
   ContextMenuCheckboxItem,
   ContextMenuContent,

@@ -24,6 +24,7 @@ import { registerIpcHandlers } from '@main/ipc';
 import { disposeSessions } from '@main/session';
 import { disposeWatchedFiles } from '@main/watch';
 import { disposeTerminals } from '@main/terminal';
+import { disposeAgents } from '@main/agent';
 import { refreshAppIcon } from '@main/icon';
 import {
   rootsToReopen,
@@ -134,4 +135,5 @@ app.on('will-quit', () => {
   disposeSessions();
   disposeWatchedFiles();
   disposeTerminals();
+  disposeAgents();
 });

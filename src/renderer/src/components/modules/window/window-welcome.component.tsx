@@ -1,4 +1,4 @@
-import { FileCode, FolderGit2, Globe, SquareTerminal } from 'lucide-react';
+import { Bot, FileCode, FolderGit2, Globe, SquareTerminal } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Button, Silk } from '~/components/ui';
 import AnimatedLogo from '~/components/utils/animated-logo';
@@ -46,6 +46,9 @@ export function EmptyWindowBody({ window: win }: { window: EmptyWindow }) {
         </Choice>
         <Choice type="browser" label="Browser" onPick={setType}>
           <Globe className="size-4" />
+        </Choice>
+        <Choice type="agent" label="Agent" onPick={setType}>
+          <Bot className="size-4" />
         </Choice>
       </div>
 

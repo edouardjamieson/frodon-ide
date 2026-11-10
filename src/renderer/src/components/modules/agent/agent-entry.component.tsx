@@ -1,0 +1,458 @@
+import { cn } from 'cn';
+import {
+  Bot,
+  Check,
+  FilePen,
+  FileSearch,
+  FileText,
+  LoaderCircle,
+  MessageCircleQuestion,
+  RotateCcw,
+  SquareTerminal,
+  Wrench,
+  X,
+} from 'lucide-react';
+import type { ReactNode } from 'react';
+import type {
+  AgentAction,
+  AgentActionKind,
+  AgentChange,
+  AgentReply,
+  AgentRewind,
+  AgentTask,
+  AgentTaskStep,
+} from '@shared/agent.def';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '~/components/ui';
+import type { OpenApproval, TranscriptEntry } from '~/lib/agent';
+import { QuestionForm } from './agent-question.component';
+import { AttachmentChip } from './agent-attach.component';
+import { Markdown } from './agent-markdown.component';
+
+/**
+ * One row of a transcript.
+ *
+ * Every row is drawn from Frodon's vocabulary and none from an agent's: a
+ * change is a diff whoever made it, a command is a command. That is the
+ * point of `shared/agent.def.ts`, and the reason nothing in this folder
+ * imports a driver's names.
+ */
+export function TranscriptRow({
+  entry,
+  task,
+  approval,
+  onRespond,
+  onOpenFile,
+  onRewind,
+}: {
+  entry: TranscriptEntry;
+  /** What this action set running, if it started anything. */
+  task: AgentTask | null;
+  /** The open question about this action, if there is one. */
+  approval: OpenApproval | null;
+  onRespond: (requestId: string, reply: AgentReply) => void;
+  onOpenFile: (path: string, line?: number) => void;
+  /**
+   * Goes back to before this message, for a user message that can be — set
+   * only between turns, and only on a message the agent has an id for.
+   */
+  onRewind?: (restore: AgentRewind) => void;
+}) {
+  switch (entry.kind) {
+    case 'user':
+      return (
+        <div className="group/message ml-8 flex flex-col items-end gap-1.5 self-end">
+          {entry.text ? (
+            <div className="flex items-start gap-1.5">
+              {onRewind ? <RewindMenu onRewind={onRewind} /> : null}
+              <div className="rounded-lg bg-tab-active px-3 py-2 whitespace-pre-wrap text-fg select-text">
+                {entry.text}
+              </div>
+            </div>
+          ) : null}
+          {entry.attachments ? (
+            <div className="flex flex-wrap justify-end gap-1.5">
+              {entry.attachments.map((attachment, index) => (
+                <AttachmentChip
+                  key={index}
+                  attachment={attachment}
+                  onOpen={onOpenFile}
+                />
+              ))}
+            </div>
+          ) : null}
+        </div>
+      );
+    case 'assistant':
+      return <Markdown text={entry.text} onOpenFile={onOpenFile} />;
+    case 'notice':
+      return (
+        <div
+          className={cn(
+            'text-[13px] select-text',
+            entry.tone === 'danger' ? 'text-fg-danger' : 'text-fg-subtle'
+          )}
+        >
+          {entry.text}
+        </div>
+      );
+    case 'action':
+      return (
+        <ActionCard
+          action={entry.action}
+          result={entry.result}
+          task={task}
+          approval={approval}
+          onRespond={onRespond}
+          onOpenFile={onOpenFile}
+        />
+      );
+  }
+}
+
+const ICONS: Record<AgentActionKind, ReactNode> = {
+  change: <FilePen className="size-3.5 shrink-0" />,
+  command: <SquareTerminal className="size-3.5 shrink-0" />,
+  read: <FileText className="size-3.5 shrink-0" />,
+  search: <FileSearch className="size-3.5 shrink-0" />,
+  question: <MessageCircleQuestion className="size-3.5 shrink-0" />,
+  other: <Wrench className="size-3.5 shrink-0" />,
+};
+
+/**
+ * A tool call: what it is, whether it is done, and — while it waits — the
+ * question.
+ *
+ * The question sits on the card rather than in a dialog. An agent can ask
+ * several things in a row and keep working in the meantime, and a modal
+ * would take the whole window away from the tiles that are not asking.
+ */
+function ActionCard({
+  action,
+  result,
+  task,
+  approval,
+  onRespond,
+  onOpenFile,
+}: {
+  action: AgentAction;
+  result: { ok: boolean; output: string } | null;
+  task: AgentTask | null;
+  approval: OpenApproval | null;
+  onRespond: (requestId: string, reply: AgentReply) => void;
+  onOpenFile: (path: string, line?: number) => void;
+}) {
+  const { path } = action;
+
+  return (
+    <div
+      className={cn(
+        'rounded-lg border text-[13px]',
+        approval ? 'border-project/60' : 'border-pane-border'
+      )}
+    >
+      <div className="flex min-w-0 items-center gap-2 px-2.5 py-1.5 text-fg-muted">
+        {ICONS[action.kind]}
+        {path ? (
+          // The path is the link, not the whole row: the title can name a
+          // tool and a file, and only one of those opens anything.
+          <button
+            onClick={() => onOpenFile(path)}
+            title={`Open ${path}`}
+            className="min-w-0 cursor-pointer truncate text-left hover:text-fg hover:underline"
+          >
+            {action.title}
+          </button>
+        ) : (
+          <span className="min-w-0 truncate">{action.title}</span>
+        )}
+        <span className="ml-auto shrink-0">
+          <ActionState
+            // A call that launched work in the background returns at once,
+            // and its result only says the work began. The card is done
+            // when the work is.
+            result={task?.status === 'running' ? null : result}
+            waiting={approval !== null}
+          />
+        </span>
+      </div>
+
+      {action.command ? (
+        <pre className="overflow-x-auto border-t border-pane-border px-2.5 py-1.5 font-mono text-fg select-text">
+          $ {action.command}
+        </pre>
+      ) : null}
+
+      {task ? <TaskView task={task} onOpenFile={onOpenFile} /> : null}
+
+      {action.changes?.map((change, index) => (
+        <ChangeView key={index} change={change} />
+      ))}
+
+      {result?.output ? (
+        <details className="border-t border-pane-border">
+          <summary className="cursor-pointer px-2.5 py-1 text-fg-subtle select-none">
+            Output
+          </summary>
+          <pre className="max-h-60 overflow-auto px-2.5 pb-2 font-mono text-fg-muted select-text">
+            {result.output}
+          </pre>
+        </details>
+      ) : null}
+
+      {approval && action.questions ? (
+        <QuestionForm
+          questions={action.questions}
+          onReply={(reply) => onRespond(approval.requestId, reply)}
+        />
+      ) : approval ? (
+        <div className="flex items-center gap-2 border-t border-pane-border px-2.5 py-1.5">
+          <span className="shrink-0 text-fg-muted">Allow this?</span>
+          {approval.always ? (
+            // The standing permission, worded by the driver from what the
+            // agent offered — "Always allow `npm pkg *` in this project" —
+            // so the button says exactly what it grants rather than a bare
+            // "Always" that leaves the scope to be guessed.
+            <button
+              title={approval.always}
+              onClick={() =>
+                onRespond(approval.requestId, { allow: true, always: true })
+              }
+              className="ml-auto min-w-0 cursor-pointer truncate rounded-md border border-pane-border bg-button px-2.5 py-1 text-button-fg transition-colors hover:bg-button-hover"
+            >
+              {approval.always}
+            </button>
+          ) : null}
+          <button
+            onClick={() => onRespond(approval.requestId, { allow: true })}
+            className={cn(
+              'shrink-0 cursor-pointer rounded-md bg-button-accent px-2.5 py-1 text-button-accent-fg transition-colors hover:bg-button-accent-hover',
+              { 'ml-auto': !approval.always }
+            )}
+          >
+            Allow
+          </button>
+          <button
+            onClick={() => onRespond(approval.requestId, { allow: false })}
+            className="shrink-0 cursor-pointer rounded-md border border-pane-border bg-button px-2.5 py-1 text-button-fg transition-colors hover:bg-button-hover"
+          >
+            Deny
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * A finished task, in a word. The card above already says what the task was
+ * — its title is the call that started it — so this says how it went.
+ */
+const STATUS: Record<AgentTask['status'], string> = {
+  running: 'Working',
+  done: 'Done',
+  failed: 'Failed',
+  stopped: 'Stopped',
+};
+
+/** How many of a running task's latest steps are shown without asking. */
+const RECENT_STEPS = 3;
+
+/**
+ * What an action set running: a subagent, a command left in the background.
+ *
+ * While it runs, what it is doing now and its latest few steps — enough to
+ * tell a subagent that is getting somewhere from one going round in circles,
+ * without the whole of its work taking over the transcript. Once it stops,
+ * the steps fold away behind a count, and what it reported is offered
+ * beside them.
+ */
+function TaskView({
+  task,
+  onOpenFile,
+}: {
+  task: AgentTask;
+  onOpenFile: (path: string, line?: number) => void;
+}) {
+  const running = task.status === 'running';
+  const recent = task.steps.slice(-RECENT_STEPS);
+  const hidden = task.steps.length - recent.length;
+  // Counted as the work it did: what it said along the way is not a step.
+  const calls = task.steps.filter((step) => step.kind === 'call').length;
+
+  return (
+    <div className="flex flex-col gap-1 border-t border-pane-border px-2.5 py-1.5 text-[12px]">
+      <div className="flex min-w-0 items-center gap-2 text-fg-muted">
+        <Bot className="size-3.5 shrink-0" />
+        <span className="min-w-0 truncate">
+          {running ? (task.activity ?? 'Starting…') : STATUS[task.status]}
+        </span>
+        {calls > 0 ? (
+          <span className="ml-auto shrink-0 text-fg-subtle">
+            {calls} {calls === 1 ? 'step' : 'steps'}
+          </span>
+        ) : null}
+      </div>
+
+      {running && recent.length > 0 ? (
+        <ol className="flex flex-col gap-0.5 pl-5.5 text-fg-subtle">
+          {hidden > 0 ? <li>…</li> : null}
+          {recent.map((step, index) => (
+            <StepRow key={hidden + index} step={step} />
+          ))}
+        </ol>
+      ) : null}
+
+      {!running && task.steps.length > 0 ? (
+        <details>
+          <summary className="cursor-pointer pl-5.5 text-fg-subtle select-none">
+            Steps
+          </summary>
+          <ol className="flex flex-col gap-0.5 pt-0.5 pl-5.5 text-fg-subtle">
+            {task.steps.map((step, index) => (
+              <StepRow key={index} step={step} whole />
+            ))}
+          </ol>
+        </details>
+      ) : null}
+
+      {!running && task.summary ? (
+        <details>
+          <summary className="cursor-pointer pl-5.5 text-fg-subtle select-none">
+            Report
+          </summary>
+          <div className="pt-1 pl-5.5 text-[13px]">
+            <Markdown text={task.summary} onOpenFile={onOpenFile} />
+          </div>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * One step under a task. A call is a title, like a card's; a message is the
+ * subagent's own words, set apart in italics so the two read as doing and
+ * saying. While it runs a message is one line, enough to follow along;
+ * folded open afterwards, it is the whole thing.
+ */
+function StepRow({ step, whole }: { step: AgentTaskStep; whole?: boolean }) {
+  return (
+    <li
+      className={cn({
+        truncate: step.kind === 'call' || !whole,
+        'whitespace-pre-wrap italic text-fg-muted': step.kind === 'message',
+      })}
+    >
+      {step.text}
+    </li>
+  );
+}
+
+/**
+ * The terminal's rewind, on the message it goes back to: the conversation
+ * and the code, the conversation alone, or the code alone. On hover, since
+ * it is a correction made now and then, not something every message needs
+ * to wear.
+ */
+function RewindMenu({
+  onRewind,
+}: {
+  onRewind: (restore: AgentRewind) => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          aria-label="Rewind to before this message"
+          title="Rewind to before this message"
+          className="mt-1.5 flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-fg-subtle opacity-0 transition-opacity group-hover/message:opacity-100 hover:text-fg data-[state=open]:opacity-100"
+        >
+          <RotateCcw className="size-3.5" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-72">
+        <DropdownMenuItem
+          onSelect={() => onRewind('both')}
+          className="flex-col items-start gap-0"
+        >
+          <span>Rewind conversation and code</span>
+          <span className="text-[11px] text-fg-subtle">
+            Back to before this message, with the files as they were then
+          </span>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() => onRewind('conversation')}
+          className="flex-col items-start gap-0"
+        >
+          <span>Rewind conversation only</span>
+          <span className="text-[11px] text-fg-subtle">
+            The agent forgets from here on; the files stay as they are
+          </span>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() => onRewind('code')}
+          className="flex-col items-start gap-0"
+        >
+          <span>Restore code only</span>
+          <span className="text-[11px] text-fg-subtle">
+            The files go back; the conversation carries on
+          </span>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function ActionState({
+  result,
+  waiting,
+}: {
+  result: { ok: boolean } | null;
+  waiting: boolean;
+}) {
+  if (waiting) return <span className="text-project">waiting</span>;
+  if (!result) return <LoaderCircle className="size-3.5 animate-spin" />;
+  return result.ok ? (
+    <Check className="size-3.5 text-fg-success" />
+  ) : (
+    <X className="size-3.5 text-fg-danger" />
+  );
+}
+
+/**
+ * One file's change, as the two halves the agent reported.
+ *
+ * Not a computed diff. `before` and `after` are the exact strings swapped —
+ * for an edit, a few lines on each side — so showing them whole is already
+ * the minimal view, and a diff algorithm here would be a second opinion
+ * about a change the agent has stated precisely.
+ */
+function ChangeView({ change }: { change: AgentChange }) {
+  return (
+    <div className="max-h-80 overflow-auto border-t border-pane-border font-mono select-text">
+      {change.before ? <Lines text={change.before} sign="-" /> : null}
+      <Lines text={change.after} sign="+" />
+    </div>
+  );
+}
+
+function Lines({ text, sign }: { text: string; sign: '-' | '+' }) {
+  return (
+    <pre
+      className={cn(
+        'px-2.5 py-1',
+        sign === '-' ? 'text-git-removed' : 'text-git-added'
+      )}
+    >
+      {text
+        .split('\n')
+        .map((line) => `${sign} ${line}`)
+        .join('\n')}
+    </pre>
+  );
+}

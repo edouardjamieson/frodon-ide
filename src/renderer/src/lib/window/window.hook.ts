@@ -5,12 +5,21 @@
  * narrow on purpose, because a workbench of nine panes subscribed to the whole
  * store would re-render all of them every time one tab changed.
  */
-import { useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
+import type { AgentKind } from '@shared/agent.def';
+import { useAgentStore } from '~/lib/agent';
+import { selectionOf } from '~/lib/editor';
+import { terminalOutputOf } from '~/lib/terminal';
+import { useGitStore } from '~/lib/git';
+import { useBoardStore } from '~/lib/board';
+import { boardKey } from '@shared/board.def';
+import type { AgentWorkbenchAsk } from '@shared/agent.def';
 import { useWindowStore } from './window.store';
 import { useWindowDragStore } from './window-drag.store';
 import { useWindowSizeStore } from './window-size.store';
 import { atLeast, canSplit, rowsOf } from './window.service';
 import type {
+  AgentWindow,
   BoardWindow,
   BrowserWindow,
   EditorWindow,
@@ -147,6 +156,187 @@ export const useTerminalWindow = (window: TerminalWindow) => {
     open: () => openTerminal(window.id),
   };
 };
+
+/** Everything an agent window's tabs need. */
+export const useAgentWindow = (window: AgentWindow) => {
+  const setActive = useWindowStore((state) => state.setActiveConversation);
+  const closeConversation = useWindowStore((state) => state.closeConversation);
+  const openAgent = useWindowStore((state) => state.openAgent);
+
+  return {
+    conversations: window.conversations,
+    activeConversation: window.activeConversation,
+    activate: (id: string) => setActive(window.id, id),
+    close: (id: string) => closeConversation(window.id, id),
+    open: () => openAgent(window.id),
+  };
+};
+
+/**
+ * Opens a favorite conversation: the tab already on it, in whichever OS
+ * window holds it, or else a new tab resuming it.
+ *
+ * Main is asked first because only main sees every window's conversations.
+ * Two tabs on one session would be two agents writing one conversation —
+ * each carrying on from where it started, each overwriting what the other
+ * said next — so "already open" has to mean open anywhere, not here.
+ */
+export const useOpenFavorite = () => {
+  const openAgent = useWindowStore((state) => state.openAgent);
+
+  return useCallback(
+    async (kind: AgentKind, session: string) => {
+      if (await window.frodon.agent.reveal(kind, session)) return;
+
+      // Asked for before the tab mounts: `openAgent` only adds an id to a
+      // window, and the tab reads this when it starts. Both happen in this
+      // tick, ahead of the render that mounts it.
+      const id = openAgent();
+      if (id) useAgentStore.getState().requestResume(id, { kind, session });
+    },
+    [openAgent]
+  );
+};
+
+/**
+ * Shows the tab main was asked to bring forward, by `useOpenFavorite` in
+ * this window or in another. Mounted once, in `App`.
+ */
+export const useConversationRevealEffect = (): void => {
+  useEffect(
+    () =>
+      window.frodon.agent.onReveal((id) => {
+        const { windows, setActiveConversation, focus } =
+          useWindowStore.getState();
+        const holder = windows.find(
+          (candidate) =>
+            candidate.type === 'agent' && candidate.conversations.includes(id)
+        );
+        if (!holder) return;
+        setActiveConversation(holder.id, id);
+        focus(holder.id);
+      }),
+    []
+  );
+};
+
+/**
+ * Answers an agent's questions about this window's editors, and shows the
+ * files it asks to show. Mounted once, in `App`.
+ *
+ * Read from the stores at the moment of asking rather than subscribed to:
+ * an agent asks a few times a conversation, and nothing here needs to
+ * re-render for it.
+ */
+export const useAgentWorkbenchEffect = (): void => {
+  useEffect(() => {
+    const unasked = window.frodon.agent.onWorkbenchRequest((requestId, ask) => {
+      const { windows, focusedId } = useWindowStore.getState();
+      const answer = (value: unknown) =>
+        void window.frodon.agent.answerWorkbench(requestId, value);
+
+      if (ask.kind === 'board' || ask.kind === 'draw') {
+        void answerBoard(ask).then(answer);
+        return;
+      }
+
+      if (ask.kind === 'terminals') {
+        const terminals = windows
+          .filter((tile): tile is TerminalWindow => tile.type === 'terminal')
+          .flatMap((tile) =>
+            tile.sessions.map((session) => ({
+              focused: tile.id === focusedId && session === tile.activeSession,
+              showing: session === tile.activeSession,
+              output: terminalOutputOf(session) ?? '',
+            }))
+          )
+          .sort((a, b) => Number(b.focused) - Number(a.focused));
+        answer(terminals);
+        return;
+      }
+
+      const editors = windows
+        .filter((tile): tile is EditorWindow => tile.type === 'editor')
+        .map((tile) => ({
+          files: tile.files,
+          active: tile.activeFile,
+          focused: tile.id === focusedId,
+          selection: selectionOf(tile.id),
+        }))
+        // The focused tile first: it is the one "this file" means.
+        .sort((a, b) => Number(b.focused) - Number(a.focused));
+      answer({ editors });
+    });
+
+    const unopened = window.frodon.agent.onOpenFile(({ path, line }) =>
+      useWindowStore
+        .getState()
+        .openFile(
+          path,
+          undefined,
+          line ? { line, column: 1, length: 0 } : undefined
+        )
+    );
+
+    const unshown = window.frodon.agent.onShowGit((commit) => {
+      const { openGit, setGitTab } = useWindowStore.getState();
+      openGit();
+      const git = useWindowStore
+        .getState()
+        .windows.find((tile) => tile.type === 'git');
+      if (!git) return;
+      // A commit opens in the history, where its detail is drawn; no commit
+      // means the changes, which is the commit tab.
+      setGitTab(git.id, commit ? 'history' : 'commit');
+      if (commit) useGitStore.getState().openCommitDetail(commit);
+    });
+
+    return () => {
+      unasked();
+      unopened();
+      unshown();
+    };
+  }, []);
+};
+
+/**
+ * A board question from an agent, answered from the board open in this
+ * window when there is one — its unsaved strokes are the board as the
+ * person sees it, and drawing into its session is what keeps the agent's
+ * shapes from being overwritten by the next autosave — or from the file.
+ */
+async function answerBoard(
+  ask: Extract<AgentWorkbenchAsk, { kind: 'board' | 'draw' }>
+): Promise<unknown> {
+  const key = boardKey(ask.ref);
+  const session = useBoardStore.getState().sessions[key];
+  const open = session?.status === 'ready' ? session : null;
+
+  if (ask.kind === 'board') {
+    if (open) return { elements: open.elements };
+    try {
+      return { elements: (await window.frodon.board.read(ask.ref)).elements };
+    } catch {
+      return { error: `There is no board called ${ask.ref.name}.` };
+    }
+  }
+
+  if (open) {
+    // One commit, so one undo takes the agent's whole drawing back out.
+    useBoardStore.getState().commit(key, [...open.elements, ...ask.elements]);
+    return { ok: true };
+  }
+  try {
+    const document = await window.frodon.board.read(ask.ref);
+    const result = await window.frodon.board.write(ask.ref, {
+      ...document,
+      elements: [...document.elements, ...ask.elements],
+    });
+    return result.ok ? { ok: true } : { error: result.error ?? 'Not saved.' };
+  } catch {
+    return { error: `There is no board called ${ask.ref.name}.` };
+  }
+}
 
 /** Everything a browser window's tabs need. */
 export const useBrowserWindow = (window: BrowserWindow) => {

@@ -95,3 +95,14 @@ export interface ProjectStore {
    */
   rekey: (from: string, to: string) => void;
 }
+
+/**
+ * What a drag out of the explorer carries: `{ path, isDir }` as JSON, under
+ * a type of Frodon's own.
+ *
+ * Not `text/plain`. A drop target that takes plain text takes it without
+ * asking — CodeMirror would type the path into whatever file was under the
+ * pointer when the button came up — and a missed drop should do nothing.
+ * Only the places that ask for this type receive it.
+ */
+export const PROJECT_ENTRY_TYPE = 'application/x-frodon-project-entry';

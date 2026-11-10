@@ -17,6 +17,36 @@ architecture, write the ADR too and link them.
 
 ## The platform
 
+### The Agent SDK runs Claude Code without its system prompt unless asked
+`code` · 2026-11-08 · `src/main/agent/agent-claude.service.ts`
+
+`query()` with no `systemPrompt` does not mean "Claude Code's default". The
+SDK turns an absent option into an empty custom prompt, and the request goes
+out with one line of system prompt: "You are a Claude agent, built on
+Anthropic's Claude Agent SDK." The project's `CLAUDE.md`, the auto-memory
+index and the skill listing are still attached as context, which is what made
+it hard to see — asked about its rules, the agent could quote them — but the
+prompt that tells Claude Code how to work in a repository, follow those files,
+use skills and keep a memory was missing, and the agent behaved like a
+stranger to the project. Found by reading a Frodon session's transcript in
+`~/.claude/projects/`, whose `api-request-shape` line records the system
+blocks actually sent. `systemPrompt: { type: 'preset', preset: 'claude_code' }`
+restores it. The prompt is recorded into the session on the first request, so
+a conversation begun without it keeps the empty one when resumed, until it is
+compacted.
+
+### A spawned Claude Code needs the user's environment to find its login
+`code` · 2026-10-29 · `src/main/agent/agent-environment.service.ts`
+
+Claude Code keeps its login in the macOS Keychain. Started through the Agent
+SDK with a scrubbed environment (`env -i HOME=… PATH=…`) it runs, initialises,
+and answers every prompt with "Not logged in · Please run /login" as an
+ordinary assistant message — no error, no exit code. With the rest of the
+environment intact it is logged in. So `loginEnvironment` replaces `PATH`
+with the login shell's and passes everything else through. The general form:
+when a CLI's credentials live in an OS store, the environment it inherits is
+part of its configuration.
+
 ### Squirrel.Mac cannot update an ad-hoc signed app
 `code` · 2026-10-24 · `src/main/update/update.service.ts`
 
@@ -312,6 +342,119 @@ Packaging will also need `prebuilds/` unpacked from the asar.
 
 ## The libraries
 
+### A message that does not query still ends with a result
+`code` · 2026-11-09 · `src/main/agent/agent-claude.service.ts`
+
+An `SDKUserMessage` with `shouldQuery: false` is appended to the transcript
+without asking the model anything — and the stream still answers it with a
+`result`, `success`, `num_turns: 0`, costing nothing. Passed on, that read
+as a turn ending: harmless while idle, but a `!` command run during a turn
+would have marked the tile idle with the agent still working. The driver
+drops a successful result of zero turns.
+
+### `rewindFiles` says which files it changed only in a dry run
+`code` · 2026-11-09 · `src/main/agent/agent-claude.service.ts`
+
+`Query.rewindFiles(messageId)` restores the files and answers
+`{ canRewind: true, skippedLinks: 0 }` — no `filesChanged`, no counts, though
+the type has room for them. `{ dryRun: true }` is what fills them in. So
+"3 files put back" takes two calls, the preview and then the rewind.
+Found when the tile said "no file needed putting back" over a file it had
+just put back. Separately: resuming with `resumeSessionAt` keeps the
+session's id rather than forking a new one, which is what lets a favorite
+survive a rewind.
+
+### Radix's ScrollArea wraps its content in a table
+`code` · 2026-11-09 · `components/modules/workbench/sidebar/favorites/`
+
+Radix's ScrollArea puts a `div` between its viewport and the content,
+styled `display: table; min-width: 100%` inline, to measure what it holds.
+A table is as wide as its widest row, so a list inside a ScrollArea is too:
+`truncate` on the rows never has a width to cut at, and a long name in
+Favorites pushed the list — and the row's menu button — past the edge of
+the sidebar. An inline style on the list does nothing, since the table is
+its parent; the first fix tried exactly that, from reading a copy of
+`react-scroll-area` in `node_modules` that is not the one `radix-ui`
+bundles, which slots the style onto the child instead. Rendering the real
+component to HTML showed the wrapper. The fix is an `!important` rule on the
+wrapper, since nothing else beats an inline style: the vendored
+`ScrollArea` takes `fitWidth` for it. Any ScrollArea whose rows should
+truncate needs it — Favorites, Boards and Worktrees use it.
+
+### A subagent's call returns before the subagent has done anything
+`code` · 2026-11-08 · `src/main/agent/agent-claude.service.ts`
+
+In Claude Code 2.1.309, the `Agent` tool can launch its subagent in the
+background (`task_started` says `is_backgrounded: true`). Its tool result is
+"Async agent launched" and arrives at once, the turn ends with a `result`,
+and the subagent's work streams in afterwards — then Claude begins a new
+turn on its own, with no message from the person, to read what came back.
+A tile that marked a call done on its result, and a conversation working
+only when something was sent, showed a finished card and an idle composer
+while the real work was still running. The same version has no todo tool at
+all — neither `TodoWrite` nor a successor is in `init`'s tool list, in the
+SDK or in the terminal — so there is no plan to draw.
+
+### `/clear` changes the session under a running conversation
+`code` · 2026-11-08 · `src/main/agent/agent.service.ts`
+
+Sent through the SDK's stream, `/clear` does not end the process or the
+`query()`: the next turn's `init` carries a new `session_id`, and the old
+session stays on disk as it was. Anything that took the session id from
+the first `init` and kept it — the registry's "one tab per session" guard,
+a favorite marked later — is then about a conversation the tab is no longer
+having. Every `started` that carries a session now replaces the one held.
+
+### Claude Code takes a session id up front, and keeps it on resume
+`code` · 2026-10-31 · `src/main/agent/agent-claude.service.ts`
+
+A conversation's session id arrives on Claude's `init`, and `init` waits for
+the first message — so a tile could not know which conversation it was
+holding until someone typed. The SDK's `sessionId` option sets the id
+instead, and `resume` carries on under the same one rather than forking a
+new id, as a headless run with a word to remember confirmed. The driver now
+picks the id before spawning. `getSessionMessages` reads a missing session
+back as `[]`, the same as an empty one, so existence is asked with
+`getSessionInfo`; both look only in the project directory they are given,
+which is what keeps a window from reopening another project's conversation.
+When an agent lets the host name a thing, naming it is cheaper than waiting
+to be told.
+
+### Allowing `AskUserQuestion` is not answering it
+`code` · 2026-10-30 · `src/main/agent/agent-claude.service.ts`
+
+Claude's question tool goes through `canUseTool` like any other, so it
+arrived as an approval card, and Allow returned the input unchanged. The
+tool then answered itself "The user did not answer the questions", and
+Claude told the person the session must not be interactive. The answers go
+back *in the allow*: `updatedInput` with an `answers` map from question
+text to the chosen label, several joined with ", ". The driver now turns
+the tool into a `question` action and the card into a form. When an
+agent's tool is one the host is meant to perform rather than permit, the
+permission callback is where the work happens.
+
+### Claude Code in stream-json mode says nothing until it is spoken to
+`code` · 2026-10-30 · `src/main/agent/agent.service.ts`
+
+Started with a streamed prompt and no message queued, Claude Code emits no
+`system` `init` — not after a second, not after eight. The tile waited for
+that message to leave "Starting…", so a conversation nobody had typed into
+yet never looked ready, and nothing told the person they could type. The
+headless test missed it because it sent a message the moment the driver
+started. Main now says `started` itself once `locate` and the driver
+succeed, and the driver's own `started` fills in the model later. Ready is
+the host's statement to make, not the agent's.
+
+### The Agent SDK's abort error is not an `AbortError`
+`code` · 2026-10-29 · `src/main/agent/agent-claude.service.ts`
+
+Closing a conversation through its `AbortController` makes the SDK's
+iterator throw "Operation aborted" from a minified class of its own, with no
+`name` of `AbortError`. A check on the error's name reported every deliberate
+close as a crash. `pump` now asks its own signal whether it was aborted, which
+needs nothing from the library. Ask the controller you own, not the error
+something else threw.
+
 ### electron-builder's native rebuild leaves a build that shadows node-pty's prebuilds
 `code` · 2026-10-24 · `electron-builder.yml`
 
@@ -472,6 +615,16 @@ happens when the cursor changes *block*.
 
 ## Measurements and performance
 
+### An agent's first turn costs mostly the cache write of its own prompt
+`product` · 2026-10-29 · `src/main/agent/agent-claude.service.ts`
+
+Measured through the SDK against Claude Code 2.1.308: "reply pong" cost
+$0.19 on its own, and a two-turn conversation cost $0.18 and $0.19 cold, then
+$0.01 and $0.03 when run again a minute later. Claude Code's system prompt and
+tool definitions dominate a short turn, and the second run read them from the
+cache. The status line shows a conversation's running cost for this reason:
+the first message after a pause is the expensive one, whatever it says.
+
 ### Copy-on-write makes copying a 626MB `node_modules` free
 `code` · 2026-10-23 · `src/main/worktree/worktree.service.ts`
 
@@ -588,6 +741,31 @@ runtime, in a payload, which is why the contract is types-only and plain data.
 ---
 
 ## Product
+
+### Most of a project's skills are invisible to the agent, by design
+`product` · 2026-11-08 · `src/main/agent/agent-claude.service.ts`
+
+Asked "how many skills do you have?" in a project with 43 of them, the
+agent listed 3 and the report was that Frodon had not loaded the project's
+skills. It had. The other 40 set `disable-model-invocation: true`, and
+Claude Code leaves those out of the listing it shows the model — the
+terminal's `claude` gives the same answer in the same project. They run only
+when a person types `/name`, so the agent cannot discover them and a person
+can only find them through a `/` menu. A tile without one hid the larger
+half of a well-equipped project's tooling. The SDK's handshake returns the
+full list, those skills included, as `commands`.
+
+### A path list under a screenshot reads as one attachment
+`product` · 2026-10-31 · `src/main/agent/agent-claude.service.ts`
+
+A message with an image block and a file listed under "Attached:" asked
+for something from "the attached file". Claude answered about the image,
+said it held no such thing, and never opened the file; it also saved the
+image under its session directory and read it back as a file, which is
+how Claude Code takes images. Labelling the list "Attached from the
+project — read these" made the same question read the file first. The
+words around a list of references are instructions to the agent whether
+they are meant as one or not.
 
 ### Every prefix of a new name is also a name that does not exist
 `product` · 2026-10-24 · `src/renderer/src/components/modules/git/branch-select.component.tsx`

@@ -65,7 +65,7 @@ import type { Theme } from '~/lib/theme';
 import { useEditorText, type TextPreferences } from '~/lib/config';
 import { useWindowStore } from '~/lib/window';
 import { useIsMissing } from '~/lib/file-watch';
-import { isMarkdownPath, useEditorStore } from '~/lib/editor';
+import { isMarkdownPath, provideSelection, useEditorStore } from '~/lib/editor';
 import { minimalChange } from './editor.service';
 import { markdownGrammar, markdownPage } from './editor-markdown.service';
 import { findExtension } from './editor-find.service';
@@ -487,7 +487,24 @@ export function useEditor(
     });
     viewRef.current = view;
 
+    // What an agent's `editor_state` reads: the selection in the tab on
+    // screen, or the caret's line when nothing is selected — "here" is as
+    // much a reference as a highlighted block.
+    const unprovide = provideSelection(windowId, () => {
+      const shown = shownRef.current;
+      if (!shown) return null;
+      const { doc, selection } = view.state;
+      const { from, to } = selection.main;
+      return {
+        path: shown,
+        fromLine: doc.lineAt(from).number,
+        toLine: doc.lineAt(to).number,
+        text: doc.sliceString(from, to),
+      };
+    });
+
     return () => {
+      unprovide();
       view.destroy();
       viewRef.current = null;
       // The documents go with the view — closing the last tab unmounts this

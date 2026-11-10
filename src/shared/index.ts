@@ -1,3 +1,4 @@
+export * from './agent.def';
 export * from './board.def';
 export * from './bookmark.def';
 export * from './browser.def';

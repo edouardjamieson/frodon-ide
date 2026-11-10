@@ -156,7 +156,7 @@ export default function Boards() {
         <p className="shrink-0 px-3 py-2 text-[11px] text-fg-danger">{error}</p>
       ) : null}
 
-      <ScrollArea className="min-h-0 flex-1">
+      <ScrollArea className="min-h-0 flex-1" fitWidth>
         <div className="flex flex-col gap-0.5 p-1.5">
           {/* `listing` is checked so that the empty state doesn't flash
               between the panel mounting and the first read coming back. */}
@@ -305,8 +305,11 @@ function Row({
   );
 }
 
-/** The inline rename field. Commits on Enter or blur, abandons on Escape. */
-function NameField({
+/**
+ * The inline rename field. Commits on Enter or blur, abandons on Escape.
+ * Shared with the favorites list, which renames a row the same way.
+ */
+export function NameField({
   initial,
   onCommit,
   onCancel,

@@ -23,6 +23,8 @@
  * compile until someone has decided what gets persisted for it.
  */
 
+import type { AgentKind } from './agent.def';
+
 /** Mirrors `GitTab` in the renderer. */
 export type LayoutGitTab = 'history' | 'branches' | 'commit';
 
@@ -112,6 +114,32 @@ export interface BrowserLayout extends LayoutWindowBase {
   activeTab: number;
 }
 
+/**
+ * An agent window, and the favorite conversations among its tabs.
+ *
+ * Only the favorites. A conversation is a process in main, and one that was
+ * never marked is one nobody said was worth coming back to: it is closed with
+ * the app, like a shell. A favorite is the opposite statement, and its token
+ * is already written down in the favorites file, so putting it here as well
+ * costs no new kind of secret. A window with none comes back as an empty
+ * tile, keeping its place in the grid.
+ *
+ * Optional, because a layout written before this field existed has none, and
+ * reads as a tile with no favorites.
+ */
+export interface AgentLayout extends LayoutWindowBase {
+  type: 'agent';
+  conversations?: AgentTabLayout[];
+  /** Index into `conversations` of the tab on screen, or -1. */
+  activeConversation?: number;
+}
+
+/** A favorite conversation open as a tab, by the agent's own token. */
+export interface AgentTabLayout {
+  kind: AgentKind;
+  session: string;
+}
+
 /** A tile that was spawned but never told what it is. */
 export interface EmptyLayout extends LayoutWindowBase {
   type: null;
@@ -123,6 +151,7 @@ export type LayoutWindow =
   | GitLayout
   | BoardLayout
   | BrowserLayout
+  | AgentLayout
   | EmptyLayout;
 
 /**

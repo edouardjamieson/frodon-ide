@@ -19,6 +19,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { useTheme } from '~/lib/theme';
 import { useTerminalText } from '~/lib/config';
 import { terminalFont, xtermTheme } from './terminal.theme';
+import { provideTerminalOutput } from '~/lib/terminal';
 
 interface UseTerminalOptions {
   /** The session id, shared with main. Changing it is a different shell. */
@@ -32,6 +33,9 @@ interface UseTerminalOptions {
   /** Called when the shell exits — `exit`, Ctrl+D, or a crash. */
   onExit: () => void;
 }
+
+/** How far back an agent reads a terminal. A screenful and the build before it. */
+const TERMINAL_LINES_FOR_AGENT = 200;
 
 export function useTerminal({
   sessionId,
@@ -86,6 +90,18 @@ export function useTerminal({
     term.loadAddon(fit);
     term.open(host);
     termRef.current = term;
+
+    // What an agent's `terminal_output` reads: the last lines of the buffer,
+    // as text, with the blank rows below the prompt left off.
+    const unprovide = provideTerminalOutput(sessionId, () => {
+      const buffer = term.buffer.active;
+      const lines: string[] = [];
+      const from = Math.max(0, buffer.length - TERMINAL_LINES_FOR_AGENT);
+      for (let row = from; row < buffer.length; row++)
+        lines.push(buffer.getLine(row)?.translateToString(true) ?? '');
+      while (lines.length > 0 && !lines[lines.length - 1]?.trim()) lines.pop();
+      return lines.join('\n');
+    });
 
     /**
      * Fit, but only while the tab is actually on screen.
@@ -178,6 +194,7 @@ export function useTerminal({
       // The shell dies with its tab. Everything it started dies with it too —
       // that part is `terminal.registry.ts` in main.
       void window.frodon.terminal.kill(sessionId);
+      unprovide();
       term.dispose();
       termRef.current = null;
       fitRef.current = null;

@@ -69,6 +69,7 @@ rules, and what is missing.
 | [explorer](features/explorer.md) | the tree, and creating, renaming and deleting in it |
 | [editor](features/editor.md) | CodeMirror, tabs, saving, syntax, find-in-file, external changes |
 | [terminal](features/terminal.md) | PTYs in main, batched output, killing a process tree |
+| [agent](features/agent.md) | coding agents in a tile, through one driver per agent |
 | [git](features/git.md) | the poller, the header, the history graph, staging, diffs |
 | [worktrees](features/worktrees.md) | one repository checked out in several places, each in its own window |
 | [search](features/search.md) | project-wide find and replace, walked in main |

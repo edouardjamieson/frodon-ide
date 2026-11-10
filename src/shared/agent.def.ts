@@ -1,0 +1,539 @@
+/**
+ * What a conversation with a coding agent looks like from either side of the
+ * boundary — and the reason the chat tile never learns which agent it is
+ * talking to.
+ *
+ * Every agent speaks its own protocol. Claude Code streams Messages-API
+ * events and edits files with `Edit` and `Write`; Codex streams its own items
+ * and applies patches. Rendering either one directly would mean a second chat
+ * tile per agent, or one tile full of `if (kind === …)`. So each agent gets a
+ * *driver* in `main/agent/`, and the driver's whole job is to translate into
+ * the vocabulary below. The tile draws what happened — text arrived, a file
+ * changed, a command wants to run — and never who did it.
+ *
+ * The vocabulary is deliberately the size of the UI, not of any protocol. A
+ * protocol event with no place on screen is dropped by its driver, not
+ * carried here "in case": a field nothing reads is a field every future
+ * driver has to fill in.
+ */
+import type { BoardElement, BoardRef } from './board.def';
+
+/**
+ * The agents Frodon can drive. One driver each, in `main/agent/`.
+ *
+ * Adding one is a member here, a label below, and a driver in the registry —
+ * `DRIVERS` is a `Record<AgentKind, …>`, so the third step is a compile error
+ * until it is done.
+ */
+export type AgentKind = 'claude';
+
+export const AGENT_LABELS: Record<AgentKind, string> = {
+  claude: 'Claude Code',
+};
+
+/** Whether a value names an agent this build knows. */
+export function isAgentKind(value: unknown): value is AgentKind {
+  return typeof value === 'string' && Object.hasOwn(AGENT_LABELS, value);
+}
+
+/**
+ * Whether an agent can be started, and what it is.
+ *
+ * Found rather than shipped: Frodon drives the copy the person already has
+ * installed, so the honest answer is often "missing", and the tile has to be
+ * able to say so before anything is typed. See ADR-0043.
+ */
+export type AgentAvailability = (
+  | {
+      status: 'ready';
+      /** The executable that will be spawned, absolute. */
+      path: string;
+      /** What the agent reports itself as, e.g. `2.1.308`. */
+      version: string;
+      /**
+       * The version Frodon's own copy of the agent's SDK was released
+       * against, or null for a driver with no such thing.
+       */
+      builtFor: string | null;
+      /**
+       * How far `version` is from `builtFor`: `none`; `patch`, the same
+       * major and minor, which in practice works; or `line`, a different
+       * major or minor, where the protocol between them may have moved.
+       */
+      drift: 'none' | 'patch' | 'line';
+    }
+  | {
+      status: 'missing';
+      /** A sentence for the person: what was looked for, and where. */
+      reason: string;
+    }
+) & {
+  kind: AgentKind;
+  /**
+   * Whether the executable is the one named in the settings rather than
+   * the one found on `PATH` — so the settings page can say which.
+   */
+  configured: boolean;
+  /**
+   * The permission modes a conversation can start in, for the settings
+   * page, which has no conversation to ask. The same list a conversation's
+   * `modes` event carries.
+   */
+  modes: AgentChoice[];
+};
+
+/**
+ * What a tool call *does*, as far as the tile is concerned.
+ *
+ * Six shapes, because those are the six things the tile draws differently:
+ * a change is a diff, a command is a monospace line, a read and a search are
+ * one-line receipts, a question is a form, and anything else is a name and a
+ * summary. A driver maps its own tools onto these — Claude's `Edit` and
+ * Codex's patch both become a `change` — and the mapping is the only place
+ * either name is spelled.
+ */
+export type AgentActionKind =
+  'change' | 'command' | 'read' | 'search' | 'question' | 'other';
+
+/**
+ * One file, before and after.
+ *
+ * Text rather than a unified diff: Claude's `Edit` reports an old and a new
+ * string, a patch reports hunks, and a `Write` reports only the new content.
+ * The tile computes nothing from these — it shows the two halves — so the
+ * lowest common form is the one every driver can produce without parsing.
+ * `before` is empty for a new file.
+ */
+export interface AgentChange {
+  path: string;
+  before: string;
+  after: string;
+}
+
+/**
+ * Something the agent asks the person, with the answers it suggests.
+ *
+ * The person can always write their own instead — every agent that asks
+ * questions allows it, and Claude's tool says so in as many words.
+ */
+export interface AgentQuestion {
+  question: string;
+  /** A word or two naming the question, drawn as a chip. */
+  header: string;
+  options: { label: string; description: string }[];
+  /** Whether several options can be picked at once. */
+  multiple: boolean;
+}
+
+/** A tool call, translated. */
+export interface AgentAction {
+  /** The driver's id for the call, echoed by its result and its approval. */
+  id: string;
+  kind: AgentActionKind;
+  /** One line a person can read, e.g. `Edit src/main/index.ts`. */
+  title: string;
+  /** The file the action is about, when there is one — the tile links it. */
+  path?: string;
+  /** For `command`: what would run. */
+  command?: string;
+  /** For `change`: every file it touches. */
+  changes?: AgentChange[];
+  /** For `question`: what is asked, in order. */
+  questions?: AgentQuestion[];
+}
+
+/**
+ * The person's reply to an open approval.
+ *
+ * A question is an approval with something to say: the agent cannot go on
+ * with a bare yes, it needs the answer, so `answers` carries one string per
+ * question, in the order asked — several picks joined with ", ". Order
+ * rather than keys, because how an agent keys its answers is its own
+ * business and the driver knows the questions it asked.
+ *
+ * `always` takes up the standing permission the approval offered, so the
+ * same kind of action goes ahead without asking next time. Ignored when none
+ * was offered: the driver keeps what it offered, and the renderer only says
+ * yes to it.
+ */
+export type AgentReply =
+  { allow: false } | { allow: true; answers?: string[]; always?: boolean };
+
+/**
+ * What a rewind puts back: the conversation, the files the agent changed, or
+ * both — the terminal's three choices.
+ */
+export type AgentRewind = 'both' | 'conversation' | 'code';
+
+/** What `agent:rewind` answers. */
+export type AgentRewindResult =
+  | { ok: true; /** How many files were put back. */ files: number }
+  | { ok: false; error: string };
+
+/**
+ * Everything a conversation can report, in the order it happened.
+ *
+ * A union rather than a set of channels, so one batch can carry a turn's
+ * worth of deltas, tool calls and results in the order they occurred — two
+ * channels would race, and a result could land before the call it answers.
+ */
+export type AgentEvent =
+  /**
+   * The agent is up. Sent by main as soon as the driver is running, with the
+   * version `locate` found and no model or mode, and again by a driver
+   * whenever the agent reports itself — a later `started` updates what it
+   * knows and leaves the rest alone.
+   *
+   * `model` and `mode` are the agent's own ids, matched against the
+   * `models` and `modes` it offered; one that matches nothing is shown as
+   * it came.
+   *
+   * `session` is the token that reopens this conversation later — see
+   * `FavoriteConversation`. Main knows it from the start, because the driver picks
+   * it before the agent is spawned.
+   */
+  | {
+      type: 'started';
+      version: string;
+      model: string | null;
+      mode: string | null;
+      session: string | null;
+    }
+  /**
+   * Something the person said, replayed from a conversation being resumed.
+   *
+   * Never sent live: a message typed in the tile is drawn the moment it is
+   * sent, by the renderer, and an echo from the driver would draw it twice.
+   */
+  | {
+      type: 'prompt';
+      text: string;
+      /** The agent's own id for the message, which a rewind names. */
+      messageId: string | null;
+    }
+  /**
+   * More text for one message. Appended, never replaced: the driver streams
+   * deltas, and a message is the concatenation of every delta sharing its id.
+   */
+  | { type: 'text'; messageId: string; text: string }
+  /** The agent called a tool. Its result follows as `action-result`. */
+  | { type: 'action'; action: AgentAction }
+  | {
+      type: 'action-result';
+      actionId: string;
+      ok: boolean;
+      /** Trimmed by the driver. A full `cat` of a log is not chat content. */
+      output: string;
+    }
+  /**
+   * The agent wants to do something and is waiting for a yes or a no. It
+   * stays waiting until `agent:respond` answers it or the turn is stopped.
+   */
+  | {
+      type: 'approval';
+      requestId: string;
+      action: AgentAction;
+      /**
+       * The standing permission on offer instead of a one-off yes, in a
+       * sentence the driver wrote — "Always allow `npm pkg *` in this
+       * project". Null when the agent offers none, and the card then has
+       * no button for it.
+       */
+      always: string | null;
+    }
+  /** An approval is no longer open — answered, or abandoned by the agent. */
+  | { type: 'approval-closed'; requestId: string }
+  /** A turn finished. The agent is idle and waiting for the next message. */
+  | {
+      type: 'turn-ended';
+      ok: boolean;
+      /** Why it failed, when it did. */
+      error: string | null;
+      /** What the turn cost, when the agent reports it. */
+      costUsd: number | null;
+    }
+  /**
+   * The models this agent offers. Sent once, when the driver has asked; an
+   * agent that cannot be switched never sends it and the tile shows no
+   * picker.
+   */
+  | { type: 'models'; models: AgentChoice[] }
+  /**
+   * The permission modes this agent offers — how much it asks before
+   * acting. Sent once, like `models`, and with the same consequence when it
+   * is not: no picker.
+   */
+  | { type: 'modes'; modes: AgentChoice[] }
+  /**
+   * The permission mode changed partway through a turn — the person allowed
+   * every edit from an approval card — ahead of the next `started` that
+   * would have said so.
+   */
+  | { type: 'mode'; mode: string }
+  /**
+   * How full the agent's context window is, after a turn: what the next
+   * message will be read alongside, and how close the agent is to
+   * compacting the conversation to make room.
+   */
+  | {
+      type: 'context';
+      /** Tokens in use. */
+      used: number;
+      /** The window's size. */
+      limit: number;
+      /** `used` of `limit`, as the agent rounds it. */
+      percent: number;
+    }
+  /**
+   * Work the agent handed off and is not doing in the turn itself — a
+   * subagent, a command left running in the background. Sent whole on every
+   * change and replaced by `id`, so a late event never has to be merged into
+   * an early one.
+   */
+  | { type: 'task'; task: AgentTask }
+  /**
+   * The commands a message can start with — the agent's own and the skills
+   * it found in the project and the person's setup. Sent when the agent is
+   * up, and again whenever the list changes, each time whole: a later list
+   * replaces the earlier one rather than adding to it.
+   */
+  | { type: 'commands'; commands: AgentCommand[] }
+  /** The agent is gone — it crashed, or could not start. Nothing follows. */
+  | { type: 'exited'; error: string | null };
+
+/**
+ * Something sent along with a message.
+ *
+ * Two shapes, because they reach an agent two ways. A **path** is a file or
+ * folder in the project, and goes as a reference the agent reads with its
+ * own tools — it can read the project anyway, and inlining a folder is not a
+ * thing a message can do. An **image** goes as the image itself, because the
+ * point of pasting a screenshot is that the agent sees it, and a screenshot
+ * has no path to read.
+ *
+ * Nothing outside the project is attached by path: the picker only offers
+ * the project's tree, and main drops any path that resolves outside it.
+ * Images come in as bytes, pasted or dropped, so a file anywhere on the
+ * machine can be shown to the agent only by somebody handing it over.
+ */
+export type AgentAttachment =
+  | { kind: 'path'; path: string; isDir: boolean }
+  | {
+      kind: 'image';
+      name: string;
+      mediaType: AgentImageType;
+      /** Base64, without a `data:` prefix. */
+      data: string;
+    };
+
+/**
+ * The image formats an agent is sent, which are the four the model reads.
+ * Anything else pasted or dropped is refused in the composer.
+ */
+export const AGENT_IMAGE_TYPES = [
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+] as const;
+export type AgentImageType = (typeof AGENT_IMAGE_TYPES)[number];
+
+/**
+ * The largest image an agent is sent, in bytes before encoding. The API's
+ * own limit per image; a bigger one would fail the whole turn.
+ */
+export const AGENT_IMAGE_LIMIT = 5 * 1024 * 1024;
+
+/** How many attachments one message may carry. */
+export const AGENT_ATTACHMENT_LIMIT = 20;
+
+/**
+ * Something the agent can be switched to — a model, a permission mode — as
+ * its picker draws it.
+ *
+ * `id` is the agent's own word for it — `sonnet`, `acceptEdits` — handed
+ * back unchanged on `agent:set-model` or `agent:set-mode`. The renderer
+ * never interprets it: it never asks whether a mode is the one that edits
+ * without asking, so a driver whose agent draws its lines elsewhere — a
+ * sandbox level, an approval policy — offers its own and nothing in the
+ * tile changes.
+ */
+export interface AgentChoice {
+  id: string;
+  label: string;
+  description: string;
+}
+
+/**
+ * What the person has in front of them in Frodon's editor, as an agent may
+ * ask for it.
+ *
+ * Gathered by the window the conversation lives in — the editor's state is
+ * the renderer's, and main holds none of it — and only when asked: a
+ * selection changes with every keystroke, and pushing it to main on each one
+ * would be a structured clone per character for something an agent reads a
+ * few times a conversation.
+ */
+export interface AgentWorkbench {
+  /** Every editor tile in the window, the focused one first. */
+  editors: AgentEditorTile[];
+}
+
+/**
+ * What main can ask a conversation's window about. One question and answer
+ * pair over the same channel for each kind, rather than a channel each: the
+ * window answers them all from its own stores, and main cleans each answer
+ * with the rule for its kind before an agent sees it.
+ */
+export type AgentWorkbenchAsk =
+  | { kind: 'editors' }
+  | { kind: 'terminals' }
+  /** A board's elements — the open session's, unsaved strokes and all. */
+  | { kind: 'board'; ref: BoardRef }
+  /**
+   * Elements to add to a board: to the open session as one undoable step,
+   * or to the file when the board is not open in this window.
+   */
+  | { kind: 'draw'; ref: BoardRef; elements: BoardElement[] };
+
+/** One terminal tab, as an agent is shown it. */
+export interface AgentTerminal {
+  /** Whether its tile has the focus and it is the tab on screen there. */
+  focused: boolean;
+  /** Whether it is the tab on screen in its tile. */
+  showing: boolean;
+  /** The last lines it printed, as text. */
+  output: string;
+}
+
+export interface AgentEditorTile {
+  /** The tile's tabs, as paths. */
+  files: string[];
+  /** The tab on screen. */
+  active: string | null;
+  /** Whether this tile has the focus — the one "this file" means. */
+  focused: boolean;
+  /** The selection in the tab on screen, or the caret's line when empty. */
+  selection: AgentSelection | null;
+}
+
+export interface AgentSelection {
+  path: string;
+  /** 1-based, inclusive. */
+  fromLine: number;
+  toLine: number;
+  /** Empty when nothing is selected and this is only where the caret is. */
+  text: string;
+}
+
+/**
+ * Something running apart from the conversation's own turn.
+ *
+ * Drawn on the card of the action that started it, when there is one: a
+ * subagent is a call like any other, and what it went on to do belongs under
+ * that call. Its steps are what it did and what it said, in order: a call
+ * is a title in this file's vocabulary, so a subagent's `Read` reads the
+ * same as the conversation's own, and a message is its words as written.
+ */
+export interface AgentTask {
+  id: string;
+  /** The action that started it, or null when none is known. */
+  actionId: string | null;
+  description: string;
+  status: 'running' | 'done' | 'failed' | 'stopped';
+  /** What it is doing right now, while it runs. */
+  activity: string | null;
+  /** What it has done and said, oldest first. */
+  steps: AgentTaskStep[];
+  /** What it reported when it finished, or why it failed. */
+  summary: string | null;
+}
+
+/** One thing a task did — a call — or said — a message — along the way. */
+export interface AgentTaskStep {
+  kind: 'call' | 'message';
+  text: string;
+}
+
+/**
+ * A command the composer offers when a message starts with `/`.
+ *
+ * Sent to the agent as the text the person typed — `/audit-pr 412` — and
+ * never interpreted on this side. Whether a name runs one of the agent's own
+ * commands or a skill, and what it does with the rest of the line, is the
+ * agent's business: the composer only helps the name get typed.
+ */
+export interface AgentCommand {
+  /** Without the slash. */
+  name: string;
+  description: string;
+  /** What follows the name, as the agent describes it — `[<pr#>]`. */
+  hint: string | null;
+}
+
+/** A batch of events for one conversation, coalesced in main. */
+export interface AgentEvents {
+  id: string;
+  events: AgentEvent[];
+}
+
+/** What `agent:start` answers: the agent was spawned, or why it was not. */
+export type AgentStartResult = { ok: true } | { ok: false; error: string };
+
+/**
+ * A conversation the person marked as a favorite, under a name.
+ *
+ * A pointer, not a copy. Every agent worth driving keeps its own
+ * conversations — Claude Code writes each one under `~/.claude/projects/`
+ * whether or not anything asks it to — so Frodon stores no transcript, only
+ * which conversations were worth coming back to. `session` is the agent's
+ * own token for one, opaque on this side: the renderer stores it, compares
+ * it and hands it back, and never reads anything into it. ADR-0044.
+ */
+export interface FavoriteConversation {
+  kind: AgentKind;
+  session: string;
+  name: string;
+  /** When it was made a favorite, in milliseconds since the epoch. */
+  addedAt: number;
+}
+
+/**
+ * A favorite as the sidebar lists it: with when the agent last wrote to it,
+ * or null once the agent no longer has it.
+ *
+ * Marking a conversation a favorite does not stop the agent deleting it, so
+ * the answer is asked of the agent on every listing, and a gone one is shown
+ * as gone rather than quietly dropped.
+ */
+export interface FavoriteEntry extends FavoriteConversation {
+  lastActive: number | null;
+  /**
+   * When the agent will delete the conversation, in milliseconds since the
+   * epoch — its last activity plus how long the agent keeps one — or null
+   * when it keeps them for good, cannot say, or already has.
+   */
+  expiresAt: number | null;
+}
+
+/** The longest name a favorite can carry. */
+export const FAVORITE_NAME_LIMIT = 80;
+
+/**
+ * Whether a string can be a session token: short, and made of characters no
+ * path or flag is made of.
+ *
+ * Checked on both sides of the boundary, and again by the driver against its
+ * own format. A token goes from the renderer to a driver that hands it to an
+ * agent process — as an argument on Claude's command line — so it is input,
+ * and the cheapest way to make sure it cannot be anything else is to allow
+ * only what a token is made of. Claude's are UUIDs.
+ */
+export function isSessionToken(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.length > 0 &&
+    value.length <= 128 &&
+    /^[A-Za-z0-9_-]+$/.test(value)
+  );
+}

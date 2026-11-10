@@ -20,6 +20,19 @@
  * from either side — no `electron`, no `node:*`, no React. Types and plain
  * data only.
  */
+import type {
+  AgentAttachment,
+  AgentAvailability,
+  AgentEvents,
+  AgentKind,
+  AgentEvent,
+  AgentReply,
+  AgentRewind,
+  AgentRewindResult,
+  AgentWorkbenchAsk,
+  AgentStartResult,
+  FavoriteEntry,
+} from './agent.def';
 import type { ProjectConfig, UserConfig } from './config.def';
 import type {
   BoardDocument,
@@ -413,6 +426,118 @@ export interface IpcContract {
   'terminal:kill': { req: { id: string }; res: void };
 
   /**
+   * Whether an agent is installed, and which version. Asked before anything
+   * is typed, so a tile can say "not installed" instead of failing on send.
+   */
+  'agent:availability': { req: { kind: AgentKind }; res: AgentAvailability };
+  /**
+   * Starts a conversation, named by the renderer the way a shell is. No
+   * directory crosses: the agent starts in the asking window's project,
+   * resolved from the sender — see `startConversation`.
+   *
+   * `resume` is a session token from a favorite, to carry that
+   * conversation on; it is looked up in the same project, so it can name
+   * nothing outside it.
+   */
+  'agent:start': {
+    req: {
+      id: string;
+      kind: AgentKind;
+      resume: string | null;
+      /**
+       * The tab has already drawn the conversation from `agent:history`,
+       * so main need not replay it. Meaningless without `resume`.
+       */
+      replayed: boolean;
+    };
+    res: AgentStartResult;
+  };
+  /**
+   * A stored conversation, as the events that draw it, without starting an
+   * agent — for a tab restored at launch, which shows its history and starts
+   * the agent only when it is used. Null when the agent no longer has it.
+   * Looked up in the asking window's project, like `agent:start`.
+   */
+  'agent:history': {
+    req: { kind: AgentKind; session: string };
+    res: AgentEvent[] | null;
+  };
+  /**
+   * The next message, and what is attached to it. One call per message, not
+   * per keystroke. Attachments are checked in main — see `cleanAttachments`.
+   */
+  'agent:send': {
+    req: {
+      id: string;
+      text: string;
+      attachments: AgentAttachment[];
+      /** A UUID the renderer minted, for a later rewind to name it by. */
+      messageId: string;
+    };
+    res: void;
+  };
+  /**
+   * Runs a `!` command from the composer in the conversation's project and
+   * hands its output to the agent. Answers once it has finished.
+   */
+  'agent:shell': { req: { id: string; command: string }; res: void };
+  /** Back to before a message — see `AgentRewind`. Between turns only. */
+  'agent:rewind': {
+    req: { id: string; messageId: string; restore: AgentRewind };
+    res: AgentRewindResult;
+  };
+  /** A yes, a no, or the answers to an open approval. */
+  'agent:respond': {
+    req: { id: string; requestId: string; reply: AgentReply };
+    res: void;
+  };
+  /** Stops the turn in progress. The conversation stays open. */
+  'agent:interrupt': { req: { id: string }; res: void };
+  /**
+   * Switches the model for the replies that follow. `model` is an id from
+   * the conversation's own `models` event, never one the renderer made up.
+   */
+  'agent:set-model': { req: { id: string; model: string }; res: void };
+  /**
+   * Switches how much the agent asks before acting, from the next action
+   * on. `mode` is an id from the conversation's own `modes` event.
+   */
+  'agent:set-mode': { req: { id: string; mode: string }; res: void };
+  /** Ends the conversation and the process behind it. */
+  'agent:stop': { req: { id: string }; res: void };
+  /** The asking window's project's favorite conversations. */
+  'agent:favorites': { req: void; res: FavoriteEntry[] };
+  /** Marks a conversation a favorite. One already marked keeps its name. */
+  'agent:add-favorite': {
+    req: { kind: AgentKind; session: string; name: string };
+    res: FsResult;
+  };
+  'agent:rename-favorite': {
+    req: { kind: AgentKind; session: string; name: string };
+    res: FsResult;
+  };
+  /** Takes a conversation off the favorites. The agent's copy stays. */
+  'agent:remove-favorite': {
+    req: { kind: AgentKind; session: string };
+    res: FsResult;
+  };
+  /**
+   * Brings forward the tab holding a session, in whichever window has it,
+   * and raises that window. False when no tab has it open — the caller then
+   * opens one.
+   */
+  'agent:reveal': { req: { kind: AgentKind; session: string }; res: boolean };
+  /**
+   * The window's answer to `agent:workbench-request`: what its editors are
+   * showing. Matched to the question by `requestId`, and accepted only from
+   * the window it was asked of.
+   */
+  'agent:workbench': {
+    req: { requestId: string; answer: unknown };
+    res: void;
+  };
+
+  /**
    * Every board in both scopes, newest first.
    *
    * One channel for the pair rather than one per scope: the sidebar draws
@@ -575,6 +700,39 @@ export interface IpcEvents {
   'terminal:exit': TerminalExit;
 
   /**
+   * What a conversation did, batched a frame at a time — see `FLUSH_MS` in
+   * `main/agent/`. Sent only to the window that started it.
+   */
+  'agent:events': AgentEvents;
+  /**
+   * Some window changed the favorites. Sent to every window, each of which
+   * re-reads its own project's list. Carries nothing.
+   */
+  'agent:favorites-changed': null;
+  /**
+   * Show this conversation's tab: another window asked for it with
+   * `agent:reveal`. Sent only to the window holding it.
+   */
+  'agent:reveal': { id: string };
+  /**
+   * An agent asked what the editors are showing. Answered with
+   * `agent:workbench`. Sent only to the window the conversation lives in.
+   */
+  'agent:workbench-request': { requestId: string; ask: AgentWorkbenchAsk };
+  /**
+   * An agent asked to show the person a file, at a line. The path is
+   * absolute and already checked to be a file inside the project. Sent only
+   * to the window the conversation lives in.
+   */
+  'agent:open-file': { path: string; line: number | null };
+  /**
+   * An agent asked to show the person a commit — or, with null, the changes
+   * not yet committed — in the git window. The sha is already checked to be
+   * a commit of the project. Sent only to the conversation's window.
+   */
+  'agent:show-git': { commit: string | null };
+
+  /**
    * The updater moved — a download started, finished, or failed. Sent to
    * every window, and only when the state actually changed.
    */
@@ -721,6 +879,80 @@ export interface FrodonApi {
      */
     onData: (id: string, listener: (data: string) => void) => () => void;
     onExit: (id: string, listener: (exit: TerminalExit) => void) => () => void;
+  };
+  agent: {
+    availability: (kind: AgentKind) => Promise<Res<'agent:availability'>>;
+    start: (
+      id: string,
+      kind: AgentKind,
+      resume: string | null,
+      replayed: boolean
+    ) => Promise<Res<'agent:start'>>;
+    history: (
+      kind: AgentKind,
+      session: string
+    ) => Promise<Res<'agent:history'>>;
+    send: (
+      id: string,
+      text: string,
+      attachments: AgentAttachment[],
+      messageId: string
+    ) => Promise<void>;
+    rewind: (
+      id: string,
+      messageId: string,
+      restore: AgentRewind
+    ) => Promise<AgentRewindResult>;
+    shell: (id: string, command: string) => Promise<void>;
+    respond: (
+      id: string,
+      requestId: string,
+      reply: AgentReply
+    ) => Promise<void>;
+    interrupt: (id: string) => Promise<void>;
+    setModel: (id: string, model: string) => Promise<void>;
+    setMode: (id: string, mode: string) => Promise<void>;
+    stop: (id: string) => Promise<void>;
+    favorites: () => Promise<Res<'agent:favorites'>>;
+    addFavorite: (
+      kind: AgentKind,
+      session: string,
+      name: string
+    ) => Promise<Res<'agent:add-favorite'>>;
+    renameFavorite: (
+      kind: AgentKind,
+      session: string,
+      name: string
+    ) => Promise<Res<'agent:rename-favorite'>>;
+    removeFavorite: (
+      kind: AgentKind,
+      session: string
+    ) => Promise<Res<'agent:remove-favorite'>>;
+    reveal: (kind: AgentKind, session: string) => Promise<boolean>;
+    onFavoritesChanged: (listener: () => void) => () => void;
+    /** Subscribes to requests to show a tab. Returns an unsubscribe. */
+    onReveal: (listener: (id: string) => void) => () => void;
+    /** Answers an `onWorkbenchRequest`. */
+    /** Answers an `onWorkbenchRequest`, in the shape its `ask` calls for. */
+    answerWorkbench: (requestId: string, answer: unknown) => Promise<void>;
+    /** Subscribes to an agent asking about the window — see `AgentWorkbenchAsk`. */
+    onWorkbenchRequest: (
+      listener: (requestId: string, ask: AgentWorkbenchAsk) => void
+    ) => () => void;
+    /** Subscribes to an agent asking for a file to be shown. */
+    onOpenFile: (
+      listener: (target: { path: string; line: number | null }) => void
+    ) => () => void;
+    /** Subscribes to an agent asking for the git window. */
+    onShowGit: (listener: (commit: string | null) => void) => () => void;
+    /**
+     * Subscribes to one conversation's events, filtered in the preload for
+     * the same reason a terminal's output is. Returns an unsubscribe function.
+     */
+    onEvents: (
+      id: string,
+      listener: (events: AgentEvents['events']) => void
+    ) => () => void;
   };
   board: {
     list: () => Promise<Res<'board:list'>>;

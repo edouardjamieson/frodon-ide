@@ -18,6 +18,245 @@ their reasoning is the reasoning recorded at the time, not reconstructed.
 
 ---
 
+### ADR-0047 — An agent in a tile reaches the workbench through an in-process MCP server, and only its own window
+
+**When** 2026-11-09 · **Status** active · **Touches** agent, editor, workbench
+
+**What.** A conversation's driver registers Frodon's own tools with the agent
+as an SDK MCP server living in main's process: `editor_state` (the tabs, the
+focused pane and the selection in the conversation's window) and `open_file`
+(show the person a project file at a line). Both are pre-allowed. Each
+conversation gets its own server, bound to its own window and project.
+
+**Why.** ADR-0027 parked an MCP server for agents in a *terminal* because
+reaching them meant a socket with a lifecycle, a fourth build output and a
+shipped dependency. A tile's agent is driven by the SDK in main, which takes
+an in-process server as an option: none of those costs exist on this path.
+And the value is different here. In a terminal, `open_file` saved `mod+p`;
+beside a conversation, "what does this do" with a block selected is the most
+natural question there is, and without the tool the agent cannot see what
+"this" is. Pushing the selection to main on every move was rejected: a
+structured clone per keystroke for something read a few times a
+conversation. So main asks the window when the agent asks main.
+
+**How.** `workbenchServer` in `agent-claude.service.ts` defines the tools
+against `AgentHost.workbench`, which the registry implements with
+`agent-workbench.service.ts`: `readWorkbench` sends
+`agent:workbench-request` to the conversation's window and waits for
+`agent:workbench`, accepting the answer only from that window and cleaning
+it field by field; `showFile` resolves the agent's path against the project,
+refuses anything outside it or not a file, and sends `agent:open-file`. In
+the renderer, `useAgentWorkbenchEffect` answers from the window store and
+`selectionOf`, which reads each editor tile's CodeMirror state through a
+reader the tile registered with `provideSelection`.
+
+**Cost.** Main now asks a window a question and waits for the answer — a
+shape the IPC layer did not have, with a timeout to tune and a window that
+may be busy. The tools are worded for Claude and pre-allowed, so a driver
+for another agent has to offer its own equivalent or go without. Boards and
+terminals are not reachable yet; each would be another tool and another
+thing for the window to answer. (Since 2026-11-09 they are: `terminal_output`,
+`show_in_git`, `list_boards`, `read_board` and `draw_on_board` join the two,
+over the same question-and-answer, now typed by `AgentWorkbenchAsk`.)
+
+### ADR-0046 — A reply is parsed by the editor's markdown parser and drawn as React elements
+
+**When** 2026-11-08 · **Status** active · **Touches** agent, editor, theme
+
+**What.** An agent's reply is parsed with `@lezer/markdown` (GitHub's
+dialect) and its syntax tree is turned into React elements by hand. No HTML
+string is produced or injected at any point, and no markdown library is added.
+Code blocks are highlighted with the editor's grammars, through the same tag
+table the editor colors with.
+
+**Why.** The usual answer is `react-markdown` with `remark-gfm`: a dozen
+packages of unified/micromark for something the bundle already contains,
+since CodeMirror's markdown mode is built on `@lezer/markdown`. The other
+usual answer, `marked` into `dangerouslySetInnerHTML`, puts the agent's words
+— and whatever web page it quoted — one sanitizer bug away from markup in the
+window that holds the preload bridge. Walking the tree means an unknown node,
+raw HTML included, can only ever come out as its source text. Sharing the
+parser also means a reply and a `.md` file opened in the editor agree on what
+a table or a task list is.
+
+**How.** `components/modules/agent/agent-markdown.service.ts` holds the parser
+(`parser.configure(GFM)`), the highlighter and `grammarFor`, which finds a
+fence's grammar in `@codemirror/language-data`.
+`agent-markdown.component.tsx` walks the tree: block nodes to elements, the
+text between inline nodes as text, marks to nothing. `SYNTAX_TAGS` in
+`lib/theme/theme.constant.ts` is the one map from highlight tags to the ten
+syntax groups; the editor turns it into a `HighlightStyle` with the theme's
+colors, a code block into classes over `--fd-syntax-*`. Links never navigate:
+a web address goes through `window.open` to the person's browser, a path to
+the editor.
+
+**Cost.** Every node the dialect has needs a case written for it, and a
+construct nobody wrote one for shows as its source rather than degrading
+gracefully into something close. Lezer's tree is a parse for editing, not for
+rendering — table alignment, reference-style links and HTML entities beyond a
+handful are not handled, and each would be more code here rather than a
+version bump of a library that already does it.
+
+### ADR-0045 — A message attaches project paths, or images handed over, and nothing else
+
+**When** 2026-10-31 · **Status** active · **Touches** agent
+
+**What.** An agent message can carry two kinds of attachment: a file or
+folder inside the project, sent as a path for the agent to read, and an
+image pasted or dropped into the composer, sent as base64 in an image
+block. Paths outside the project are never attached, and there is no
+system file dialog.
+
+**Why.** A native picker was the first plan and was dropped before it was
+built: it offers the whole disk, it reads as a different app's window, and
+reading a file main was told about by the renderer would have needed tokens
+minted in main to keep the rule that the renderer never names a path main
+reads. Limiting paths to the project removes that problem — main reads
+nothing, it only checks the path resolves inside the project and passes it
+on — and matches what an agent working in the project can use. Images are
+the exception that earns its own shape: a screenshot has no path, and the
+agent seeing it is the point. Inlining file contents was rejected because
+the agent already reads files with its own tools, and a folder cannot be
+inlined at all.
+
+**How.** `AgentAttachment` in `shared/agent.def.ts`; `agent:send` carries a
+list, cleaned by `cleanAttachments` in `main/agent/agent-attachment.service.ts`
+against the asking window's root; `AgentRun.send` takes the cleaned list,
+and Claude's `contentOf` turns it into a text block and image blocks. The
+composer's picker is `AttachPicker`, over `collectFiles` with folders.
+
+**Cost.** Something outside the project — a log in `/tmp`, a design export
+in Downloads — can only be shown as an image or copied in first. Images
+cross IPC as base64, up to 5 MB each and twenty attachments a message, and
+are held in the transcript store for the life of the tab.
+
+---
+
+### ADR-0044 — A favorite conversation is a pointer into the agent's own store
+
+**When** 2026-10-31 · **Status** active · **Touches** agent, workbench
+
+**What.** Frodon stores no transcripts. A conversation the person marks a
+favorite is recorded as `{ kind, session, name, addedAt }` in
+`~/.frodon/agent-favorites.json`, filed by project root; `session` is the
+driver's own token, opaque to everything but that driver. Reopening one
+starts the agent with that token and replays its history from the agent's
+store. Nothing is a favorite unless somebody marks it, and a session is
+open in at most one tab across every window.
+
+**Why.** Claude Code already writes every conversation to disk, so a copy
+in Frodon would be a second store to disagree with the first and a second
+place for something private to sit. Saving every conversation by default
+was rejected because the agent's list is long and mostly throwaway, and the
+point of a favorite is the curation; offering the agent's own recent list
+under the favorites was built and dropped for the same reason — it filled
+with every terminal session in the project. Putting tokens in the layout
+file, restoring whichever tabs were open, was rejected as the first step:
+it would start an agent per tab on every launch. The file is in the home
+directory rather than the project's `.frodon/`: a token points into this
+machine's `~/.claude`, and committed it would point a teammate at nothing.
+"Open at most once" is main's to enforce because only main sees every
+window's conversations; two tabs on one session are two agents writing over
+each other.
+
+**How.** `AgentDriver` gains `lastActive(cwd, session)` and
+`history(cwd, session)`; `AgentRun` gains `session`, which Claude's driver
+picks itself (`sessionId`, or `resume`) so it is known before the first
+reply. `startConversation` takes `resume`, asks `history` in the asking
+window's project, emits it ahead of `started`, and refuses a session another
+conversation holds. `revealConversation` and the `agent:reveal` handler
+bring forward and raise the window holding one. The list lives in
+`main/agent/agent-favorite.service.ts`, and every change is broadcast as
+`agent:favorites-changed`. `isSessionToken` in `shared/agent.def.ts` bounds
+what a token can be on both sides.
+
+**Cost.** A favorite lives only as long as the agent keeps it — Claude's
+default is 30 days — and is then shown as gone, with no way back. Reopening
+a long conversation replays all of it across IPC at once, and its first new
+turn is uncached and so costs more than a fresh one. Open tabs still do not
+survive a restart. A conversation never marked can only be reopened from a
+terminal.
+
+---
+
+### ADR-0043 — An agent is found on the machine, never shipped with the app
+
+**When** 2026-10-29 · **Status** active · **Touches** agent, updates
+
+**What.** Frodon drives the agent the person already installed — `claude` on
+their login shell's `PATH` — and packages no agent binary of its own. The
+Agent SDK is a devDependency, bundled into main as JavaScript, and is pointed
+at the installed executable with `pathToClaudeCodeExecutable`.
+
+**Why.** The SDK's own binary is 276 MB on arm64 and 287 MB on x64, against
+an app of roughly 250 MB; Codex's is 363 MB. Bundling would double the app,
+and because the updater downloads the whole zip, every Frodon release would
+re-download the agent too. It would also tie the agent's version to Frodon's
+release cadence — the SDK was at 0.3.312 when this was written — and the
+release job cross-packages x64 on an arm64 runner, where pnpm installs only
+the host's optional binary. Using the installed copy means the tile runs the
+same agent, login and settings as `claude` in a terminal tile. Rejected for
+now rather than forever: a copy Frodon downloads into
+`~/.frodon/agents/<kind>/<version>/` from the npm platform package, verified
+against its sha512 and pinned to the SDK's version — which would also fix the
+version-drift cost below. The resolution order planned for it is an explicit
+user setting, then `PATH` if compatible, then the managed copy.
+
+**How.** `locate` in each driver, over `findExecutable` and the
+`loginEnvironment` probe in `main/agent/agent-environment.service.ts`. The SDK
+sits in `devDependencies`, so `externalizeDepsPlugin` leaves it to Vite and
+electron-builder never sees its optional binaries. Main's bundle grows from
+120 KB to 1.2 MB.
+
+**Cost.** Without `claude` installed, the tile can only say so — a fork of
+Frodon needs Claude Code to use it. The SDK and the installed CLI are
+versioned separately and talk a protocol, so an update on either side can
+break the other. Since 2026-11-09 `locate` compares the installed version
+with the SDK's `claudeCodeVersion`, read at build time, and the tile warns
+when they are a major or minor apart; it warns, and does not refuse, since a
+newer CLI usually still speaks an older protocol. Installing an agent into a
+directory new to `PATH` needs a restart, because the shell is asked once.
+
+---
+
+### ADR-0042 — The chat tile speaks one vocabulary; each agent gets a driver
+
+**When** 2026-10-29 · **Status** active · **Touches** agent, workbench
+
+**What.** Conversations with coding agents cross the boundary as
+`AgentEvent`s from `shared/agent.def.ts`, which describe what happened — text,
+an action and its result, an approval, a turn ending — and never which agent
+did it. Each agent has a driver in `main/agent/` that translates its protocol
+into that vocabulary, and nothing else in the app knows an agent's names.
+
+**Why.** Claude Code is the first agent and Codex is the obvious second, and
+they disagree on everything a tile would draw: Claude edits with `Edit` and
+`Write` and asks per call, Codex applies patches under an approval policy.
+Rendering either protocol directly means a tile per agent or a tile full of
+`if (kind === …)`. Rejected: calling a model API directly and owning the tool
+loop, which would make Frodon a coding agent rather than a host for one —
+every tool, context management and transcript storage to build — and would
+drift from the `claude` people already run in a terminal tile. Rejected too:
+carrying each protocol's events through "in case", which makes every future
+driver fill in fields nothing reads.
+
+**How.** `AgentDriver` (`locate`, `start`) and `AgentHost` (`emit`, `ask`) in
+`main/agent/agent.def.ts`; `DRIVERS: Record<AgentKind, AgentDriver>` in
+`agent.service.ts`, which owns everything driver-independent — the registry,
+window ownership, 16 ms batching, approvals as promises. The Claude driver is
+`agent-claude.service.ts`, over the Agent SDK. The renderer reduces events
+into a transcript in `lib/agent/` and never imports a driver's types.
+
+**Cost.** The vocabulary is a lowest common denominator by construction.
+Anything one agent does that the five action kinds cannot express is shown as
+`other` until the vocabulary grows, and growing it is a change to every
+driver. A change is two strings rather than a diff, because that is what
+every agent can produce without parsing. Claude-specific features —
+subagent transcripts, slash commands, permission modes — have nowhere to go
+without first being given a name every agent could fill.
+
+---
+
 ### ADR-0041 — Windows are drawn in one flat layer over empty panels
 
 **When** 2026-10-29 · **Status** active · **Touches** workbench
@@ -755,6 +994,9 @@ inherited down the process tree) that made it tempting.
 **Cost.** Two pieces were kept because they earn their place alone: commands
 with arguments and a target window (which the palette needs anyway), and the
 env stamp in `createSession`.
+
+Still parked for agents in a terminal. An agent in an agent tile reaches the
+workbench another way, without the socket — ADR-0047.
 
 ---
 

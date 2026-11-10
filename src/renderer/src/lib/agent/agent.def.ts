@@ -1,0 +1,174 @@
+/**
+ * A conversation as the tile draws it.
+ *
+ * Main sends events; this is what they add up to. The reduction lives in the
+ * renderer because the transcript is a *view* — main keeps no copy of it, the
+ * agent keeps its own, and the only thing worth having on this side is what is
+ * on screen. See `reduce` in `agent.service.ts`.
+ */
+import type {
+  AgentAction,
+  AgentAttachment,
+  AgentChoice,
+  AgentCommand,
+  AgentKind,
+  AgentTask,
+  FavoriteEntry,
+} from '@shared/agent.def';
+
+/** Where a conversation is, for the status line and the composer. */
+export type ConversationStatus =
+  /** Asked main to start it; nothing back yet. */
+  | 'starting'
+  /**
+   * Drawn from the agent's record, with no agent running. It starts the
+   * first time the composer is used. Restored tabs begin here.
+   */
+  | 'asleep'
+  /** Waiting for the person. */
+  | 'idle'
+  /** A turn is under way. */
+  | 'working'
+  /** It could not start, or the agent died. Nothing more will arrive. */
+  | 'ended';
+
+/** One thing in the transcript, in the order it happened. */
+export type TranscriptEntry =
+  | {
+      kind: 'user';
+      id: string;
+      text: string;
+      /** What was sent with it. Absent on a message replayed from history. */
+      attachments?: AgentAttachment[];
+      /**
+       * The id the agent stores the message under, which a rewind names —
+       * minted here for a message typed in this tile, read from the agent's
+       * record for one replayed. Absent when the agent kept none.
+       */
+      messageId?: string;
+    }
+  | { kind: 'assistant'; id: string; text: string }
+  | {
+      kind: 'action';
+      id: string;
+      action: AgentAction;
+      /** Null while it runs, or while it waits on an approval. */
+      result: { ok: boolean; output: string } | null;
+    }
+  | { kind: 'notice'; id: string; text: string; tone: 'muted' | 'danger' };
+
+/** An approval waiting on a click. */
+export interface OpenApproval {
+  requestId: string;
+  action: AgentAction;
+  /** The standing permission the card can grant instead; see `AgentEvent`. */
+  always: string | null;
+}
+
+export interface Conversation {
+  kind: AgentKind;
+  status: ConversationStatus;
+  /** What the agent reported on start, e.g. `2.1.308`. */
+  version: string | null;
+  /** The model the agent says it is running, once it has said. */
+  model: string | null;
+  /** What it can be switched to. Empty until the driver has asked. */
+  models: AgentChoice[];
+  /**
+   * The model picked in this tile, by `AgentChoice.id`, or null for the
+   * agent's own default.
+   *
+   * Kept apart from `model` because the two speak different languages:
+   * this is the picker's id (`sonnet`), that is what the agent reports
+   * running (`claude-sonnet-5-5`), and the report only arrives with the next
+   * turn. The picker shows this when it is set, so a switch shows at once
+   * and in the words the menu used.
+   */
+  chosenModel: string | null;
+  /**
+   * How much the agent asks before acting, by `AgentChoice.id` — what it
+   * last reported, or what was picked since. Null until either happens.
+   *
+   * One field where the model needs two, because an agent reports its mode
+   * in the same ids it offers them in: a pick can stand in for the report
+   * until the next turn confirms it.
+   */
+  mode: string | null;
+  /** The modes it can be switched to. Empty if the driver offers none. */
+  modes: AgentChoice[];
+  /**
+   * What a message can start with, for the composer's `/` menu. Empty until
+   * the agent has said, and for an agent with no commands.
+   */
+  commands: AgentCommand[];
+  entries: TranscriptEntry[];
+  /**
+   * Approvals waiting on a click, by request id, oldest first.
+   *
+   * Separate from the entries rather than a flag on an action, because a
+   * driver may ask about an action it never reported as a call — Claude asks
+   * before the call is made — and the question has to be drawn either way.
+   */
+  approvals: OpenApproval[];
+  /**
+   * Work running apart from the turn, by the id of the action that started
+   * it — the card it is drawn on. Keyed by action rather than by task, so a
+   * task the driver first knew under a stand-in id replaces the stand-in
+   * instead of sitting beside it.
+   */
+  tasks: Record<string, AgentTask>;
+  /** How full the context window was after the last turn, once known. */
+  context: { used: number; limit: number; percent: number } | null;
+  /** What the conversation has cost so far, when the agent reports it. */
+  costUsd: number;
+  /**
+   * The agent's token for this conversation, which keeps it and reopens it.
+   * Null until the agent is up, and for an agent that cannot be reopened.
+   */
+  session: string | null;
+}
+
+/** A conversation a tab was opened to carry on, rather than to begin. */
+export interface ResumeRequest {
+  kind: AgentKind;
+  session: string;
+  /**
+   * Draw the conversation now and start the agent only when the tab is
+   * used. For tabs restored at launch, which would otherwise start an
+   * agent each before anything has been typed.
+   */
+  lazy?: boolean;
+}
+
+export interface AgentStore {
+  conversations: Record<string, Conversation>;
+  /** Creates the entry a conversation's events will be reduced into. */
+  open: (id: string, kind: AgentKind) => void;
+  /** Drops a conversation's entry. Called when its tile unmounts. */
+  forget: (id: string) => void;
+  /** Applies one function to one conversation, if it still exists. */
+  update: (
+    id: string,
+    change: (conversation: Conversation) => Conversation
+  ) => void;
+
+  /**
+   * What tabs about to mount should resume, by conversation id.
+   *
+   * Outside the conversation entry because it has to outlive `forget`:
+   * StrictMode mounts a tab, unmounts it and mounts it again, and the second
+   * mount has to resume the same thing the first one would have. Removed by
+   * the mount whose start went through.
+   */
+  resumes: Record<string, ResumeRequest>;
+  requestResume: (id: string, request: ResumeRequest) => void;
+  dropResume: (id: string) => void;
+
+  /**
+   * The project's favorite conversations, as main last listed them. Null
+   * until the first listing comes back, so the sidebar can tell "none" from
+   * "not asked yet".
+   */
+  favorites: FavoriteEntry[] | null;
+  setFavorites: (favorites: FavoriteEntry[] | null) => void;
+}

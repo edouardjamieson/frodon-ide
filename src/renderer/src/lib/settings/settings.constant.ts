@@ -49,6 +49,13 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     description: 'Which way the git view splits its panes, on this machine.',
   },
   {
+    id: 'user.agents',
+    scope: 'user',
+    label: 'Agents',
+    description:
+      'Which copy of each coding agent runs, and how a new conversation with it starts, on this machine.',
+  },
+  {
     id: 'user.shortcuts',
     scope: 'user',
     label: 'Shortcuts',

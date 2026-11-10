@@ -32,6 +32,7 @@ import { createLogger } from '@main/logger';
 import { FRODON_DIRNAME, listBoards } from '@main/board';
 import { boardKey } from '@shared/board.def';
 import { isAllowedBrowserUrl } from '@shared/browser.def';
+import { isAgentKind, isSessionToken } from '@shared/agent.def';
 import {
   LAYOUTS_FILENAME,
   LAYOUT_VERSION,
@@ -120,6 +121,24 @@ function isLayoutWindow(value: unknown): value is LayoutWindow {
         window.tabs.every(isBrowserTab) &&
         typeof window.activeTab === 'number' &&
         Number.isInteger(window.activeTab)
+      );
+    case 'agent':
+      // Both optional — a layout from before favorites were remembered has
+      // neither — and checked as tokens when present, since a session is
+      // handed to an agent process on its command line.
+      return (
+        (window.conversations === undefined ||
+          (Array.isArray(window.conversations) &&
+            window.conversations.every(
+              (tab: unknown) =>
+                typeof tab === 'object' &&
+                tab !== null &&
+                isAgentKind((tab as { kind?: unknown }).kind) &&
+                isSessionToken((tab as { session?: unknown }).session)
+            ))) &&
+        (window.activeConversation === undefined ||
+          (typeof window.activeConversation === 'number' &&
+            Number.isInteger(window.activeConversation)))
       );
     case 'terminal':
     case null:

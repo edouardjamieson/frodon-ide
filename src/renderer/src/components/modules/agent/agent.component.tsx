@@ -1,0 +1,691 @@
+import {
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent,
+  type KeyboardEvent,
+} from 'react';
+import { cn } from 'cn';
+import {
+  ArrowUp,
+  Brain,
+  LoaderCircle,
+  Plus,
+  ShieldCheck,
+  Square,
+} from 'lucide-react';
+import {
+  AGENT_ATTACHMENT_LIMIT,
+  AGENT_LABELS,
+  type AgentAttachment,
+} from '@shared/agent.def';
+import {
+  commandQuery,
+  imageAttachment,
+  mentionAt,
+  rankCommands,
+  resolvePath,
+  runningBackground,
+  useConversation,
+  useConversationLifetime,
+  useFavoriteName,
+  wakeConversation,
+} from '~/lib/agent';
+import { PROJECT_ENTRY_TYPE, useProjectStore } from '~/lib/project';
+import {
+  useFilePickerStore,
+  useProjectEntries,
+  type PickerFile,
+} from '~/lib/file-picker';
+import { useOpenFile } from '~/lib/window';
+import {
+  Button,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '~/components/ui';
+import { TranscriptRow } from './agent-entry.component';
+import { AgentIcon } from './agent-icon.component';
+import { ChoicePicker } from './agent-choice.component';
+import { FavoriteButton } from './agent-favorite.component';
+import {
+  AttachmentChip,
+  AttachPicker,
+  matchFiles,
+  MentionMenu,
+} from './agent-attach.component';
+import { CommandMenu } from './agent-command.component';
+import { WorkingRow } from './agent-working.component';
+
+/**
+ * How full the context window is before the status line says it in red —
+ * the point at which a long conversation is worth wrapping up or compacting
+ * by choice, before the agent does it on its own.
+ */
+const CONTEXT_WARN_PERCENT = 80;
+
+interface AgentProps {
+  conversationId: string;
+  /** Whether this conversation is the visible tab in its window. */
+  active: boolean;
+}
+
+/**
+ * A conversation, on screen: the transcript, and a box to type into.
+ *
+ * Every conversation in a window stays mounted and an inactive one is
+ * hidden, for the terminal's reason — unmounting ends the agent, and one
+ * that is halfway through a refactor in the tab you clicked away from has to
+ * keep going.
+ */
+export default function Agent({ conversationId, active }: AgentProps) {
+  useConversationLifetime(conversationId);
+  const {
+    conversation,
+    send,
+    interrupt,
+    respond,
+    chooseModel,
+    chooseMode,
+    rewind,
+    runCommand,
+  } = useConversation(conversationId);
+  const favoriteName = useFavoriteName(conversationId);
+
+  const root = useProjectStore((state) => state.root);
+  const openFile = useOpenFile();
+  const [draft, setDraft] = useState('');
+  // Local, like the draft: what is attached to a message not yet sent
+  // belongs to this composer and to nothing else.
+  const [attachments, setAttachments] = useState<AgentAttachment[]>([]);
+  const [picking, setPicking] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  /** Why the last paste or drop was refused, until the next one. */
+  const [refusal, setRefusal] = useState<string | null>(null);
+  /** The highlighted row of whichever menu is open, `/` or `@`. */
+  const [menuIndex, setMenuIndex] = useState(0);
+  /**
+   * The draft a menu was dismissed on with Escape. It stays shut until the
+   * draft changes, so Escape reads as "not now" without the next keystroke
+   * having to fight it.
+   */
+  const [dismissed, setDismissed] = useState<string | null>(null);
+  /**
+   * Where the caret is. Tracked because an `@` can be typed anywhere in a
+   * message, and what it is offering depends on the text just before it.
+   */
+  const [caret, setCaret] = useState(0);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const projectEntries = useProjectEntries();
+  const recent = useFilePickerStore((state) => state.recent);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  /**
+   * Whether the view follows the reply as it streams. True until the person
+   * scrolls up to read something, and true again once they scroll back to
+   * the bottom — a transcript that yanks you down mid-sentence is worse than
+   * one that makes you scroll.
+   */
+  const following = useRef(true);
+  const entries = conversation?.entries;
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (element && following.current) element.scrollTop = element.scrollHeight;
+  }, [entries]);
+
+  if (!conversation) return null;
+
+  const { status, approvals } = conversation;
+  const firstMessage = conversation.entries.find(
+    (entry) => entry.kind === 'user'
+  );
+  const working = status === 'working';
+  const ended = status === 'ended';
+
+  const sendable = !ended && (draft.trim() !== '' || attachments.length > 0);
+  const background = runningBackground(conversation);
+
+  /**
+   * A draft that starts with `!` is a command for the person's own shell —
+   * the terminal's bash mode — and nothing in it is a mention or a command
+   * of the agent's, so the menus stay shut.
+   */
+  const shell = draft.startsWith('!');
+  const closed = ended || shell || draft === dismissed;
+  const query = closed ? null : commandQuery(draft);
+  const commands =
+    query === null ? [] : rankCommands(conversation.commands, query);
+  // A command is the whole draft and a mention is a word in it, so the two
+  // never compete: `/` wins, since `/audit @pr` is a command with an
+  // argument that happens to have an `@` in it.
+  const mention =
+    closed || commands.length > 0 ? null : mentionAt(draft, caret);
+  const mentions = mention
+    ? matchFiles(projectEntries, mention.query, recent)
+    : [];
+  const menuSize = commands.length || mentions.length;
+  const menuAt = Math.min(menuIndex, Math.max(menuSize - 1, 0));
+
+  const edit = (next: string, at = next.length) => {
+    setDraft(next);
+    setCaret(at);
+    setMenuIndex(0);
+    setDismissed(null);
+  };
+
+  /**
+   * Puts the command's name in the draft, followed by a space, and leaves
+   * the rest of the line to the person — a command that takes arguments
+   * wants them, and one that does not is sent with the next Shift+Enter.
+   * Nothing is sent on a pick: the message may be meant to say more.
+   */
+  const pickCommand = (name: string) => edit(`/${name} `);
+
+  /**
+   * Replaces the `@query` with the file's path and attaches the file.
+   *
+   * Both, because they do different jobs: the path stays in the sentence so
+   * "compare `a.ts` with `b.ts`" still reads, and the attachment is what
+   * tells the agent to read it — the same as picking it from Add.
+   */
+  const pickMention = (file: PickerFile) => {
+    if (!mention) return;
+    const before = draft.slice(0, mention.start);
+    const after = draft.slice(caret);
+    const name = file.isDir ? `${file.relative}/` : file.relative;
+    const spaced = after.startsWith(' ') ? name : `${name} `;
+    const at = before.length + spaced.length;
+    edit(before + spaced + after, at);
+    attach([{ kind: 'path', path: file.path, isDir: file.isDir }]);
+    // After React has put the new text in, or the caret lands at the end of
+    // the old one.
+    requestAnimationFrame(() => inputRef.current?.setSelectionRange(at, at));
+  };
+
+  const submit = () => {
+    if (!sendable) return;
+    if (shell) {
+      // Attachments stay for the next message: a command takes none.
+      runCommand(draft.slice(1));
+      setDraft('');
+      following.current = true;
+      return;
+    }
+    send(draft, attachments);
+    setDraft('');
+    setAttachments([]);
+    setRefusal(null);
+    following.current = true;
+  };
+
+  const attach = (next: AgentAttachment[]) => {
+    const merged = [...attachments];
+    for (const attachment of next) {
+      const duplicate =
+        attachment.kind === 'path' &&
+        merged.some(
+          (existing) =>
+            existing.kind === 'path' && existing.path === attachment.path
+        );
+      if (!duplicate) merged.push(attachment);
+    }
+    if (merged.length > AGENT_ATTACHMENT_LIMIT) {
+      setRefusal(
+        `A message can carry ${AGENT_ATTACHMENT_LIMIT} attachments at most.`
+      );
+    }
+    setAttachments(merged.slice(0, AGENT_ATTACHMENT_LIMIT));
+  };
+
+  /**
+   * Images from a paste or a drop. Files that are not images are refused
+   * with a reason rather than ignored: a dropped file that silently did
+   * nothing reads as a broken drop.
+   */
+  const takeImages = async (files: File[]) => {
+    const read = await Promise.all(files.map(imageAttachment));
+    const images = read.filter(
+      (item): item is AgentAttachment => typeof item !== 'string'
+    );
+    setRefusal(read.find((item) => typeof item === 'string') ?? null);
+    attach(images);
+  };
+
+  const onDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setDragging(false);
+    if (ended) return;
+
+    // A row dragged out of the explorer: attached as if picked from Add.
+    const entry = event.dataTransfer.getData(PROJECT_ENTRY_TYPE);
+    if (entry) {
+      try {
+        const { path, isDir } = JSON.parse(entry) as {
+          path: unknown;
+          isDir: unknown;
+        };
+        if (typeof path === 'string')
+          attach([{ kind: 'path', path, isDir: isDir === true }]);
+      } catch {
+        // Not ours after all. Nothing to attach.
+      }
+      return;
+    }
+
+    void takeImages([...event.dataTransfer.files]);
+  };
+
+  const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    // While a menu is open, the keys a menu uses are the menu's. Shift+Enter
+    // is not among them, so it still sends exactly what was typed.
+    if (menuSize > 0 && !event.nativeEvent.isComposing) {
+      const move = (delta: number) =>
+        setMenuIndex((menuAt + delta + menuSize) % menuSize);
+      const pick = () => {
+        const command = commands[menuAt];
+        const file = mentions[menuAt];
+        if (command) pickCommand(command.name);
+        else if (file) pickMention(file);
+      };
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        move(1);
+        return;
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        move(-1);
+        return;
+      }
+      if (event.key === 'Tab' || (event.key === 'Enter' && !event.shiftKey)) {
+        event.preventDefault();
+        pick();
+        return;
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setDismissed(draft);
+        return;
+      }
+    }
+    // Shift+Enter sends and Enter breaks the line — the reverse of the chat
+    // convention, on purpose: a message to an agent is a paragraph or a list
+    // of steps more often than a line, and an Enter that sends cuts it off
+    // halfway. Composition is excluded so confirming a word in an IME does
+    // not send.
+    if (
+      event.key === 'Enter' &&
+      event.shiftKey &&
+      !event.nativeEvent.isComposing
+    ) {
+      event.preventDefault();
+      submit();
+    }
+  };
+
+  return (
+    <div
+      className={cn('absolute inset-0 flex flex-col bg-editor', {
+        hidden: !active,
+      })}
+    >
+      <div
+        ref={scrollRef}
+        onScroll={(event) => {
+          const element = event.currentTarget;
+          following.current =
+            element.scrollHeight - element.scrollTop - element.clientHeight <
+            40;
+        }}
+        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-3 text-[14px] leading-relaxed"
+      >
+        {conversation.entries.length === 0 ? (
+          <div className="m-auto flex flex-col items-center gap-3">
+            <AgentIcon
+              kind={conversation.kind}
+              className={cn('size-9', {
+                'animate-pulse': status === 'starting',
+              })}
+            />
+            <p className="text-[13px] text-fg-subtle">
+              {status === 'starting'
+                ? `Starting ${AGENT_LABELS[conversation.kind]}…`
+                : `Ask ${AGENT_LABELS[conversation.kind]} anything about this project.`}
+            </p>
+          </div>
+        ) : null}
+
+        {conversation.entries.map((entry) => (
+          <TranscriptRow
+            key={entry.id}
+            entry={entry}
+            task={
+              entry.kind === 'action'
+                ? (conversation.tasks[entry.id] ?? null)
+                : null
+            }
+            approval={
+              entry.kind === 'action'
+                ? (approvals.find((open) => open.action.id === entry.id) ??
+                  null)
+                : null
+            }
+            onRespond={respond}
+            onRewind={
+              entry.kind === 'user' && entry.messageId && status === 'idle'
+                ? (restore) => {
+                    const messageId = entry.messageId as string;
+                    void rewind(messageId, restore).then((message) => {
+                      // The message comes back to the box, as in the
+                      // terminal: a rewind is nearly always followed by
+                      // asking the same thing another way.
+                      if (!message) return;
+                      edit(message.text);
+                      setAttachments(message.attachments ?? []);
+                      inputRef.current?.focus();
+                    });
+                  }
+                : undefined
+            }
+            onOpenFile={(path, line) =>
+              openFile(
+                resolvePath(root, path),
+                undefined,
+                // Nothing selected, only the line brought into view: unlike
+                // a search hit, a reference names a place, not a piece of
+                // text to type over.
+                line ? { line, column: 1, length: 0 } : undefined
+              )
+            }
+          />
+        ))}
+
+        {working ? (
+          <WorkingRow
+            kind={conversation.kind}
+            waiting={approvals.length > 0}
+            writing={conversation.entries.at(-1)?.kind === 'assistant'}
+            running={
+              // A call that has started and not come back, other than one
+              // waiting on the person — that one says so itself.
+              conversation.entries.some(
+                (entry) =>
+                  entry.kind === 'action' &&
+                  entry.result === null &&
+                  !approvals.some((open) => open.action.id === entry.id)
+              )
+            }
+          />
+        ) : null}
+      </div>
+
+      {background.length > 0 ? (
+        // Work no card on screen started — nothing else would show it is
+        // happening. Gone once it stops; the transcript gets a line then.
+        <div className="flex shrink-0 flex-col gap-0.5 border-t border-pane-border px-3 py-1.5 text-[12px] text-fg-muted">
+          {background.map((task) => (
+            <div key={task.id} className="flex min-w-0 items-center gap-2">
+              <LoaderCircle className="size-3 shrink-0 animate-spin" />
+              <span className="shrink-0 text-fg">
+                {task.description || 'Background work'}
+              </span>
+              {task.activity ? (
+                <span className="min-w-0 truncate text-fg-subtle">
+                  {task.activity}
+                </span>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="shrink-0 border-t border-pane-border p-2">
+        <div
+          // Dropping a file anywhere else in the window would navigate the
+          // page to it, so the composer claims every drag that carries
+          // files — from the desktop, or a row from the explorer — and only
+          // the composer.
+          onDragOver={(event) => {
+            const types = event.dataTransfer.types;
+            if (!types.includes('Files') && !types.includes(PROJECT_ENTRY_TYPE))
+              return;
+            event.preventDefault();
+            setDragging(true);
+          }}
+          onDragLeave={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node))
+              setDragging(false);
+          }}
+          onDrop={onDrop}
+          className={cn(
+            'relative flex flex-col gap-2 rounded-lg border border-pane-border bg-input px-2 py-1.5 focus-within:border-project/50',
+            {
+              'border-dashed border-project/70': dragging,
+              'border-project/70 focus-within:border-project': shell,
+            }
+          )}
+        >
+          {attachments.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+              {attachments.map((attachment, index) => (
+                <AttachmentChip
+                  key={
+                    attachment.kind === 'path'
+                      ? attachment.path
+                      : `${index}:${attachment.name}`
+                  }
+                  attachment={attachment}
+                  onRemove={() =>
+                    setAttachments((current) =>
+                      current.filter((_, at) => at !== index)
+                    )
+                  }
+                />
+              ))}
+            </div>
+          ) : null}
+          {refusal ? (
+            <p className="text-[11px] text-fg-danger">{refusal}</p>
+          ) : null}
+          {shell ? (
+            <p className="text-[11px] text-project">
+              Runs in your shell, in the project. The agent sees what it prints,
+              the next time you ask it something.
+            </p>
+          ) : null}
+          {commands.length > 0 ? (
+            <CommandMenu
+              commands={commands}
+              selected={menuAt}
+              onHover={setMenuIndex}
+              onPick={(command) => pickCommand(command.name)}
+            />
+          ) : mentions.length > 0 ? (
+            <MentionMenu
+              files={mentions}
+              selected={menuAt}
+              attached={
+                new Set(
+                  attachments.flatMap((attachment) =>
+                    attachment.kind === 'path' ? [attachment.path] : []
+                  )
+                )
+              }
+              onHover={setMenuIndex}
+              onPick={pickMention}
+            />
+          ) : null}
+          <textarea
+            ref={inputRef}
+            value={draft}
+            onChange={(event) =>
+              edit(event.target.value, event.target.selectionStart)
+            }
+            onSelect={(event) => setCaret(event.currentTarget.selectionStart)}
+            // A tab restored asleep starts its agent here, as soon as it is
+            // about to be used, so the commands and models are ready by the
+            // time the message is.
+            onFocus={() => {
+              if (status === 'asleep') void wakeConversation(conversationId);
+            }}
+            onKeyDown={onKeyDown}
+            onPaste={(event) => {
+              // Only a paste that carries images is taken over; text pastes
+              // as text, which is nearly every paste.
+              const images = [...event.clipboardData.files].filter((file) =>
+                file.type.startsWith('image/')
+              );
+              if (images.length === 0) return;
+              event.preventDefault();
+              void takeImages(images);
+            }}
+            disabled={ended}
+            rows={Math.min(8, Math.max(1, draft.split('\n').length))}
+            placeholder={
+              ended
+                ? 'This conversation has ended.'
+                : conversation.commands.length > 0
+                  ? 'Message — / for commands, @ for files, ! to run a command'
+                  : 'Message — @ for files, ! to run a command'
+            }
+            className={cn(
+              'min-w-0 flex-1 resize-none bg-transparent text-[14px] text-fg outline-none placeholder:text-fg-subtle',
+              { 'font-mono text-[13px]': shell }
+            )}
+          />
+          <div className="flex items-center justify-between gap-2">
+            <FavoriteButton
+              kind={conversation.kind}
+              session={conversation.session}
+              favoriteName={favoriteName}
+              suggestion={
+                firstMessage?.kind === 'user'
+                  ? firstMessage.text.replace(/\s+/g, ' ').slice(0, 60)
+                  : null
+              }
+            />
+            <div className="ml-auto flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="xs"
+                disabled={ended}
+                onClick={() => setPicking((open) => !open)}
+                className="text-fg-subtle hover:text-fg"
+              >
+                <Plus className="size-3.5" />
+                Add
+              </Button>
+              {picking ? (
+                <AttachPicker
+                  attached={
+                    new Set(
+                      attachments.flatMap((attachment) =>
+                        attachment.kind === 'path' ? [attachment.path] : []
+                      )
+                    )
+                  }
+                  onPick={(file) => {
+                    attach([
+                      { kind: 'path', path: file.path, isDir: file.isDir },
+                    ]);
+                    setPicking(false);
+                  }}
+                  onClose={() => setPicking(false)}
+                />
+              ) : null}
+              {working ? (
+                <button
+                  aria-label="Stop"
+                  onClick={interrupt}
+                  className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md bg-button text-button-fg transition-colors hover:bg-button-hover"
+                >
+                  <Square className="size-3" />
+                </button>
+              ) : (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    {/* The button is the trigger itself, so the tooltip only
+                    opens while it is enabled — a disabled button receives
+                    no pointer events. With an empty draft the shortcut goes
+                    unannounced, though the "Send" label still says what the
+                    button does. */}
+                    <Button onClick={submit} disabled={!sendable} size={'xs'}>
+                      <ArrowUp className="size-3.5" />
+                      Send
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" shortcut={['shift', 'enter']}>
+                    Send
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex gap-1 pt-1 text-[11px] text-fg-subtle items-center">
+          <div className="flex items-center border rounded-md">
+            <div className="flex items-center gap-2 pl-2 py-1">
+              <AgentIcon kind={conversation.kind} className="size-3" />
+              <span className="text-xxs font-semibold">
+                {AGENT_LABELS[conversation.kind]}
+              </span>
+              {conversation.version && (
+                <span className="bg-project/30 text-project rounded-full text-xxs font-semibold px-1.5">
+                  {conversation.version}
+                </span>
+              )}
+            </div>
+            {conversation.models.length > 0 && (
+              <>
+                <div className="h-[stretch] bg-border w-[1px] mx-1.5 shrink-0" />
+                <ChoicePicker
+                  icon={<Brain className="size-4" />}
+                  choices={conversation.models}
+                  selected={conversation.chosenModel}
+                  fallback={conversation.model}
+                  placeholder="Model"
+                  disabled={ended}
+                  onChoose={chooseModel}
+                />
+              </>
+            )}
+            {conversation.modes.length > 0 && (
+              <>
+                <div className="h-[stretch] bg-border w-[1px] mx-1.5 shrink-0" />
+                {/* Unknown until the first turn: the agent's own settings
+                    pick its starting mode, and it says which only once it
+                    is spoken to. */}
+                <ChoicePicker
+                  icon={<ShieldCheck className="size-4" />}
+                  choices={conversation.modes}
+                  selected={conversation.mode}
+                  fallback={conversation.mode}
+                  placeholder="Permissions"
+                  disabled={ended}
+                  onChoose={chooseMode}
+                />
+              </>
+            )}
+          </div>
+          {conversation.context ? (
+            <span
+              title={`${conversation.context.used.toLocaleString()} of ${conversation.context.limit.toLocaleString()} tokens in the context window. ${AGENT_LABELS[conversation.kind]} compacts the conversation to make room as it fills.`}
+              className={cn('rounded-md border px-1.5 py-1', {
+                'text-fg-danger':
+                  conversation.context.percent >= CONTEXT_WARN_PERCENT,
+              })}
+            >
+              Context {conversation.context.percent}%
+            </span>
+          ) : null}
+          {conversation.costUsd > 0 ? (
+            <span className="border px-1.5 py-1 rounded-md">
+              ${conversation.costUsd.toFixed(2)}
+            </span>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -63,6 +63,18 @@ handler — a `WebContents`, which can be asked whether it is still alive and
 can say when it goes — rather than inventing a window id for the renderer to
 carry around.
 
+### A question main asks a window
+
+Once, so far: an agent asking what the editors show (ADR-0047). The editor's
+state lives in the renderer, so main sends an event carrying a `requestId`
+— `agent:workbench-request` — and the window answers on an ordinary invoke,
+`agent:workbench`, with the same id. Main keeps the question open with a
+timeout, resolves it only from the `WebContents` it asked, and treats the
+answer as input like any other payload from the renderer. Ask rather than
+push when the answer changes far more often than it is wanted: a selection
+moves with every keystroke and an agent reads it a few times a
+conversation.
+
 ## Rules worth not relearning
 
 **Everything crossing the boundary is structured-cloned.** Plain data only —

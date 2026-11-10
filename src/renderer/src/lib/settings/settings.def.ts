@@ -21,6 +21,7 @@ export type SettingsSection =
   | 'user.appearance'
   | 'user.editor'
   | 'user.git'
+  | 'user.agents'
   | 'user.shortcuts'
   | 'user.feedback'
   | 'user.about';

@@ -14,7 +14,7 @@ import { EditorView } from '@codemirror/view';
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { tags as t } from '@lezer/highlight';
 import type { Extension } from '@codemirror/state';
-import type { Theme } from '~/lib/theme';
+import { SYNTAX_TAGS, type Theme } from '~/lib/theme';
 import type { TextPreferences } from '~/lib/config';
 
 /**
@@ -87,68 +87,11 @@ export function codeMirrorTheme(
   );
 
   const highlight = HighlightStyle.define([
-    {
-      tag: [t.comment, t.lineComment, t.blockComment, t.docComment],
-      color: syntax.comment,
-      fontStyle: 'italic',
-    },
-    {
-      tag: [
-        t.keyword,
-        t.modifier,
-        t.controlKeyword,
-        t.operatorKeyword,
-        t.definitionKeyword,
-        t.moduleKeyword,
-      ],
-      color: syntax.keyword,
-    },
-    {
-      tag: [
-        t.operator,
-        t.compareOperator,
-        t.logicOperator,
-        t.arithmeticOperator,
-      ],
-      color: syntax.keyword,
-    },
-    {
-      tag: [t.string, t.special(t.string), t.regexp, t.character],
-      color: syntax.string,
-    },
-    {
-      tag: [t.number, t.integer, t.float, t.bool, t.null, t.atom],
-      color: syntax.number,
-    },
-    {
-      tag: [
-        t.function(t.variableName),
-        t.function(t.propertyName),
-        t.macroName,
-      ],
-      color: syntax.function,
-    },
-    {
-      tag: [t.variableName, t.propertyName, t.attributeValue],
-      color: syntax.variable,
-    },
-    {
-      tag: [t.className, t.typeName, t.namespace, t.standard(t.variableName)],
-      color: syntax.class,
-    },
-    { tag: [t.tagName, t.angleBracket], color: syntax.tag },
-    { tag: [t.attributeName], color: syntax.keyword },
-    {
-      tag: [
-        t.punctuation,
-        t.separator,
-        t.bracket,
-        t.paren,
-        t.brace,
-        t.squareBracket,
-      ],
-      color: syntax.punctuation,
-    },
+    ...SYNTAX_TAGS.map(({ group, tags, italic }) => ({
+      tag: tags,
+      color: syntax[group],
+      ...(italic ? { fontStyle: 'italic' } : {}),
+    })),
     { tag: [t.invalid], color: colors.fgDanger },
     {
       tag: [t.link, t.url],

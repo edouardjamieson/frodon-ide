@@ -14,15 +14,23 @@ function lastSeparator(path: string): number {
  * the watcher and already filtered — `node_modules` and `.git` were excluded
  * as it was built, so the list is the one worth searching rather than one that
  * has to be narrowed again. Run once per tree, not once per keystroke.
+ *
+ * `folders` lists directories too, for pickers that can point at one — the
+ * composer's, which attaches a folder as readily as a file. Go-to-file
+ * leaves them out: a folder is not something to open in an editor.
  */
-export function collectFiles(files: File[], root: string): PickerFile[] {
+export function collectFiles(
+  files: File[],
+  root: string,
+  folders = false
+): PickerFile[] {
   const collected: PickerFile[] = [];
   // +1 for the separator the root does not carry.
   const cut = root.length + 1;
 
   const walk = (nodes: File[]) => {
     for (const node of nodes) {
-      if (node.isDir) {
+      if (node.isDir && !folders) {
         walk(node.children ?? []);
         continue;
       }
@@ -38,7 +46,9 @@ export function collectFiles(files: File[], root: string): PickerFile[] {
         dir: separator === -1 ? '' : relative.slice(0, separator),
         relative,
         lower: relative.toLowerCase(),
+        isDir: node.isDir,
       });
+      if (node.isDir) walk(node.children ?? []);
     }
   };
 

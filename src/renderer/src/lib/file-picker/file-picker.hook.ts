@@ -37,6 +37,14 @@ const usePickerFiles = () => {
   return useMemo(() => collectFiles(files, root), [files, root]);
 };
 
+/** The same, with the project's folders listed among the files. */
+export const useProjectEntries = () => {
+  const files = useProjectStore((state) => state.files);
+  const root = useProjectStore((state) => state.root);
+
+  return useMemo(() => collectFiles(files, root, true), [files, root]);
+};
+
 /**
  * The picker: what it is showing, and the two things it can do.
  *

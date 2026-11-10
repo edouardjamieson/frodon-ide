@@ -569,7 +569,10 @@ arrives.
 1. Start the message with `!` — `!pnpm test`. The box turns the project's
    color and says the command runs in your shell.
 2. Shift+Enter runs it. It appears as a command card with its output, and
-   nothing is sent to the agent yet.
+   nothing is sent to the agent yet — so the tile stays idle: the card's
+   event is marked `byPerson`, and the rule that wakes an idle conversation
+   when an action arrives (a turn Claude began by itself) skips it. Without
+   that the tile showed a stop button for a turn nobody would ever end.
 3. The next message you send is read with that output in front of the agent
    — "why did that fail?" needs nothing else.
 

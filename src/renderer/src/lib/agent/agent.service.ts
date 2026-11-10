@@ -37,13 +37,18 @@ function step(conversation: Conversation, event: AgentEvent): Conversation {
  * read the result. Without this, that turn streams with a send button where
  * the stop button should be. Only from `idle`, so a conversation still
  * `starting` — replaying its history — is left alone.
+ *
+ * Not for a `!` command's card. It arrives on an idle conversation too, but
+ * the agent is not asked anything, so no turn ends to put it back to idle,
+ * and the tile would wait on a reply that is never coming.
  */
 function awake(
   next: Conversation,
   before: Conversation,
   event: AgentEvent
 ): Conversation {
-  const begins = event.type === 'text' || event.type === 'action';
+  const begins =
+    event.type === 'text' || (event.type === 'action' && !event.byPerson);
   return begins && before.status === 'idle' && next.status === 'idle'
     ? { ...next, status: 'working' }
     : next;

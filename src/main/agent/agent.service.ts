@@ -341,7 +341,11 @@ export async function runShellCommand(
   const line = command.trim();
 
   const actionId = randomUUID();
-  emit(conversation, { type: 'action', action: shellAction(actionId, line) });
+  emit(conversation, {
+    type: 'action',
+    action: shellAction(actionId, line),
+    byPerson: true,
+  });
   const { code, output } = await runShell(
     line,
     conversation.cwd,

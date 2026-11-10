@@ -216,8 +216,16 @@ export type AgentEvent =
    * deltas, and a message is the concatenation of every delta sharing its id.
    */
   | { type: 'text'; messageId: string; text: string }
-  /** The agent called a tool. Its result follows as `action-result`. */
-  | { type: 'action'; action: AgentAction }
+  /**
+   * The agent called a tool. Its result follows as `action-result`.
+   *
+   * `byPerson` marks the one action that is not the agent's: a `!` command
+   * the person ran from the composer. It is drawn like any command, but it
+   * starts no turn — nothing will end one — so it must not mark the
+   * conversation as working the way an action the agent began by itself
+   * does.
+   */
+  | { type: 'action'; action: AgentAction; byPerson?: true }
   | {
       type: 'action-result';
       actionId: string;

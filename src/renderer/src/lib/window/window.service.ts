@@ -6,10 +6,11 @@
  * to everyone else's coordinates when one window is inserted or removed) is
  * written once, in functions that can be reasoned about without a store.
  */
-import { MAX_COLS, MAX_ROWS } from './window.constant';
+import { MAX_COLS, MAX_ROWS, WINDOW_BREAKPOINTS } from './window.constant';
 import type {
   Direction,
   DropZone,
+  WindowBreakpoint,
   WindowState,
   WindowType,
 } from './window.def';
@@ -369,4 +370,23 @@ export function firstFreeSlot(
 /** `/Users/eddy/dev/frodon/src/main.ts` -> `main.ts`. */
 export function fileName(path: string): string {
   return path.split('/').pop() ?? path;
+}
+
+const BREAKPOINT_ORDER = Object.keys(WINDOW_BREAKPOINTS) as WindowBreakpoint[];
+
+/** The largest breakpoint a length in pixels reaches. */
+export function breakpointOf(pixels: number): WindowBreakpoint {
+  let found: WindowBreakpoint = 'xs';
+  for (const name of BREAKPOINT_ORDER) {
+    if (pixels >= WINDOW_BREAKPOINTS[name]) found = name;
+  }
+  return found;
+}
+
+/** Whether `size` is `min` or bigger — the `min-width` of a media query. */
+export function atLeast(
+  size: WindowBreakpoint,
+  min: WindowBreakpoint
+): boolean {
+  return BREAKPOINT_ORDER.indexOf(size) >= BREAKPOINT_ORDER.indexOf(min);
 }

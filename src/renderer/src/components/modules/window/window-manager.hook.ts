@@ -15,6 +15,7 @@ import {
 import {
   moveWindow,
   useWindowDragStore,
+  useWindowSizeStore,
   useWindowStore,
   type DropZone,
 } from '~/lib/window';
@@ -33,6 +34,10 @@ import {
  * renders the manager again, which is the layout effect. A slot can move
  * without changing size (two equal windows trading places), so the observer
  * alone would miss that.
+ *
+ * It is also where each window's breakpoints come from, because this is the
+ * one place that already has every tile's rectangle in hand, on every resize,
+ * before paint. A second observer per tile would measure the same boxes again.
  */
 export function useTileLayout() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -43,6 +48,7 @@ export function useTileLayout() {
     const container = containerRef.current;
     if (!container) return;
     const origin = container.getBoundingClientRect();
+    const { measure } = useWindowSizeStore.getState();
 
     for (const [id, tile] of tiles.current) {
       const slot = slots.current.get(id);
@@ -60,6 +66,7 @@ export function useTileLayout() {
       tile.style.top = `${rect.top - origin.top}px`;
       tile.style.width = `${rect.width}px`;
       tile.style.height = `${rect.height}px`;
+      measure(id, rect.width, rect.height);
     }
   }, []);
 
@@ -136,11 +143,12 @@ export function useTileLayout() {
     return ref;
   }, []);
 
-  /** Drops the callbacks of windows that have closed. */
+  /** Drops the callbacks and sizes of windows that have closed. */
   const prune = useCallback((ids: Set<string>) => {
     for (const refs of [slotRefs.current, tileRefs.current]) {
       for (const id of refs.keys()) if (!ids.has(id)) refs.delete(id);
     }
+    useWindowSizeStore.getState().prune(ids);
   }, []);
 
   return { containerRef, slots, slotRef, tileRef, prune };

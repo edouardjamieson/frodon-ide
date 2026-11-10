@@ -8,7 +8,8 @@
 import { useMemo } from 'react';
 import { useWindowStore } from './window.store';
 import { useWindowDragStore } from './window-drag.store';
-import { canSplit, rowsOf } from './window.service';
+import { useWindowSizeStore } from './window-size.store';
+import { atLeast, canSplit, rowsOf } from './window.service';
 import type {
   BoardWindow,
   BrowserWindow,
@@ -16,6 +17,7 @@ import type {
   GitTab,
   GitWindow,
   TerminalWindow,
+  WindowBreakpoint,
   WindowState,
   WindowType,
 } from './window.def';
@@ -78,6 +80,43 @@ export const useWindow = (window: WindowState) => {
     splitRight: () => split(window.id, 'right'),
     splitDown: () => split(window.id, 'down'),
     setType: (type: WindowType) => setType(window.id, type),
+  };
+};
+
+/**
+ * How big a window is, for a module that wants to change its layout with it —
+ * a media query, scoped to one tile.
+ *
+ * ```tsx
+ * const { width, atLeast } = useWindowBreakpoints(window.id);
+ * return atLeast('md') ? <Sidebar /> : null;
+ * ```
+ *
+ * A media query on the page would be the wrong question: a tile is a third of
+ * the screen in one arrangement and all of it in the next, and the OS window
+ * does not change size when a splitter is dragged. The size is the tile's,
+ * header included, measured by `useTileLayout` as it places the tile.
+ *
+ * Re-renders only when a breakpoint is crossed — see `window-size.store.ts`.
+ * Until the first measurement, which lands in a layout effect before the
+ * tile is ever painted, a window counts as `xl`: anything a module hides when
+ * small stays put rather than blinking out and back.
+ */
+export const useWindowBreakpoints = (windowId: string) => {
+  const width = useWindowSizeStore(
+    (state) => state.sizes[windowId]?.width ?? 'xl'
+  );
+  const height = useWindowSizeStore(
+    (state) => state.sizes[windowId]?.height ?? 'xl'
+  );
+
+  return {
+    width,
+    height,
+    /** Whether the window is at least `min` wide. */
+    atLeast: (min: WindowBreakpoint) => atLeast(width, min),
+    /** Whether the window is at least `min` tall. */
+    atLeastTall: (min: WindowBreakpoint) => atLeast(height, min),
   };
 };
 

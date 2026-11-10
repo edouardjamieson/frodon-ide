@@ -345,3 +345,12 @@ export interface WindowStore {
    */
   closeActiveTab: (windowId: string) => void;
 }
+
+/** A step in `WINDOW_BREAKPOINTS`. */
+export type WindowBreakpoint = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+
+/** How big a window is, as breakpoints rather than pixels — see `useWindowBreakpoints`. */
+export interface WindowSize {
+  width: WindowBreakpoint;
+  height: WindowBreakpoint;
+}

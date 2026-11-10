@@ -14,3 +14,22 @@ export const MAX_ROWS = 3;
  * window is a sliver that can neither be read nor grabbed again.
  */
 export const MIN_PANE_SIZE = '15%';
+
+/**
+ * The widths and heights at which a window changes shape, smallest first, as
+ * the lowest size in pixels that still counts as that breakpoint.
+ *
+ * Sized for tiles, not screens. A third of a laptop's workbench is around 400
+ * pixels wide and a third of its height around 250, so the bottom two steps
+ * are where a crowded grid lives and the top two are a window with the
+ * workbench to itself. One table for both axes, so `sm` means the same number
+ * whichever way it is asked — at the cost of the height side rarely reaching
+ * `xl` on anything short of a portrait monitor.
+ */
+export const WINDOW_BREAKPOINTS = {
+  xs: 0,
+  sm: 360,
+  md: 560,
+  lg: 800,
+  xl: 1120,
+} as const satisfies Record<string, number>;

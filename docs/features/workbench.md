@@ -27,6 +27,7 @@ Everything below is about the grid inside one of them.
 | `renderer/src/lib/window/window.store.ts` | every mutation: split, close, open, route, re-key |
 | `renderer/src/lib/window/window.service.ts` | `rowsOf`, `canSplit`, `moveWindow`, `packWindows` — pure functions over the grid |
 | `renderer/src/lib/window/window-drag.store.ts` | the window being dragged and where it would land; never saved |
+| `renderer/src/lib/window/window-size.store.ts` | each window's size, in breakpoints; never saved |
 | `renderer/src/lib/window/window.hook.ts` | narrow selectors, one per thing a component draws |
 | `renderer/src/components/modules/window/` | the frame, and one `window-*.component.tsx` per module |
 | `renderer/src/components/modules/window/window-manager.hook.ts` | placing tiles over their slots, and following a drag |
@@ -103,6 +104,25 @@ differences each module earns:
 | **Browser** | always a new tab — where it goes is the address bar's question |
 | **Board** | focuses the window that already holds it; two tiles on one drawing would share a session anyway |
 | **Git** | focuses the one git window that exists; there is one repository and every tab is a view of it |
+
+### A window knows how big it is, roughly
+
+A module that wants a different layout in a narrow tile asks
+`useWindowBreakpoints(window.id)`, which answers with a breakpoint per axis —
+`xs` to `xl`, from `WINDOW_BREAKPOINTS` — and `atLeast('md')` for the common
+question. It is a media query scoped to one tile, because a media query on the
+page asks about the wrong box: a splitter drag changes a tile's size without
+changing the OS window's.
+
+The sizes come from `useTileLayout`, which already holds every tile's
+rectangle on every resize, before paint. It hands them to `measure`, which
+turns pixels into breakpoints and writes only when one moves — so a component
+asking re-renders a few times across a long splitter drag, not once a frame.
+The size is the whole tile, header included.
+
+Pixels are deliberately not offered. Anything that needs the exact size of
+its own box — the browser's stage, the terminal's grid — keeps its own
+`ResizeObserver`, as both already do.
 
 ### `closeActiveTab` belongs to the store
 
@@ -200,6 +220,9 @@ expensive enough to rebuild by hand that losing it is felt.
 - **Adding a window type is four edits:** a member on `WindowType`, a state
   interface, a case in each of the two switches in `window.component.tsx`, and
   a case in `snapshotOf`. TypeScript points at every one of them.
+- **Layout by tile size goes through `useWindowBreakpoints`,** never a
+  `window.innerWidth` or a page media query. Breakpoints are the one size
+  shared across modules, so `sm` means the same thing in every tile.
 - **A `<webview>` and an xterm both reload when moved in the DOM.** Anything
   that re-parents a tile is a bug in this module, not in theirs. That is why
   the tile layer renders `windows` in store order and never sorts it, and why

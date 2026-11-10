@@ -32,6 +32,7 @@ import {
   wakeConversation,
 } from '~/lib/agent';
 import { PROJECT_ENTRY_TYPE, useProjectStore } from '~/lib/project';
+import { useConfigStore } from '~/lib/config';
 import {
   useFilePickerStore,
   useProjectEntries,
@@ -103,6 +104,9 @@ export default function Agent({
   const root = useProjectStore((state) => state.root);
   const openFile = useOpenFile();
   const [draft, setDraft] = useState('');
+  const enterSends = useConfigStore(
+    (state) => state.user.agentEnterSends ?? false
+  );
   // Local, like the draft: what is attached to a message not yet sent
   // belongs to this composer and to nothing else.
   const [attachments, setAttachments] = useState<AgentAttachment[]>([]);
@@ -184,7 +188,7 @@ export default function Agent({
   /**
    * Puts the command's name in the draft, followed by a space, and leaves
    * the rest of the line to the person — a command that takes arguments
-   * wants them, and one that does not is sent with the next Shift+Enter.
+   * wants them, and one that does not is sent with the next send key.
    * Nothing is sent on a pick: the message may be meant to say more.
    */
   const pickCommand = (name: string) => edit(`/${name} `);
@@ -284,8 +288,9 @@ export default function Agent({
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    // While a menu is open, the keys a menu uses are the menu's. Shift+Enter
-    // is not among them, so it still sends exactly what was typed.
+    // While a menu is open, the keys a menu uses are the menu's, and a plain
+    // Enter is among them whichever key sends — it picks the row. Shift+Enter
+    // is not, so with the default keys it still sends exactly what was typed.
     if (menuSize > 0 && !event.nativeEvent.isComposing) {
       const move = (delta: number) =>
         setMenuIndex((menuAt + delta + menuSize) % menuSize);
@@ -319,11 +324,12 @@ export default function Agent({
     // Shift+Enter sends and Enter breaks the line — the reverse of the chat
     // convention, on purpose: a message to an agent is a paragraph or a list
     // of steps more often than a line, and an Enter that sends cuts it off
-    // halfway. Composition is excluded so confirming a word in an IME does
-    // not send.
+    // halfway. `agentEnterSends` turns it back round for anyone whose hands
+    // know the convention better. Composition is excluded so confirming a
+    // word in an IME does not send.
     if (
       event.key === 'Enter' &&
-      event.shiftKey &&
+      event.shiftKey !== enterSends &&
       !event.nativeEvent.isComposing
     ) {
       event.preventDefault();
@@ -622,7 +628,10 @@ export default function Agent({
                       Send
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent side="top" shortcut={['shift', 'enter']}>
+                  <TooltipContent
+                    side="top"
+                    shortcut={enterSends ? ['enter'] : ['shift', 'enter']}
+                  >
                     Send
                   </TooltipContent>
                 </Tooltip>

@@ -549,14 +549,18 @@ arrives.
 
 1. Type, and press Shift+Enter — the send button's tooltip says so. Enter
    breaks the line: a message to an agent is a list of steps more often than
-   a line, and an Enter that sends cuts it off halfway.
+   a line, and an Enter that sends cuts it off halfway. **Send with Enter**,
+   at the top of Settings → Agents, swaps the two for every agent at once —
+   the composer is the same tile whichever agent is behind it, so it is one
+   user setting (`agentEnterSends`) beside `agents`, not a field in each.
 2. The reply streams in. Tool calls appear as cards: a diff for a change, the
    command line for a command, a one-line receipt for a read or a search.
 3. A card's file is a link: clicking it opens the file through `openFile`.
 4. Type `/` to see the commands and skills the agent can run. Typing
    narrows the list; the arrows move through it; Tab or Enter puts the name
    in the box with a space after it, ready for arguments; Escape closes it
-   until the text changes. Nothing is sent until Shift+Enter.
+   until the text changes. Nothing is sent until the send key. A plain
+   Enter picks from the menu whichever key sends.
 5. While a turn runs, a line at the foot of the transcript says so: the
    agent's logo, pulsing, with **Thinking…**, **Writing…**, **Working…**
    while one of its calls runs, or "waiting for you" on an approval — and
@@ -568,7 +572,7 @@ arrives.
 
 1. Start the message with `!` — `!pnpm test`. The box turns the project's
    color and says the command runs in your shell.
-2. Shift+Enter runs it. It appears as a command card with its output, and
+2. The send key runs it. It appears as a command card with its output, and
    nothing is sent to the agent yet — so the tile stays idle: the card's
    event is marked `byPerson`, and the rule that wakes an idle conversation
    when an action arrives (a turn Claude began by itself) skips it. Without

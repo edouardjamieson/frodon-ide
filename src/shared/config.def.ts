@@ -234,6 +234,16 @@ export interface UserConfig {
    * other.
    */
   agents?: Partial<Record<AgentKind, AgentSettings>>;
+  /**
+   * Enter sends a message to an agent and Shift+Enter breaks the line,
+   * rather than the other way round. Absent: off — Shift+Enter sends.
+   *
+   * Beside `agents` rather than in it, because it is about the composer and
+   * not about any one agent: the tile is the same for all of them, and a
+   * key that sent in one conversation and broke the line in the next would
+   * be a key nobody could trust.
+   */
+  agentEnterSends?: boolean;
 }
 
 /** One agent's settings. Every field optional; absent means derived. */
@@ -543,6 +553,9 @@ export function sanitizeUserConfig(value: unknown): UserConfig {
 
   const agents = sanitizeAgents(raw.agents);
   if (agents) config.agents = agents;
+
+  if (typeof raw.agentEnterSends === 'boolean')
+    config.agentEnterSends = raw.agentEnterSends;
 
   return config;
 }

@@ -22,10 +22,11 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Switch,
 } from '~/components/ui';
 import { CONFIG_SAVE_MS, useUserConfig } from '~/lib/config';
 import { AgentIcon } from '~/components/modules/agent';
-import { Field } from './settings-field.component';
+import { Field, FieldGroup } from './settings-field.component';
 
 /**
  * How long a path has to stop changing before the agent is looked for —
@@ -57,9 +58,46 @@ const AGENT_DECIDES = '__agent__';
 export default function SettingsAgents() {
   return (
     <div className="flex flex-col gap-7">
+      <FieldGroup title="Conversations">
+        <EnterSends />
+      </FieldGroup>
       {(Object.keys(AGENT_LABELS) as AgentKind[]).map((kind) => (
         <AgentGroup key={kind} kind={kind} />
       ))}
+    </div>
+  );
+}
+
+/**
+ * Which of Enter and Shift+Enter sends. One switch for every agent, above
+ * the panels, because the composer is the same whichever agent is behind it.
+ */
+function EnterSends() {
+  const { config, update } = useUserConfig();
+
+  return (
+    <div className="flex items-start justify-between gap-6">
+      <div className="flex flex-col gap-1">
+        <label
+          htmlFor="settings-agent-enter"
+          className="text-xs font-medium text-fg select-none"
+        >
+          Send with Enter
+        </label>
+        <p className="text-[11px] text-fg-subtle">
+          Enter sends the message and Shift+Enter starts a new line. Off, it is
+          the other way round, so a list of steps is not sent halfway.
+        </p>
+      </div>
+      <Switch
+        id="settings-agent-enter"
+        checked={config.agentEnterSends ?? false}
+        // Off is the absent value, as for word wrap: switching it off removes
+        // the key rather than writing `false`.
+        onCheckedChange={(checked) =>
+          update({ agentEnterSends: checked ? true : undefined })
+        }
+      />
     </div>
   );
 }

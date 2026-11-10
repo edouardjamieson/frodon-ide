@@ -146,7 +146,29 @@ export function useTerminal({
     const observer = new ResizeObserver(fitIfVisible);
     observer.observe(host);
 
+    // Text dropped on the terminal is typed into it, as Terminal.app does —
+    // which is how an item dragged out of the companion's pocket, or a
+    // selection dragged out of an editor, gets to a shell. Through `paste`
+    // rather than `write`, so a shell in bracketed-paste mode sees a paste
+    // and does not run a multi-line drop line by line as it arrives. Files
+    // from Finder carry no `text/plain` and are left alone.
+    const onDragOver = (event: DragEvent) => {
+      if (!event.dataTransfer?.types.includes('text/plain')) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'copy';
+    };
+    const onDrop = (event: DragEvent) => {
+      const text = event.dataTransfer?.getData('text/plain');
+      if (!text) return;
+      event.preventDefault();
+      term.paste(text);
+    };
+    host.addEventListener('dragover', onDragOver);
+    host.addEventListener('drop', onDrop);
+
     return () => {
+      host.removeEventListener('dragover', onDragOver);
+      host.removeEventListener('drop', onDrop);
       observer.disconnect();
       offData();
       offExit();

@@ -3,6 +3,7 @@
 A pixel-art companion in the bottom-right corner of the sidebar panel —
 eight cats (one of them a dog), an alien, a turtle, a fish and a robot. It blinks,
 moves, falls asleep when you leave, and is pleased when you click it.
+Right-click it and it keeps two things for you: a focus timer and a pocket.
 
 ## Goal
 
@@ -17,14 +18,20 @@ without redrawing anything.
 
 | Path | What it holds |
 | --- | --- |
-| `lib/companion/companion.store.ts` | the mood — renderer-only presentation state |
+| `lib/companion/companion.store.ts` | the mood, and whether the pocket is open — renderer-only presentation state |
 | `lib/companion/companion.hook.ts` | the idle clock, and `pet` |
 | `lib/companion/companion.constant.ts` | how long until sleep, how long a purr lasts |
 | `components/modules/companion/companion-cats.constant.ts` | the eight cats, their shared face and tail |
 | `components/modules/companion/companion-creatures.constant.ts` | the four who are not cats |
 | `components/modules/companion/companion.constant.ts` | all twelve by name, each tone's role, the box they fit in |
 | `components/modules/companion/companion.service.ts` | grids and pixels to one SVG path per tone, built once at load |
-| `components/modules/companion/companion.component.tsx` | the companion, its hearts and its snores; `CompanionFigure` for the picker |
+| `components/modules/companion/companion.component.tsx` | the companion, its hearts and its snores, the drop that fills the pocket; `CompanionFigure` for the picker |
+| `components/modules/companion/companion-menu.component.tsx` | the right-click menu: focus sessions and the pocket |
+| `components/modules/companion/companion-pocket.component.tsx` | the pocket's popover — copy a row, drag it out, remove it |
+| `components/modules/companion/companion-focus.component.tsx` | the minutes left over its head |
+| `lib/focus/` | the focus session — its store, the clock that ends it, the minutes left |
+| `lib/pocket/` | what the pocket holds, and how much |
+| `components/ui/popover.tsx` | the popover the pocket opens in |
 | `components/modules/settings/settings-companion.component.tsx` | the picker and the switch that hides it |
 | `shared/config.def.ts` | `COMPANIONS`, and the `companion` and `hideCompanion` fields |
 | `components/modules/workbench/sidebar/sidebar.component.tsx` | the corner layer and its fade |
@@ -109,6 +116,69 @@ An interval every 5s puts it to sleep after three minutes with no input.
 These listeners observe and bind nothing, so they are not the kind of
 `keydown` listener the keybinding registry rules out.
 
+### What it is for
+
+Two things, both chosen because they are worth having and safe to lose. The
+companion can be switched off, so nothing it offers may be the only way to
+do something — the pocket is a shortcut past the clipboard, the timer a
+convenience over the one on your phone. Both are mounted with the companion
+and go with it: hide it mid-session and the session is not ended by anyone.
+
+Clicking stays petting. A click on a cat is for the cat, and the features are
+on the right-click, where they have to be asked for on purpose.
+
+### The pocket
+
+A short shelf for things you need again in a minute: a command, a snippet, a
+path. Up to eight, newest first, each up to 100 000 characters. Putting in
+something already there moves it to the top instead of keeping it twice.
+
+**In:** drop text on the companion — a selection dragged out of an editor
+is `text/plain`, which is all it takes. While something is held over it the
+companion makes its happy face, so a 54-pixel drop target says it is the one
+that will take it. A terminal's selection cannot be dragged — xterm draws it
+on a canvas — so the menu's **Pocket what you copied** reads the clipboard
+instead: copy in the terminal, then pocket it.
+
+**Out:** a badge with the count sits on the companion's shoulder while the
+pocket holds anything; it, or **Open pocket** in the menu, opens a popover
+above the corner. Click a row and it is on the clipboard; drag it and it
+lands where it is dropped — CodeMirror takes `text/plain` natively, and a
+terminal pastes it. A row stays after either, since the point of setting
+something down is picking it up more than once. A drag out is marked with
+its own type, which the companion refuses, so dragging an item past the cat
+on the way to an editor does not put it back.
+
+The popover does not take focus. The pocket is picked from with the mouse,
+and stealing focus from the editor would make dropping an item back into it
+a second click instead of the first.
+
+**It is per window and gone on reload.** That is the honest size of it: a
+place to set something down for the next few minutes. Carrying a snippet
+between two windows would make it a fact both share, which is main's to
+hold.
+
+### The focus timer
+
+**Focus for 25 minutes** or **for 50**, from the menu. Two lengths rather
+than a field to type in: a timer that has to be set up before it starts is
+one nobody starts. While it runs, the minutes left sit over the companion's
+head, and it does not fall asleep — three minutes of reading without
+touching anything is what focusing looks like, not leaving. When time is
+up the label turns to `done` in the project's color and stays until you
+click the companion, because a session that ended while you were looking
+away should still be there when you look back.
+
+One timeout to the end rather than an interval checking on it; the label
+re-renders once a minute, on the session's minute boundaries, in a
+component of its own so the sprite does not.
+
+The menu opening the pocket defers it to the menu's close, as the explorer
+defers its actions: the menu returns focus to its trigger as it goes, and a
+popover opened before that would see focus leave it and shut. The menu also
+ignores pointer-ups for 200ms after it opens — see
+[learned](../learned.md#a-radix-context-menu-near-the-bottom-of-the-window-selects-an-item-on-a-trackpad-tap).
+
 ## User flows
 
 - **Choose one.** `mod+,` → Companion. Cats on one shelf, everybody else on
@@ -119,7 +189,16 @@ These listeners observe and bind nothing, so they are not the kind of
 - **Pet it.** Click it. Happy eyes, fast motion and hearts for 2.4s; clicking
   again restarts that rather than queueing another.
 - **Leave.** Three minutes without touching the app and it falls asleep.
-  Any key, click, scroll or mouse move wakes it.
+  Any key, click, scroll or mouse move wakes it. Not during a focus
+  session.
+- **Focus.** Right-click → Focus for 25 (or 50) minutes. `25m` over its
+  head, counting down; `done` when it is over, until you click it.
+  Right-click again to stop early.
+- **Keep something.** Drag a selection onto it, or copy and right-click →
+  Pocket what you copied. The badge shows how many it holds.
+- **Use it.** Click the badge → click a row to copy it, or drag it into an
+  editor or a terminal. Hover a row for the × that removes it; **Empty**
+  clears the lot.
 
 ## Rules
 
@@ -137,6 +216,12 @@ These listeners observe and bind nothing, so they are not the kind of
   snores shown where they start.
 
 ## Not there yet
+
+- A pocket shared between windows, and one that survives a reload. Both
+  mean main holding it.
+- Anything when a session ends and the window is not in front — a system
+  notification, a bounce of the Dock. Today you see `done` when you look.
+- A break after a session, and lengths other than 25 and 50.
 
 - Reacting to what main already knows: a commit, a push, a command that
   exited non-zero.

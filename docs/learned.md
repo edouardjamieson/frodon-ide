@@ -312,6 +312,24 @@ Packaging will also need `prebuilds/` unpacked from the asar.
 
 ## The libraries
 
+### A Radix context menu near the bottom of the window selects an item on a trackpad tap
+`code` · 2026-11-10 · `components/modules/companion/companion-menu.component.tsx`
+
+Radix menu items select on pointer-up, not on click, so that pressing,
+dragging to an item and releasing works. A context menu opens at the cursor,
+and near the bottom of the window it is pushed up to fit — over the spot the
+cursor is on. A mouse's right-click has a hundred milliseconds or so between
+`contextmenu` and the button coming up, by which time the menu has moved;
+a trackpad tap, or Playwright's `click({ button: 'right' })`, sends the
+mouse-up within a few milliseconds, and it lands as a choice. The symptom is
+a menu that flashes and closes, with whatever item slid under the cursor
+quietly run. It showed up on the companion, which is always in the bottom
+corner; the explorer's rows are mostly high enough never to hit it.
+
+The fix is to ignore pointer-ups for the first 200ms after opening, in the
+content's capture phase. Any context menu that can open near the bottom
+edge wants the same guard.
+
 ### electron-builder's native rebuild leaves a build that shadows node-pty's prebuilds
 `code` · 2026-10-24 · `electron-builder.yml`
 

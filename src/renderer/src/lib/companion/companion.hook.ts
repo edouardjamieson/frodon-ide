@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
+import { useFocusStore } from '~/lib/focus';
 import { IDLE_CHECK_MS, PURR_MS, SLEEP_AFTER_MS } from './companion.constant';
 import { useCompanionStore } from './companion.store';
 
@@ -33,11 +34,14 @@ export const useCompanion = () => {
       if (useCompanionStore.getState().mood === 'asleep') setMood('awake');
     };
 
+    // Never asleep during a focus session: three minutes of reading without
+    // touching anything is what focusing looks like, not leaving.
     const check = setInterval(() => {
       const idle = Date.now() - lastActivity.current;
       if (
         idle >= SLEEP_AFTER_MS &&
-        useCompanionStore.getState().mood === 'awake'
+        useCompanionStore.getState().mood === 'awake' &&
+        useFocusStore.getState().phase !== 'running'
       ) {
         setMood('asleep');
       }

@@ -12,4 +12,7 @@ export type CompanionMood = 'awake' | 'asleep' | 'purring';
 export interface CompanionStore {
   mood: CompanionMood;
   setMood: (mood: CompanionMood) => void;
+  /** Whether the pocket's popover is open over the companion. */
+  pocketOpen: boolean;
+  setPocketOpen: (open: boolean) => void;
 }

@@ -47,7 +47,8 @@ export default function SettingsCompanion() {
             </label>
             <p className="text-[11px] text-fg-subtle">
               It sits in the bottom corner of the sidebar, falls asleep when you
-              leave, and is pleased when you click it.
+              leave, and is pleased when you click it. Right-click it for a
+              focus timer, or drop text on it to keep for later.
             </p>
           </div>
           <Switch

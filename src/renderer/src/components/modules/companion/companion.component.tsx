@@ -1,7 +1,21 @@
-import type { CSSProperties } from 'react';
+import { useState, type CSSProperties, type DragEvent } from 'react';
 import { DEFAULT_COMPANION, type CompanionKind } from '@shared/config.def';
-import { useCompanion, type CompanionMood } from '~/lib/companion';
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+} from '~/components/ui/popover';
+import {
+  useCompanion,
+  useCompanionStore,
+  type CompanionMood,
+} from '~/lib/companion';
 import { useUserConfig } from '~/lib/config';
+import { useFocusClock, useFocusStore } from '~/lib/focus';
+import { POCKET_DRAG_TYPE, usePocketStore } from '~/lib/pocket';
+import CompanionFocus from './companion-focus.component';
+import CompanionMenu from './companion-menu.component';
+import CompanionPocket from './companion-pocket.component';
 import {
   COMPANION_PATHS,
   HEART_HEIGHT,
@@ -17,30 +31,114 @@ import type { CompanionPaths, ToneLayer } from './companion.def';
 
 /**
  * The companion in the corner of the sidebar, whichever one the settings
- * chose.
+ * chose, and the two things it keeps for you: a focus timer and a pocket.
  *
  * Every animation is CSS, keyed off `data-mood`. React renders when the mood
  * changes, which is a few times an hour; the blinking and swaying in between
  * cost it nothing.
+ *
+ * Both features live here and nowhere else, on purpose. The companion can be
+ * turned off, so nothing it offers may be the only way to do something: the
+ * pocket is a shortcut past the clipboard, the timer a convenience over the
+ * one on your phone. Hide the companion and they go with it.
  */
 export default function Companion() {
   const { mood, pet } = useCompanion();
   const { config } = useUserConfig();
   const kind = config.companion ?? DEFAULT_COMPANION;
+  const pocketOpen = useCompanionStore((state) => state.pocketOpen);
+  const setPocketOpen = useCompanionStore((state) => state.setPocketOpen);
+  const count = usePocketStore((state) => state.items.length);
+  const put = usePocketStore((state) => state.put);
+  const focus = useFocusStore((state) => state.phase);
+  const clearFocus = useFocusStore((state) => state.clear);
+  // Only while something is being dragged over it — gone the moment the drag
+  // is, so not state anything else could ask about.
+  const [eager, setEager] = useState(false);
+
+  useFocusClock();
+
+  // Anything with text in it, except an item on its way out of the pocket.
+  const accepts = (event: DragEvent) =>
+    event.dataTransfer.types.includes('text/plain') &&
+    !event.dataTransfer.types.includes(POCKET_DRAG_TYPE);
+
+  // Happy eyes and hearts while it is offered something: the drop target is
+  // a 54-pixel cat, and it should be obvious it is the one that will take it.
+  const shown: CompanionMood = eager ? 'purring' : mood;
 
   return (
-    <button
-      type="button"
-      onClick={pet}
-      data-mood={mood}
-      aria-label={`Pet the ${kind}`}
-      className="relative cursor-pointer pointer-events-auto"
-    >
-      <CompanionFigure kind={kind} mood={mood} />
+    <Popover open={pocketOpen} onOpenChange={setPocketOpen}>
+      <CompanionMenu onOpenPocket={() => setPocketOpen(true)}>
+        <PopoverAnchor asChild>
+          <div
+            className="relative pointer-events-auto"
+            onDragOver={(event) => {
+              if (!accepts(event)) return;
+              event.preventDefault();
+              event.dataTransfer.dropEffect = 'copy';
+              setEager(true);
+            }}
+            onDragLeave={(event) => {
+              // Leaving the button for the badge is still being over it.
+              if (event.currentTarget.contains(event.relatedTarget as Node))
+                return;
+              setEager(false);
+            }}
+            onDrop={(event) => {
+              if (!accepts(event)) return;
+              event.preventDefault();
+              setEager(false);
+              put(event.dataTransfer.getData('text/plain'));
+              pet();
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                // A finished session is put away by noticing it, and
+                // clicking the cat that says `done` is noticing it.
+                if (focus === 'done') clearFocus();
+                pet();
+              }}
+              data-mood={shown}
+              aria-label={`Pet the ${kind}`}
+              className="relative block cursor-pointer"
+            >
+              <CompanionFigure kind={kind} mood={shown} />
 
-      {mood === 'purring' ? <Hearts /> : null}
-      {mood === 'asleep' ? <Snores /> : null}
-    </button>
+              {shown === 'purring' ? <Hearts /> : null}
+              {shown === 'asleep' ? <Snores /> : null}
+            </button>
+
+            <CompanionFocus />
+
+            {count > 0 ? (
+              <button
+                type="button"
+                onClick={() => setPocketOpen(true)}
+                aria-label={`Open the pocket, ${count} kept`}
+                className="absolute -top-2 left-0 flex h-4 min-w-4 cursor-pointer items-center justify-center rounded-full border border-project/40 bg-project/25 px-1 font-mono text-[9px] leading-none text-fg hover:bg-project/40"
+              >
+                {count}
+              </button>
+            ) : null}
+          </div>
+        </PopoverAnchor>
+      </CompanionMenu>
+
+      <PopoverContent
+        side="top"
+        align="end"
+        className="w-64 p-1"
+        // Focus stays where you were working. The pocket is picked from with
+        // the mouse, and taking focus from the editor would make dragging an
+        // item back into it the second click instead of the first.
+        onOpenAutoFocus={(event) => event.preventDefault()}
+      >
+        <CompanionPocket />
+      </PopoverContent>
+    </Popover>
   );
 }
 

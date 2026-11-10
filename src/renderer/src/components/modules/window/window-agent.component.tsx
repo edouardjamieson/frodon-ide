@@ -177,6 +177,7 @@ export function AgentWindowBody({ window: win }: { window: AgentWindow }) {
             key={id}
             conversationId={id}
             active={id === activeConversation}
+            windowId={win.id}
           />
         ))}
       </div>

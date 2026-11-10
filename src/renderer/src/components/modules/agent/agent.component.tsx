@@ -37,7 +37,7 @@ import {
   useProjectEntries,
   type PickerFile,
 } from '~/lib/file-picker';
-import { useOpenFile } from '~/lib/window';
+import { useOpenFile, useWindowBreakpoints } from '~/lib/window';
 import {
   Button,
   Tooltip,
@@ -68,6 +68,7 @@ interface AgentProps {
   conversationId: string;
   /** Whether this conversation is the visible tab in its window. */
   active: boolean;
+  windowId: string;
 }
 
 /**
@@ -78,7 +79,11 @@ interface AgentProps {
  * that is halfway through a refactor in the tab you clicked away from has to
  * keep going.
  */
-export default function Agent({ conversationId, active }: AgentProps) {
+export default function Agent({
+  conversationId,
+  active,
+  windowId,
+}: AgentProps) {
   useConversationLifetime(conversationId);
   const {
     conversation,
@@ -91,6 +96,9 @@ export default function Agent({ conversationId, active }: AgentProps) {
     runCommand,
   } = useConversation(conversationId);
   const favoriteName = useFavoriteName(conversationId);
+
+  const bp = useWindowBreakpoints(windowId);
+  const mdOrHigher = bp.atLeast('md');
 
   const root = useProjectStore((state) => state.root);
   const openFile = useOpenFile();
@@ -668,22 +676,26 @@ export default function Agent({ conversationId, active }: AgentProps) {
               </>
             )}
           </div>
-          {conversation.context ? (
-            <span
-              title={`${conversation.context.used.toLocaleString()} of ${conversation.context.limit.toLocaleString()} tokens in the context window. ${AGENT_LABELS[conversation.kind]} compacts the conversation to make room as it fills.`}
-              className={cn('rounded-md border px-1.5 py-1', {
-                'text-fg-danger':
-                  conversation.context.percent >= CONTEXT_WARN_PERCENT,
-              })}
-            >
-              Context {conversation.context.percent}%
-            </span>
-          ) : null}
-          {conversation.costUsd > 0 ? (
-            <span className="border px-1.5 py-1 rounded-md">
-              ${conversation.costUsd.toFixed(2)}
-            </span>
-          ) : null}
+          {mdOrHigher && (
+            <>
+              {conversation.context ? (
+                <span
+                  title={`${conversation.context.used.toLocaleString()} of ${conversation.context.limit.toLocaleString()} tokens in the context window. ${AGENT_LABELS[conversation.kind]} compacts the conversation to make room as it fills.`}
+                  className={cn('rounded-md border px-1.5 py-1', {
+                    'text-fg-danger':
+                      conversation.context.percent >= CONTEXT_WARN_PERCENT,
+                  })}
+                >
+                  Context {conversation.context.percent}%
+                </span>
+              ) : null}
+              {conversation.costUsd > 0 ? (
+                <span className="border px-1.5 py-1 rounded-md">
+                  ${conversation.costUsd.toFixed(2)}
+                </span>
+              ) : null}
+            </>
+          )}
         </div>
       </div>
     </div>

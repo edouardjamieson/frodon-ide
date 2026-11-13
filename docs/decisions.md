@@ -18,6 +18,70 @@ their reasoning is the reasoning recorded at the time, not reconstructed.
 
 ---
 
+### ADR-0048 — Windows sit in a split tree, and splitting is limited by size
+
+**When** 2026-11-12 · **Status** active · **Touches** workbench, keybindings
+
+**What.** Where the windows sit is a tree, `WindowTree` in
+`lib/window/window.def.ts`: a leaf names a window, a split divides its box
+among two or more children along one axis. It sits on the store as `tree`,
+beside `windows`, which stays a flat list of what each tile holds. No window
+carries a position. A window can be split when both halves would be at least
+`MIN_TILE_WIDTH` by `MIN_TILE_HEIGHT` — 320 by 180 pixels — and the workbench
+holds at most `MAX_WINDOWS`, sixteen. The saved layout is the same tree,
+version 2 of `layouts.json`.
+
+**Why.** [ADR-0008](#adr-0008--windows-are-a-flat-rowcol-list-and-the-layout-is-derived)
+gave each window a `row` and a `col`, and `rowsOf` drew every row full width.
+That model has no way to say "split this window downwards": splitting the left
+of two side-by-side windows down made a new full-width row, and the right one
+lost half its height for a split it had nothing to do with. Raising the caps
+would not have helped — the model could split a row into columns and never a
+column into rows. A per-layout orientation flag ("columns of rows") fixes the
+two-window case and breaks again at the third level of nesting.
+`react-resizable-panels`' own `Grid` was rejected too: its cells span shared
+gridlines, so a splitter moves an edge across the whole grid rather than
+between two neighbours. The tree is what tmux, i3 and VS Code use, and it
+maps one split to one panel group with nothing left over.
+
+The size limit replaces a shape limit for the same reason. Three columns was a
+judgement about how narrow a line of code can get, written in a unit that
+only held on one screen size; a pixel minimum says it directly, lets a big
+monitor hold more and a small window hold fewer. The count ceiling is for the
+file, not for the screen: a hand-edited layout with two hundred tiles in it.
+
+The windows stay out of the tree's leaves because their order is
+load-bearing: the tile layer draws them in that order, and a tile moved in the
+DOM reloads its page ([ADR-0041](#adr-0041--windows-are-drawn-in-one-flat-layer-over-empty-panels)).
+That layer is also what made the tree affordable at all — the panels are
+empty, so rebuilding them after a split or a move remounts nothing worth
+keeping.
+
+**How.** `window-tree.service.ts` holds the pure arithmetic: `splitInTree`,
+`removeFromTree`, `moveInTree` and `planMove`, `heirOf` for where focus goes
+on a close, `spawnSite` for where a routed `open*` puts a new window, and
+`minExtent` for each panel's pixel `minSize`. Every change runs through
+`normalizeTree` — no split of one, no split inside a split of the same axis —
+rather than each operation keeping the tree normal by hand. Room to split is
+measured in `useTileLayout` and kept as booleans in `window-size.store.ts`,
+written only when one flips; the same pass keeps each tile's box outside the
+store for `windowBeside`, which now finds the keyboard's neighbour by
+geometry. Main validates the tree node by node and migrates a version 1 entry
+— rows top to bottom, each a split of its windows — in `migrateRows`.
+
+**Cost.** Layout logic is recursion over a tree where it was arithmetic on two
+integers, and "the window above" is a geometric question asked of measured
+boxes, so it has no answer before the first paint. Whether a window can split
+depends on pixels, so the same layout allows a split on one monitor and
+refuses it on another, and an OS window shrunk after the fact can leave
+panels whose minimums no longer fit — the library clamps them until it grows
+back. A drop on a window's edge asks that window's room before the dragged
+one leaves, so a drop that would just have fitted is sometimes refused.
+Splitter positions are still not stored; the tree is now the place they
+would go.
+
+---
+
 ### ADR-0047 — An agent in a tile reaches the workbench through an in-process MCP server, and only its own window
 
 **When** 2026-11-09 · **Status** active · **Touches** agent, editor, workbench
@@ -1064,12 +1128,13 @@ welcome screens.
 type fails to compile until someone decides what is worth remembering. Contents
 that are strings come back — paths, board keys, urls. A shell is a process, it
 is gone, and the tile returns with one fresh shell. Main prunes paths and board
-keys before answering; the renderer repacks coordinates a hand edit could have
-made illegal.
+keys before answering; the renderer normalizes a tree a hand edit could have
+made illegal. Since [ADR-0048](#adr-0048--windows-sit-in-a-split-tree-and-splitting-is-limited-by-size)
+the windows are saved in the leaves of the split tree they sat in, and a
+version 1 file of rows and columns is migrated on read.
 
 **Cost.** Splitter positions are not remembered — that would mean storing a
-size, which [ADR-0008](#adr-0008--windows-are-a-flat-rowcol-list-and-the-layout-is-derived)
-says this model does not do. A browser tab's back stack dies with the guest.
+size, which neither the row/col model nor the tree that replaced it does. A browser tab's back stack dies with the guest.
 
 ---
 
@@ -1432,7 +1497,7 @@ store re-renders the workbench every time one tab changes.
 
 ### ADR-0008 — Windows are a flat row/col list, and the layout is derived
 
-**When** 2026-10-11 · **Status** active · **Touches** workbench
+**When** 2026-10-11 · **Status** superseded by [ADR-0048](#adr-0048--windows-sit-in-a-split-tree-and-splitting-is-limited-by-size) · **Touches** workbench
 
 **What.** A window knows its row and its column. Nothing knows a width. Rows
 are derived by `rowsOf` and sized by nested resizable panel groups.

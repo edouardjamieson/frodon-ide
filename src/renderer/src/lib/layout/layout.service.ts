@@ -29,11 +29,13 @@ import {
   nextTabId,
   nextWindowId,
   type WindowState,
+  type WindowTree,
 } from '~/lib/window';
 import { BLANK_URL, type BrowserTab, type BrowserTabSeed } from '~/lib/browser';
 import type { AgentKind } from '@shared/agent.def';
 import type {
   AgentTabLayout,
+  LayoutNode,
   LayoutSnapshot,
   LayoutWindow,
 } from '@shared/layout.def';
@@ -50,39 +52,31 @@ function windowSnapshot(
   tabs: Record<string, BrowserTab>,
   kept: Record<string, AgentTabLayout>
 ): LayoutWindow {
-  const { row, col } = window;
-
   switch (window.type) {
     case 'editor':
       return {
         type: 'editor',
-        row,
-        col,
         files: window.files,
         activeFile: window.activeFile,
       };
     case 'board':
       return {
         type: 'board',
-        row,
-        col,
         boards: window.boards,
         activeBoard: window.activeBoard,
       };
     case 'git':
-      return { type: 'git', row, col, tab: window.tab };
+      return { type: 'git', tab: window.tab };
     // A shell is a process and nothing else; there is nothing about one to
     // write down. See `TerminalLayout` for the argument.
     case 'terminal':
-      return { type: 'terminal', row, col };
+      return { type: 'terminal' };
     // A conversation is a process, like a shell, unless it is a favorite.
     // See `AgentLayout`.
     case 'agent': {
       const ids = window.conversations.filter((id) => kept[id]);
       return {
         type: 'agent',
-        row,
-        col,
         conversations: ids.flatMap((id) => kept[id] ?? []),
         activeConversation: window.activeConversation
           ? ids.indexOf(window.activeConversation)
@@ -92,8 +86,6 @@ function windowSnapshot(
     case 'browser':
       return {
         type: 'browser',
-        row,
-        col,
         // Every tab, including any whose view has not mounted yet and so has
         // no entry in the browser store. A blank placeholder keeps the tab
         // count — and therefore the active index below — honest.
@@ -106,21 +98,41 @@ function windowSnapshot(
           : -1,
       };
     case null:
-      return { type: null, row, col };
+      return { type: null };
   }
 }
 
 /** The whole workbench, as it would be written down. */
 export function snapshotOf(
   windows: WindowState[],
+  tree: WindowTree,
   focusedId: string,
   tabs: Record<string, BrowserTab>,
   kept: Record<string, AgentTabLayout>
 ): LayoutSnapshot {
-  return {
-    windows: windows.map((window) => windowSnapshot(window, tabs, kept)),
-    focused: windows.findIndex((window) => window.id === focusedId),
+  const byId = new Map(windows.map((window) => [window.id, window]));
+  const order: string[] = [];
+
+  const visit = (node: WindowTree): LayoutNode | null => {
+    if (node.kind === 'window') {
+      const window = byId.get(node.id);
+      // The tree and the list are kept in step by the store; a leaf with no
+      // window would be a bug there, and is left out rather than written.
+      if (!window) return null;
+      order.push(node.id);
+      return { kind: 'window', window: windowSnapshot(window, tabs, kept) };
+    }
+    return {
+      kind: 'split',
+      axis: node.axis,
+      children: node.children.map(visit).filter((child) => child !== null),
+    };
   };
+
+  // A tree whose every leaf was missing cannot happen either, and the empty
+  // tile it falls back to is what the workbench would show for it.
+  const saved = visit(tree) ?? { kind: 'window', window: { type: null } };
+  return { tree: saved, focused: order.indexOf(focusedId) };
 }
 
 /**
@@ -137,7 +149,7 @@ function windowFrom(
   seeds: Record<string, BrowserTabSeed>,
   resumes: Record<string, AgentTabLayout>
 ): WindowState {
-  const base = { id: nextWindowId(), row: layout.row, col: layout.col };
+  const base = { id: nextWindowId() };
 
   switch (layout.type) {
     case 'editor':
@@ -208,30 +220,47 @@ function windowFrom(
 }
 
 /**
- * The saved arrangement, as windows the store can take — and the pages the
- * browser store should open its tabs on.
+ * The saved arrangement, as windows and a tree the store can take — and the
+ * pages the browser store should open its tabs on.
  *
- * The coordinates are not touched here — `restore` runs them through
- * `packWindows`, which is where the grid's invariants are kept and where the
- * caps are known. Which means `seeds` can name a tab in a window that packing
- * then drops; the entries cost a string each and are replaced by the next
- * restore, so nothing is gained by reconciling them.
+ * The tree is not made legal here — `restore` normalizes it and applies the
+ * ceiling, which is where the tree's invariants are kept. Which means `seeds`
+ * can name a tab in a window that restoring then drops; the entries cost a
+ * string each and are replaced by the next restore, so nothing is gained by
+ * reconciling them.
  */
 export function windowsFrom(snapshot: LayoutSnapshot): {
   windows: WindowState[];
+  tree: WindowTree;
   focusedId: string;
   seeds: Record<string, BrowserTabSeed>;
   resumes: Record<string, AgentTabLayout>;
 } {
   const seeds: Record<string, BrowserTabSeed> = {};
   const resumes: Record<string, AgentTabLayout> = {};
-  const windows = snapshot.windows.map((window) =>
-    windowFrom(window, seeds, resumes)
-  );
+  const windows: WindowState[] = [];
+
+  // Leaves are visited in the order `focused` counts them, so the index
+  // lands on the window it was written for.
+  const visit = (node: LayoutNode): WindowTree => {
+    if (node.kind === 'window') {
+      const window = windowFrom(node.window, seeds, resumes);
+      windows.push(window);
+      return { kind: 'window', id: window.id };
+    }
+    return {
+      kind: 'split',
+      axis: node.axis,
+      children: node.children.map(visit),
+    };
+  };
+
+  const tree = visit(snapshot.tree);
   const focused = windows[snapshot.focused];
 
   return {
     windows,
+    tree,
     // A focus index that names nothing — a layout from before a window was
     // dropped, or a -1 written when nothing had focus — lands on the first
     // window, which is the top-left one and the only defensible default.

@@ -1,15 +1,13 @@
 /**
- * The grid arithmetic, kept out of the store.
+ * Making windows, and the few questions about them that are not about the
+ * tree — that arithmetic is `window-tree.service.ts`.
  *
- * Everything here is pure: windows in, windows out. That is deliberate — the
- * store's actions read like a sentence each, and the fiddly part (what happens
- * to everyone else's coordinates when one window is inserted or removed) is
- * written once, in functions that can be reasoned about without a store.
+ * Everything here is pure, so the store can call it from outside React.
  */
-import { MAX_COLS, MAX_ROWS, WINDOW_BREAKPOINTS } from './window.constant';
+import { WINDOW_BREAKPOINTS } from './window.constant';
 import type {
   Direction,
-  DropZone,
+  TileRect,
   WindowBreakpoint,
   WindowState,
   WindowType,
@@ -64,13 +62,12 @@ export function nextConversationId(): string {
   return `c${lastConversationId}`;
 }
 
-/** A window of the requested kind, at the given slot. */
-export function createWindow(
-  row: number,
-  col: number,
-  type: WindowType | null = null
-): WindowState {
-  const base = { id: nextWindowId(), row, col };
+/**
+ * A window of the requested kind. Where it sits is the tree's business, so
+ * the caller puts it there.
+ */
+export function createWindow(type: WindowType | null = null): WindowState {
+  const base = { id: nextWindowId() };
 
   switch (type) {
     case 'editor':
@@ -109,285 +106,59 @@ export function createWindow(
 }
 
 /**
- * The windows grouped into rows, each row ordered left to right.
+ * The window next to this one in a direction, for moving by keyboard, or
+ * null at the edge of the workbench.
  *
- * This is the layout: there is no stored tree, and no sizes. The renderer
- * turns the result into nested panel groups and the browser does the rest.
- */
-export function rowsOf(windows: WindowState[]): WindowState[][] {
-  const rows: WindowState[][] = [];
-
-  for (const window of windows) {
-    const row = (rows[window.row] ??= []);
-    row.push(window);
-  }
-
-  // A row can only be missing if the coordinates drifted, which the insert and
-  // remove helpers below exist to prevent — but an undefined hole here would
-  // crash the whole workbench, so empty rows are dropped rather than trusted.
-  return rows
-    .filter((row) => row.length > 0)
-    .map((row) => [...row].sort(byCol));
-}
-
-const byCol = (a: WindowState, b: WindowState) => a.col - b.col;
-
-/** How many windows share a row. */
-export function colsInRow(windows: WindowState[], row: number): number {
-  return windows.filter((window) => window.row === row).length;
-}
-
-/** How many rows the grid currently has. */
-export function rowCount(windows: WindowState[]): number {
-  return new Set(windows.map((window) => window.row)).size;
-}
-
-/** Whether a window has room to split in the given direction. */
-export function canSplit(
-  windows: WindowState[],
-  window: WindowState,
-  direction: 'right' | 'down'
-): boolean {
-  return direction === 'right'
-    ? colsInRow(windows, window.row) < MAX_COLS
-    : rowCount(windows) < MAX_ROWS;
-}
-
-/**
- * Inserts a window beside or below `anchor`, pushing whatever was there along.
- *
- * Splitting right shifts the rest of that row one column over; splitting down
- * shifts every row below it one row down. Both keep the grid packed, which is
- * the invariant everything else depends on: `rowsOf` assumes rows are
- * contiguous from 0 and columns contiguous from 0 within each row.
- */
-export function insertSplit(
-  windows: WindowState[],
-  anchor: WindowState,
-  direction: 'right' | 'down',
-  type: WindowType | null
-): { windows: WindowState[]; spawned: WindowState } {
-  if (direction === 'right') {
-    const spawned = createWindow(anchor.row, anchor.col + 1, type);
-    const shifted = windows.map((window) =>
-      window.row === anchor.row && window.col > anchor.col
-        ? { ...window, col: window.col + 1 }
-        : window
-    );
-    return { windows: [...shifted, spawned], spawned };
-  }
-
-  const spawned = createWindow(anchor.row + 1, 0, type);
-  const shifted = windows.map((window) =>
-    window.row > anchor.row ? { ...window, row: window.row + 1 } : window
-  );
-  return { windows: [...shifted, spawned], spawned };
-}
-
-/**
- * Removes a window and closes the hole it left.
- *
- * Ported from the TUI's `destroy`, which had this exactly right: the column
- * gap in the deleted window's row closes first, and only if that row ended up
- * empty does every row below move up. Doing it in the other order loses track
- * of which row was emptied.
- */
-export function removeWindow(
-  windows: WindowState[],
-  id: string
-): WindowState[] {
-  const removed = windows.find((window) => window.id === id);
-  if (!removed) return windows;
-
-  const remaining = windows.filter((window) => window.id !== id);
-  if (remaining.length === 0) return [];
-
-  const rowNowEmpty = !remaining.some((window) => window.row === removed.row);
-
-  return remaining.map((window) => {
-    const col =
-      window.row === removed.row && window.col > removed.col
-        ? window.col - 1
-        : window.col;
-    const row =
-      rowNowEmpty && window.row > removed.row ? window.row - 1 : window.row;
-
-    return { ...window, row, col };
-  });
-}
-
-/**
- * Moves a window to where it was dropped, or null when that would change
- * nothing or does not fit.
- *
- * `center` trades places with the target, which is the one move that can
- * never run out of room — the grid keeps its shape and only the occupants
- * change. The edges put the window *beside* the target (into its row) or on a
- * row of its own *above* or *below* it, which is how a layout changes shape.
- *
- * Written as remove-then-insert rather than as arithmetic of its own: the
- * window leaves through `removeWindow`, so its old row closes up exactly the
- * way a close would, and the target is looked up again afterwards because
- * that repack may have shifted it. The caps are checked against the grid with
- * the window already gone — taking the only window out of a row frees a row,
- * and moving within a full row frees a column.
- *
- * The result keeps the input's **order**. Only coordinates change, never the
- * position of a window in the array, because the workbench draws its tiles in
- * array order and a tile that moves in the DOM reloads its `<webview>`. See
- * `window-manager.component.tsx`.
- */
-export function moveWindow(
-  windows: WindowState[],
-  id: string,
-  targetId: string,
-  zone: DropZone
-): WindowState[] | null {
-  if (id === targetId) return null;
-  const moving = windows.find((window) => window.id === id);
-  const target = windows.find((window) => window.id === targetId);
-  if (!moving || !target) return null;
-
-  if (zone === 'center') {
-    return windows.map((window) => {
-      if (window.id === id)
-        return { ...window, row: target.row, col: target.col };
-      if (window.id === targetId)
-        return { ...window, row: moving.row, col: moving.col };
-      return window;
-    });
-  }
-
-  const rest = removeWindow(windows, id);
-  const anchor = rest.find((window) => window.id === targetId);
-  if (!anchor) return null;
-
-  let slot: { row: number; col: number };
-  let shift: (window: WindowState) => { row: number; col: number };
-
-  if (zone === 'left' || zone === 'right') {
-    if (colsInRow(rest, anchor.row) >= MAX_COLS) return null;
-    const col = zone === 'left' ? anchor.col : anchor.col + 1;
-    slot = { row: anchor.row, col };
-    shift = (window) => ({
-      row: window.row,
-      col:
-        window.row === anchor.row && window.col >= col
-          ? window.col + 1
-          : window.col,
-    });
-  } else {
-    if (rowCount(rest) >= MAX_ROWS) return null;
-    const row = zone === 'top' ? anchor.row : anchor.row + 1;
-    slot = { row, col: 0 };
-    shift = (window) => ({
-      row: window.row >= row ? window.row + 1 : window.row,
-      col: window.col,
-    });
-  }
-
-  const placed = new Map(rest.map((window) => [window.id, shift(window)]));
-  placed.set(id, slot);
-
-  const moved = windows.map((window) => {
-    const at = placed.get(window.id);
-    return at ? { ...window, ...at } : window;
-  });
-
-  // Dropping a window on the edge it already sits against — the bottom of
-  // the row above a row it has to itself — lands it where it started.
-  // Reporting that as a move would draw a drop target that does nothing.
-  const unchanged = moved.every(
-    (window, index) =>
-      window.row === windows[index]?.row && window.col === windows[index]?.col
-  );
-  return unchanged ? null : moved;
-}
-
-/**
- * The window next to this one in a direction, for moving by keyboard.
- *
- * Up and down keep the column where the next row has one and fall back to its
- * last window where it does not, because rows are full width and need not
- * have the same number of windows: the window above the third of three is
- * the last of two.
+ * Asked of the tiles' boxes rather than of the tree, because "the window
+ * above" is a question about the screen: in a tree, the window above the
+ * right half of a full-width row is reached by climbing out of one split and
+ * down another, and which child to descend into is a geometric question
+ * anyway. So: the windows lying wholly that way and overlapping this one
+ * across it, nearest first, and the one sharing the longest edge among
+ * equally near ones.
  */
 export function windowBeside(
-  windows: WindowState[],
-  window: WindowState,
+  rects: ReadonlyMap<string, TileRect>,
+  id: string,
   direction: Direction
-): WindowState | null {
-  if (direction === 'left' || direction === 'right') {
-    const col = window.col + (direction === 'left' ? -1 : 1);
-    return (
-      windows.find((other) => other.row === window.row && other.col === col) ??
-      null
+): string | null {
+  const from = rects.get(id);
+  if (!from) return null;
+
+  let best: { id: string; gap: number; overlap: number } | null = null;
+
+  for (const [other, rect] of rects) {
+    if (other === id) continue;
+
+    const horizontal = direction === 'left' || direction === 'right';
+    const gap = Math.round(
+      direction === 'left'
+        ? from.left - (rect.left + rect.width)
+        : direction === 'right'
+          ? rect.left - (from.left + from.width)
+          : direction === 'up'
+            ? from.top - (rect.top + rect.height)
+            : rect.top - (from.top + from.height)
     );
+    const overlap = horizontal
+      ? Math.min(from.top + from.height, rect.top + rect.height) -
+        Math.max(from.top, rect.top)
+      : Math.min(from.left + from.width, rect.left + rect.width) -
+        Math.max(from.left, rect.left);
+
+    // Behind, or beside without sharing any edge: not that way.
+    if (gap < 0 || overlap <= 0) continue;
+
+    if (
+      !best ||
+      gap < best.gap ||
+      (gap === best.gap && overlap > best.overlap)
+    ) {
+      best = { id: other, gap, overlap };
+    }
   }
 
-  const row = window.row + (direction === 'up' ? -1 : 1);
-  const inRow = windows.filter((other) => other.row === row).sort(byCol);
-  return (
-    inRow.find((other) => other.col === window.col) ?? inRow.at(-1) ?? null
-  );
-}
-
-/**
- * The same windows with their coordinates made legal again: rows contiguous
- * from 0, columns contiguous from 0 within each row, nothing past the caps.
- *
- * Everything in this file maintains that invariant as it goes — `insertSplit`
- * shifts, `removeWindow` repacks — and `rowsOf` relies on it. So nothing that
- * was *built* here needs this. A layout read back from a file was not: it is
- * JSON that a person can open in an editor, written by a version of the app
- * that may have had different caps, and a window at row 7 would be a hole in
- * the middle of the workbench or a tile nobody can see.
- *
- * Windows that do not fit are dropped rather than folded into a free slot.
- * Restoring the first six tiles of a nine-tile arrangement is recognisable;
- * restoring all nine somewhere else is not.
- */
-export function packWindows(windows: WindowState[]): WindowState[] {
-  const byRow = new Map<number, WindowState[]>();
-
-  for (const window of windows) {
-    const row = byRow.get(window.row);
-    if (row) row.push(window);
-    else byRow.set(window.row, [window]);
-  }
-
-  const rows = [...byRow.entries()].sort(([a], [b]) => a - b);
-  const packed: WindowState[] = [];
-  let rowIndex = 0;
-
-  for (const [, row] of rows.slice(0, MAX_ROWS)) {
-    const inRow = [...row].sort(byCol).slice(0, MAX_COLS);
-    inRow.forEach((window, col) => {
-      packed.push({ ...window, row: rowIndex, col });
-    });
-    rowIndex += 1;
-  }
-
-  return packed;
-}
-
-/**
- * The first slot with room in it, scanning rows top to bottom, or null when
- * the grid is full.
- *
- * Deliberately not a hook, and not a store action: it reads nothing and the
- * store calls it from outside React. Naming it `use*` in the TUI made every
- * one of those calls look like a conditional hook call.
- */
-export function firstFreeSlot(
-  windows: WindowState[]
-): { row: number; col: number } | null {
-  for (let row = 0; row < MAX_ROWS; row++) {
-    const cols = colsInRow(windows, row);
-    if (cols < MAX_COLS) return { row, col: cols };
-  }
-
-  return null;
+  return best?.id ?? null;
 }
 
 /** `/Users/eddy/dev/frodon/src/main.ts` -> `main.ts`. */

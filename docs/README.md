@@ -65,7 +65,7 @@ rules, and what is missing.
 | | |
 | --- | --- |
 | [project](features/project.md) | opening a folder, the launcher, recents, and a project's name/color/icon |
-| [workbench](features/workbench.md) | the grid of tiles, routing, and the arrangement that outlives a quit |
+| [workbench](features/workbench.md) | the split tree of tiles, routing, and the arrangement that outlives a quit |
 | [explorer](features/explorer.md) | the tree, and creating, renaming and deleting in it |
 | [editor](features/editor.md) | CodeMirror, tabs, saving, syntax, find-in-file, external changes |
 | [terminal](features/terminal.md) | PTYs in main, batched output, killing a process tree |

@@ -3,17 +3,22 @@
  *
  * A *window* here is a tile, not an OS window — the thing `main/app/` creates
  * is a `BrowserWindow` and lives in the other process. Inside this one,
- * windows are panes on a small grid, each holding exactly one module: an
+ * windows are tiles on the workbench, each holding exactly one module: an
  * editor with its own tabs, a terminal with its own sessions, or nothing yet.
  *
- * The model is carried over from the TUI (`lib/window/` in `frodon-tui`) and
- * is the part of it that survived the port intact: windows are a flat list
- * carrying their own `row`/`col`, and the layout is *derived* from those
- * coordinates rather than stored. What did not survive is
- * `useCalculateLayout`, which turned the coordinates into percentage
- * left/top/width/height by hand because a terminal has no layout engine. Here
- * the rows are nested resizable panel groups, so sizing — and dragging a
- * splitter — is the browser's problem.
+ * Two structures, kept apart on purpose. `windows` is a flat list of what
+ * each tile holds, in the order the tiles were made. `tree` is where they
+ * sit: a split tree whose leaves name windows, so any window can be split in
+ * either direction without its neighbours changing shape. The TUI — and this
+ * app until ADR-0048 — gave each window a `row` and a `col` instead, which
+ * made every row full width and left no way to split one window of a row
+ * downwards. Sizes are in neither: the tree becomes nested resizable panel
+ * groups and dragging a splitter is the browser's problem.
+ *
+ * The list stays flat because its order is load-bearing — the workbench
+ * draws one tile per window in that order and a tile that moves in the DOM
+ * reloads its page (ADR-0041). Putting the windows in the tree's leaves would
+ * make every rearrangement a reordering.
  *
  * The TUI kept each window's contents in parallel arrays keyed by window id
  * (`editorFiles`, `terminalSessions`, `dirtyFiles`). That is reversed here:
@@ -47,11 +52,31 @@ export type WindowState =
 
 interface WindowBase {
   id: string;
-  /** Grid row, top to bottom. Rows are full width and stack vertically. */
-  row: number;
-  /** Position within the row, left to right. Rows are packed: no gaps. */
-  col: number;
 }
+
+/**
+ * Which way a split lays out its children, in `react-resizable-panels`'
+ * own words: `horizontal` is side by side, `vertical` is stacked.
+ */
+export type SplitAxis = 'horizontal' | 'vertical';
+
+/**
+ * Where every window sits: a leaf names one, a split divides its box among
+ * its children along one axis.
+ *
+ * Kept **normal** by `normalizeTree` after every change: no split with fewer
+ * than two children, and no split directly inside another of the same axis —
+ * three windows side by side are one split of three, never a split of two
+ * holding a split of two. That is what makes the splitters behave: dragging
+ * one moves the edge between two neighbours rather than resizing a hidden
+ * group, and it is what lets two trees that look the same compare equal.
+ *
+ * Splits carry no id. Their React keys are derived from their first window,
+ * and nothing else needs to tell two splits apart.
+ */
+export type WindowTree =
+  | { kind: 'window'; id: string }
+  | { kind: 'split'; axis: SplitAxis; children: WindowTree[] };
 
 export interface EditorWindow extends WindowBase {
   type: 'editor';
@@ -163,16 +188,42 @@ export interface EmptyWindow extends WindowBase {
 /** Where a split puts the new window relative to the one being split. */
 export type SplitDirection = 'right' | 'down';
 
-/** A way across the grid, for moving a window by keyboard. */
+/** A way across the workbench, for moving a window by keyboard. */
 export type Direction = 'left' | 'right' | 'up' | 'down';
 
 /**
  * Where on another window a dragged one was let go.
  *
- * The middle trades places with it; an edge puts the dragged window beside
- * it, or on a row of its own above or below. `moveWindow` is the arithmetic.
+ * The middle trades places with it; an edge splits it and puts the dragged
+ * window on that side. `moveInTree` is the arithmetic.
  */
 export type DropZone = 'center' | 'left' | 'right' | 'top' | 'bottom';
+
+/** The four edges, which are the zones that split something. */
+export type DropEdge = Exclude<DropZone, 'center'>;
+
+/**
+ * Where a dragged window would land: on a window, or against an edge of the
+ * workbench itself, which puts it in a full-height column or a full-width
+ * row. The second is how a layout gets a strip across everything without
+ * first closing what is in the way.
+ */
+export type DropTarget =
+  { targetId: string; zone: DropZone } | { targetId: null; zone: DropEdge };
+
+/** Whether a window has room to be split each way. See `window-size.store.ts`. */
+export interface WindowRoom {
+  right: boolean;
+  down: boolean;
+}
+
+/** A tile's box, in pixels from the workbench's top-left corner. */
+export interface TileRect {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
 
 /** A position in a file, as a search result reports one. */
 export interface RevealTarget {
@@ -199,7 +250,10 @@ export interface PendingReveal extends RevealTarget {
 }
 
 export interface WindowStore {
+  /** Every window, in the order they were made. Never sorted — see above. */
   windows: WindowState[];
+  /** Where they sit. Its leaves are exactly the ids in `windows`. */
+  tree: WindowTree;
   /** The window that owns keyboard intent, and the only one drawn focused. */
   focusedId: string;
 
@@ -212,36 +266,39 @@ export interface WindowStore {
   setType: (id: string, type: WindowType) => void;
 
   /**
-   * Splits a window, focusing the new one. A no-op when the grid is full in
-   * that direction, so callers can stay unconditional; `canSplit` is what the
-   * UI asks before drawing the button.
+   * Splits a window, focusing the new one. A no-op when the window is too
+   * small to halve that way, so callers can stay unconditional; `useWindow`'s
+   * `canSplitRight` and `canSplitDown` are what the UI asks before drawing
+   * the button.
    */
   split: (id: string, direction: SplitDirection, type?: WindowType) => void;
   /**
-   * Closes a window and repacks the grid around the hole. Closing the last
-   * window leaves a fresh empty one: the workbench is never blank.
+   * Closes a window, giving its space to the neighbour it was split from.
+   * Closing the last window leaves a fresh empty one: the workbench is never
+   * blank.
    */
   close: (id: string) => void;
 
   /**
-   * Moves a window to where it was dropped on another one, and focuses it —
-   * the window you just carried somewhere is the one you are looking at. A
-   * no-op when the drop would not fit or would change nothing; `canMove` is
-   * what the drop target asks before it lights up.
+   * Moves a window to where it was dropped, and focuses it — the window you
+   * just carried somewhere is the one you are looking at. A no-op when the
+   * drop would not fit or would change nothing; `planMove` is what the drop
+   * target asks before it lights up.
    */
-  move: (id: string, targetId: string, zone: DropZone) => void;
+  move: (id: string, target: DropTarget) => void;
   /**
    * Trades places with the neighbouring window in a direction, or does
-   * nothing at the edge of the grid. The keyboard's way of moving a window,
+   * nothing at the edge of the workbench. The keyboard's way of moving a window,
    * and a swap rather than a move because an arrow key has no way to say
    * "beside" from "instead of".
    */
   swap: (id: string, direction: Direction) => void;
 
   /**
-   * Replaces the whole workbench — every window and the focus — in one go.
+   * Replaces the whole workbench — every window, where each sits, and the
+   * focus — in one go.
    *
-   * The one action that does not grow the grid from what is already there,
+   * The one action that does not grow the layout from what is already there,
    * and it exists for exactly one caller: restoring the arrangement a project
    * was last left in. The windows arrive already built, because the thing
    * that builds them is reading a file format and knows what a saved terminal
@@ -251,7 +308,11 @@ export interface WindowStore {
    * it has no surface left to spawn from, which is the same reason `close`
    * seeds a fresh window when the last one goes.
    */
-  restore: (windows: WindowState[], focusedId: string) => void;
+  restore: (
+    windows: WindowState[],
+    tree: WindowTree,
+    focusedId: string
+  ) => void;
 
   /**
    * Where the editor should land once the file is on screen, or null.
@@ -306,7 +367,7 @@ export interface WindowStore {
    *
    * Unlike `openFile` and `openTerminal` this does not open a second one: an
    * existing git window is focused instead. There is only ever one repository
-   * open, every tab in the window is a view of it, and a grid of three
+   * open, every tab in the window is a view of it, and a workbench of three
    * identical copies would be a way of running out of room, not a feature.
    */
   openGit: () => void;

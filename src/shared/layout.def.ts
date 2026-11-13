@@ -8,7 +8,7 @@
  * of it should be written to a file.
  *
  * So this is the *wire and file* format: the shape of a layout that is still
- * true tomorrow. It holds what a window is and where it sits, plus the
+ * true tomorrow. It holds what each window is and the tree it sits in, plus the
  * contents that are nothing but strings — paths, board keys, urls — because
  * those are the half of a layout that can be restored. A terminal's shell
  * cannot be: it is a process, it is gone, and saying so in the type is better
@@ -28,14 +28,7 @@ import type { AgentKind } from './agent.def';
 /** Mirrors `GitTab` in the renderer. */
 export type LayoutGitTab = 'history' | 'branches' | 'commit';
 
-interface LayoutWindowBase {
-  /** Grid row, top to bottom. Packed by the renderer on the way back in. */
-  row: number;
-  /** Position within the row, left to right. */
-  col: number;
-}
-
-export interface EditorLayout extends LayoutWindowBase {
+export interface EditorLayout {
   type: 'editor';
   /** Absolute paths, in tab order. Files that have gone are pruned on read. */
   files: string[];
@@ -51,16 +44,16 @@ export interface EditorLayout extends LayoutWindowBase {
  * fresh shell in the same place, which is what the window would have been
  * opened as anyway.
  */
-export interface TerminalLayout extends LayoutWindowBase {
+export interface TerminalLayout {
   type: 'terminal';
 }
 
-export interface GitLayout extends LayoutWindowBase {
+export interface GitLayout {
   type: 'git';
   tab: LayoutGitTab;
 }
 
-export interface BoardLayout extends LayoutWindowBase {
+export interface BoardLayout {
   type: 'board';
   /** Board keys (`scope:name`), in tab order. Missing ones are pruned. */
   boards: string[];
@@ -107,7 +100,7 @@ export interface BrowserTabLayout {
  * again at attach time. This file lives in a home directory and can be
  * hand-edited, which makes it input.
  */
-export interface BrowserLayout extends LayoutWindowBase {
+export interface BrowserLayout {
   type: 'browser';
   tabs: BrowserTabLayout[];
   /** Index into `tabs` of the one on screen, or -1. */
@@ -122,12 +115,12 @@ export interface BrowserLayout extends LayoutWindowBase {
  * the app, like a shell. A favorite is the opposite statement, and its token
  * is already written down in the favorites file, so putting it here as well
  * costs no new kind of secret. A window with none comes back as an empty
- * tile, keeping its place in the grid.
+ * tile, keeping its place in the layout.
  *
  * Optional, because a layout written before this field existed has none, and
  * reads as a tile with no favorites.
  */
-export interface AgentLayout extends LayoutWindowBase {
+export interface AgentLayout {
   type: 'agent';
   conversations?: AgentTabLayout[];
   /** Index into `conversations` of the tab on screen, or -1. */
@@ -141,7 +134,7 @@ export interface AgentTabLayout {
 }
 
 /** A tile that was spawned but never told what it is. */
-export interface EmptyLayout extends LayoutWindowBase {
+export interface EmptyLayout {
   type: null;
 }
 
@@ -154,6 +147,24 @@ export type LayoutWindow =
   | AgentLayout
   | EmptyLayout;
 
+/** Mirrors `SplitAxis` in the renderer: `horizontal` is side by side. */
+export type LayoutAxis = 'horizontal' | 'vertical';
+
+/**
+ * Where the windows sat: the renderer's `WindowTree`, with each leaf holding
+ * the saved window itself rather than an id.
+ *
+ * In the leaves rather than in a list beside the tree with indexes into it,
+ * because there is then nothing to keep consistent — a hand-edited file
+ * cannot name window 7 of 6, and a window cannot be in the list and missing
+ * from the tree. The live model keeps them apart for a reason that does not
+ * apply here: the order its tiles are drawn in, which means nothing in the
+ * next run.
+ */
+export type LayoutNode =
+  | { kind: 'window'; window: LayoutWindow }
+  | { kind: 'split'; axis: LayoutAxis; children: LayoutNode[] };
+
 /**
  * What the renderer hands over, and what it gets back.
  *
@@ -162,15 +173,23 @@ export type LayoutWindow =
  * themselves.
  */
 export interface LayoutSnapshot {
-  windows: LayoutWindow[];
+  tree: LayoutNode;
   /**
-   * Index into `windows` of the one that had focus, or -1.
+   * Which window had focus, as its index counting the tree's windows left to
+   * right and top to bottom — or -1.
    *
    * An index rather than an id, because ids are a per-page counter — `w7`
    * means nothing in the next run of the app, and a saved id would restore
    * focus onto whichever window happened to be seventh.
    */
   focused: number;
+}
+
+/** Every window in a saved tree, in the order `focused` counts them. */
+export function layoutWindowsOf(node: LayoutNode): LayoutWindow[] {
+  return node.kind === 'window'
+    ? [node.window]
+    : node.children.flatMap(layoutWindowsOf);
 }
 
 /** One entry in the layouts file: a snapshot, plus what the file needs. */

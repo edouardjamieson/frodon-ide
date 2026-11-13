@@ -59,7 +59,7 @@ export const DEFAULT_KEYBINDINGS: Keybinding[] = [
   // `appMenu` role does not add one. See `main/app/menu.service.ts`.
   { chord: 'mod+,', command: 'settings.open' },
   // The arrow points at where the new window appears: beside the focused one,
-  // or on a row of its own below it.
+  // or below it — taking half of that window and nothing of its neighbours'.
   { chord: 'mod+shift+right', command: 'window.splitRight' },
   { chord: 'mod+shift+down', command: 'window.splitDown' },
   // The focused window trades places with its neighbour. `alt` rather than

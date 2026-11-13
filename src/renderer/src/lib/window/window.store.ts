@@ -8,27 +8,35 @@ import type {
   TerminalWindow,
   WindowState,
   WindowStore,
+  WindowTree,
   WindowType,
 } from './window.def';
 import {
-  canSplit,
   createWindow,
-  firstFreeSlot,
-  insertSplit,
-  moveWindow,
   windowBeside,
   nextConversationId,
   nextSessionId,
   nextTabId,
-  packWindows,
-  removeWindow,
 } from './window.service';
+import {
+  filterTree,
+  heirOf,
+  leaf,
+  planMove,
+  removeFromTree,
+  spawnSite,
+  splitInTree,
+  windowIdsOf,
+} from './window-tree.service';
+import { MAX_WINDOWS } from './window.constant';
+import { roomOf, tileRects } from './window-size.store';
 
 /** The workbench opens on one empty window, waiting to be told what it is. */
-const initial = createWindow(0, 0);
+const initial = createWindow();
 
 export const useWindowStore = create<WindowStore>((set, get) => ({
   windows: [initial],
+  tree: leaf(initial.id),
   focusedId: initial.id,
   pendingReveal: null,
 
@@ -59,92 +67,108 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
   },
 
   split: (id, direction, type) => {
-    const { windows } = get();
-    const anchor = windows.find((window) => window.id === id);
-    if (!anchor || !canSplit(windows, anchor, direction)) return;
+    const { windows, tree } = get();
+    if (!windows.some((window) => window.id === id)) return;
+    if (windows.length >= MAX_WINDOWS) return;
+    if (!roomOf(id)[direction]) return;
 
-    const next = insertSplit(windows, anchor, direction, type ?? null);
-    set({ windows: next.windows, focusedId: next.spawned.id });
-  },
-
-  close: (id) => {
-    const { windows, focusedId } = get();
-    const closing = windows.find((window) => window.id === id);
-    if (!closing) return;
-
-    const remaining = removeWindow(windows, id);
-
-    // Closing the last window leaves a fresh empty one rather than an empty
-    // workbench: there would otherwise be no surface left to spawn from.
-    if (remaining.length === 0) {
-      const seeded = createWindow(0, 0);
-      set({ windows: [seeded], focusedId: seeded.id });
-      return;
-    }
-
-    // Focus lands where the eye already is: on whichever window slid into the
-    // vacated slot, else the last one left in that row, else anything.
-    const heir =
-      remaining.find(
-        (window) => window.row === closing.row && window.col === closing.col
-      ) ??
-      remaining.findLast((window) => window.row === closing.row) ??
-      remaining[remaining.length - 1];
-
+    const spawned = createWindow(type ?? null);
     set({
-      windows: remaining,
-      focusedId: focusedId === id && heir ? heir.id : focusedId,
+      windows: [...windows, spawned],
+      tree: splitInTree(tree, id, spawned.id, direction),
+      focusedId: spawned.id,
     });
   },
 
-  move: (id, targetId, zone) => {
-    const moved = moveWindow(get().windows, id, targetId, zone);
+  close: (id) => {
+    const { windows, tree, focusedId } = get();
+    if (!windows.some((window) => window.id === id)) return;
+
+    const remaining = removeFromTree(tree, id);
+
+    // Closing the last window leaves a fresh empty one rather than an empty
+    // workbench: there would otherwise be no surface left to spawn from.
+    if (!remaining) {
+      const seeded = createWindow();
+      set({ windows: [seeded], tree: leaf(seeded.id), focusedId: seeded.id });
+      return;
+    }
+
+    // Focus lands where the eye already is: on the neighbour that grows into
+    // the space, at the edge that touched it.
+    const heir = heirOf(tree, id) ?? windowIdsOf(remaining)[0] ?? focusedId;
+
+    set({
+      windows: windows.filter((window) => window.id !== id),
+      tree: remaining,
+      focusedId: focusedId === id ? heir : focusedId,
+    });
+  },
+
+  move: (id, target) => {
+    const moved = planMove(get().tree, id, target, roomOf);
     if (!moved) return;
 
-    set({ windows: moved, focusedId: id });
+    // Only the tree changes. `windows` keeps its order, because the tiles
+    // are drawn in that order and a tile that moves in the DOM reloads.
+    set({ tree: moved, focusedId: id });
   },
 
   swap: (id, direction) => {
-    const { windows } = get();
-    const window = windows.find((candidate) => candidate.id === id);
-    const neighbour = window && windowBeside(windows, window, direction);
+    const neighbour = windowBeside(tileRects(), id, direction);
     if (!neighbour) return;
 
-    get().move(id, neighbour.id, 'center');
+    get().move(id, { targetId: neighbour, zone: 'center' });
   },
 
-  restore: (windows, focusedId) => {
+  restore: (windows, tree, focusedId) => {
     // Nothing to restore. Leaving the workbench alone is the only sensible
     // reading: the alternative is a page with no windows and no way to make
     // one.
     if (windows.length === 0) return;
 
-    const packed = packWindows(windows);
-    if (packed.length === 0) return;
+    // The tree is made legal again rather than trusted: it was read from a
+    // file a person can edit. Leaves naming no window go, and so does
+    // anything past the ceiling — the first sixteen tiles of a two-hundred
+    // tile arrangement are recognisable, and all of them would be unusable.
+    const known = new Set(windows.map((window) => window.id));
+    const kept = new Set(
+      windowIdsOf(tree)
+        .filter((id) => known.has(id))
+        .slice(0, MAX_WINDOWS)
+    );
+    const legal = filterTree(tree, (id) => kept.has(id));
+    if (!legal) return;
 
     // The focus is checked against what actually landed rather than trusted,
-    // because `packWindows` may have dropped the window it named — a layout
-    // written when the grid allowed more than it does now.
-    const focused = packed.some((window) => window.id === focusedId)
+    // because the window it named may have been one of those dropped.
+    const focused = kept.has(focusedId)
       ? focusedId
-      : (packed[0]?.id ?? focusedId);
+      : (windowIdsOf(legal)[0] ?? focusedId);
 
     // A reveal parked by the last project has nothing to land on here.
-    set({ windows: packed, focusedId: focused, pendingReveal: null });
+    set({
+      windows: windows.filter((window) => kept.has(window.id)),
+      tree: legal,
+      focusedId: focused,
+      pendingReveal: null,
+    });
   },
 
   openFile: (path, windowId, reveal) => {
-    const { windows, focusedId } = get();
-    const target = editorTargetFor(windows, windowId ?? focusedId);
+    const { windows, tree, focusedId } = get();
+    const target = targetFor('editor', windows, tree, windowId ?? focusedId);
 
-    // Every window is a terminal and the grid is full: there is nowhere for
-    // the file to go, and nothing sensible to do but leave the layout alone.
+    // Every window is a terminal and none has room to split: there is nowhere
+    // for the file to go, and nothing sensible to do but leave the layout
+    // alone.
     if (!target) return;
 
     const host = 'spawn' in target ? target.spawn : target;
     const windowsWithHost = 'spawn' in target ? [...windows, host] : windows;
 
     set({
+      tree: 'spawn' in target ? target.tree : tree,
       windows: windowsWithHost.map((window) => {
         if (window.id !== host.id) return window;
 
@@ -180,11 +204,11 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
   },
 
   openTerminal: (windowId) => {
-    const { windows, focusedId } = get();
-    const target = terminalTargetFor(windows, windowId ?? focusedId);
+    const { windows, tree, focusedId } = get();
+    const target = targetFor('terminal', windows, tree, windowId ?? focusedId);
 
-    // Every window holds an editor and the grid is full. Nowhere to put a
-    // shell, and nothing worth rearranging on the user's behalf.
+    // Every window holds an editor and none has room to split. Nowhere to put
+    // a shell, and nothing worth rearranging on the user's behalf.
     if (!target) return;
 
     // A window spawned for the occasion arrives with its first session
@@ -192,6 +216,7 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
     if ('spawn' in target) {
       set({
         windows: [...windows, target.spawn],
+        tree: target.tree,
         focusedId: target.spawn.id,
       });
       return;
@@ -214,7 +239,7 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
   },
 
   openGit: () => {
-    const { windows } = get();
+    const { windows, tree, focusedId } = get();
 
     // One repository, one window onto it. Clicking source control again is a
     // request to look at it, and it is already on screen.
@@ -237,13 +262,17 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
       return;
     }
 
-    const slot = firstFreeSlot(windows);
-    // The grid is full of editors and terminals. Nothing worth closing on the
-    // user's behalf, so the click does nothing rather than something clever.
-    if (!slot) return;
+    const spawned = spawn('git', tree, focusedId);
+    // The workbench is full of editors and terminals with no room to halve
+    // any of them. Nothing worth closing on the user's behalf, so the click
+    // does nothing rather than something clever.
+    if (!spawned) return;
 
-    const spawned = createWindow(slot.row, slot.col, 'git');
-    set({ windows: [...windows, spawned], focusedId: spawned.id });
+    set({
+      windows: [...windows, spawned.spawn],
+      tree: spawned.tree,
+      focusedId: spawned.spawn.id,
+    });
   },
 
   setGitTab: (windowId, tab) => {
@@ -257,7 +286,7 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
   },
 
   openBoard: (key, windowId) => {
-    const { windows, focusedId } = get();
+    const { windows, tree, focusedId } = get();
 
     // Already open somewhere. Sessions are keyed by board, so a second tab
     // would be a second view of the identical drawing — focusing the window
@@ -277,15 +306,16 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
       return;
     }
 
-    const target = boardTargetFor(windows, windowId ?? focusedId);
-    // Every window is an editor or a terminal and the grid is full. Nowhere
-    // for the board to go, and nothing worth rearranging unasked.
+    const target = targetFor('board', windows, tree, windowId ?? focusedId);
+    // Every window is an editor or a terminal and none has room to split.
+    // Nowhere for the board to go, and nothing worth rearranging unasked.
     if (!target) return;
 
     const host = 'spawn' in target ? target.spawn : target;
     const windowsWithHost = 'spawn' in target ? [...windows, host] : windows;
 
     set({
+      tree: 'spawn' in target ? target.tree : tree,
       windows: windowsWithHost.map((window) => {
         if (window.id !== host.id) return window;
         const board = asBoard(window);
@@ -390,17 +420,21 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
   },
 
   openBrowser: (windowId) => {
-    const { windows, focusedId } = get();
-    const target = browserTargetFor(windows, windowId ?? focusedId);
+    const { windows, tree, focusedId } = get();
+    const target = targetFor('browser', windows, tree, windowId ?? focusedId);
 
     // Nowhere for a page to go and nothing worth rearranging unasked — the
-    // same answer `openTerminal` gives when the grid is full of editors.
+    // same answer `openTerminal` gives when the workbench is full of editors.
     if (!target) return;
 
     // A window spawned for the occasion arrives with its first tab already
     // named, so there is nothing left to add to it.
     if ('spawn' in target) {
-      set({ windows: [...windows, target.spawn], focusedId: target.spawn.id });
+      set({
+        windows: [...windows, target.spawn],
+        tree: target.tree,
+        focusedId: target.spawn.id,
+      });
       return;
     }
 
@@ -456,15 +490,19 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
   },
 
   openAgent: (windowId) => {
-    const { windows, focusedId } = get();
-    const target = agentTargetFor(windows, windowId ?? focusedId);
+    const { windows, tree, focusedId } = get();
+    const target = targetFor('agent', windows, tree, windowId ?? focusedId);
 
-    // The same answer `openTerminal` gives when the grid is full of things
-    // that cannot hold a conversation.
+    // The same answer `openTerminal` gives when the workbench is full of
+    // things that cannot hold a conversation.
     if (!target) return null;
 
     if ('spawn' in target) {
-      set({ windows: [...windows, target.spawn], focusedId: target.spawn.id });
+      set({
+        windows: [...windows, target.spawn],
+        tree: target.tree,
+        focusedId: target.spawn.id,
+      });
       return target.spawn.type === 'agent'
         ? target.spawn.activeConversation
         : null;
@@ -714,22 +752,22 @@ function nearestSurvivor(
 
 /** An untyped window, given its module. */
 function typed(window: WindowState, type: WindowType): WindowState {
-  const { id, row, col } = window;
+  const { id } = window;
 
   switch (type) {
     case 'editor':
-      return { id, row, col, type, files: [], activeFile: null };
+      return { id, type, files: [], activeFile: null };
     case 'git':
-      return { id, row, col, type, tab: 'history' };
+      return { id, type, tab: 'history' };
     case 'board':
       // No board is opened with it: which one is a question only the person
       // can answer, and the empty window says so with a picker.
-      return { id, row, col, type, boards: [], activeBoard: null };
+      return { id, type, boards: [], activeBoard: null };
     case 'browser': {
       // A browser with no tab is a box with a button. It starts on one blank
       // tab, with the address bar focused and waiting.
       const tab = nextTabId();
-      return { id, row, col, type, tabs: [tab], activeTab: tab };
+      return { id, type, tabs: [tab], activeTab: tab };
     }
     case 'agent': {
       // Choosing an agent window starts a conversation, for the reason
@@ -737,8 +775,6 @@ function typed(window: WindowState, type: WindowType): WindowState {
       const conversation = nextConversationId();
       return {
         id,
-        row,
-        col,
         type,
         conversations: [conversation],
         activeConversation: conversation,
@@ -749,8 +785,6 @@ function typed(window: WindowState, type: WindowType): WindowState {
       const session = nextSessionId();
       return {
         id,
-        row,
-        col,
         type: 'terminal',
         sessions: [session],
         activeSession: session,
@@ -762,8 +796,8 @@ function typed(window: WindowState, type: WindowType): WindowState {
 /** The same window as an editor, typing it on the spot if it was empty. */
 function asEditor(window: WindowState): EditorWindow {
   if (window.type === 'editor') return window;
-  const { id, row, col } = window;
-  return { id, row, col, type: 'editor', files: [], activeFile: null };
+  const { id } = window;
+  return { id, type: 'editor', files: [], activeFile: null };
 }
 
 /**
@@ -772,8 +806,8 @@ function asEditor(window: WindowState): EditorWindow {
  */
 function asTerminal(window: WindowState): TerminalWindow {
   if (window.type === 'terminal') return window;
-  const { id, row, col } = window;
-  return { id, row, col, type: 'terminal', sessions: [], activeSession: null };
+  const { id } = window;
+  return { id, type: 'terminal', sessions: [], activeSession: null };
 }
 
 /**
@@ -782,8 +816,8 @@ function asTerminal(window: WindowState): TerminalWindow {
  */
 function asBoard(window: WindowState): BoardWindow {
   if (window.type === 'board') return window;
-  const { id, row, col } = window;
-  return { id, row, col, type: 'board', boards: [], activeBoard: null };
+  const { id } = window;
+  return { id, type: 'board', boards: [], activeBoard: null };
 }
 
 /**
@@ -792,8 +826,8 @@ function asBoard(window: WindowState): BoardWindow {
  */
 function asBrowser(window: WindowState): BrowserWindow {
   if (window.type === 'browser') return window;
-  const { id, row, col } = window;
-  return { id, row, col, type: 'browser', tabs: [], activeTab: null };
+  const { id } = window;
+  return { id, type: 'browser', tabs: [], activeTab: null };
 }
 
 /**
@@ -802,11 +836,9 @@ function asBrowser(window: WindowState): BrowserWindow {
  */
 function asAgent(window: WindowState): AgentWindow {
   if (window.type === 'agent') return window;
-  const { id, row, col } = window;
+  const { id } = window;
   return {
     id,
-    row,
-    col,
     type: 'agent',
     conversations: [],
     activeConversation: null,
@@ -814,121 +846,55 @@ function asAgent(window: WindowState): AgentWindow {
 }
 
 /**
- * Where a file should open: the preferred window if it can host one, else an
- * existing editor, else an empty window, else a new one in the first free
- * slot.
+ * A window of a kind, split off whichever window has room for it, and the
+ * tree with it in place — or null when none has.
+ */
+function spawn(
+  type: WindowType,
+  tree: WindowTree,
+  focusedId: string
+): { spawn: WindowState; tree: WindowTree } | null {
+  const site = spawnSite(tree, focusedId, roomOf);
+  if (!site) return null;
+
+  const spawned = createWindow(type);
+  return {
+    spawn: spawned,
+    tree: splitInTree(tree, site.targetId, spawned.id, site.direction),
+  };
+}
+
+/**
+ * Where something of a kind should open: the preferred window if it already
+ * is one or is empty, else an existing window of that kind, else an empty
+ * window, else a new one split off whichever window has room.
  *
  * Pure, and returns either an existing window or a `spawn` the caller has to
- * add, so that `openFile` can do the whole thing in one atomic `set` instead
- * of spawning and then filling in a second update the UI would render between.
+ * add — with the tree it goes in — so that each `open*` can do the whole
+ * thing in one atomic `set` instead of spawning and then filling in a second
+ * update the UI would render between.
+ *
+ * One function for every kind, where there used to be one per kind that
+ * differed only in the type they compared. A git window is never preferred
+ * as a host for anything else, and that falls out: it is neither empty nor
+ * the kind being opened.
  */
-function editorTargetFor(
+function targetFor(
+  type: WindowType,
   windows: WindowState[],
+  tree: WindowTree,
   preferredId: string
-): WindowState | { spawn: WindowState } | null {
+): WindowState | { spawn: WindowState; tree: WindowTree } | null {
   const preferred = windows.find((window) => window.id === preferredId);
-  // A git window is as wrong a host for a file as a terminal is: both already
-  // hold something that is not an editor.
-  if (preferred && (preferred.type === 'editor' || preferred.type === null)) {
+  if (preferred && (preferred.type === type || preferred.type === null)) {
     return preferred;
   }
 
-  const editor = windows.find((window) => window.type === 'editor');
-  if (editor) return editor;
+  const same = windows.find((window) => window.type === type);
+  if (same) return same;
 
   const empty = windows.find((window) => window.type === null);
   if (empty) return empty;
 
-  const slot = firstFreeSlot(windows);
-  if (!slot) return null;
-
-  return { spawn: createWindow(slot.row, slot.col, 'editor') };
-}
-
-/** The same question for a board. */
-function boardTargetFor(
-  windows: WindowState[],
-  preferredId: string
-): WindowState | { spawn: WindowState } | null {
-  const preferred = windows.find((window) => window.id === preferredId);
-  if (preferred && (preferred.type === 'board' || preferred.type === null)) {
-    return preferred;
-  }
-
-  const board = windows.find((window) => window.type === 'board');
-  if (board) return board;
-
-  const empty = windows.find((window) => window.type === null);
-  if (empty) return empty;
-
-  const slot = firstFreeSlot(windows);
-  if (!slot) return null;
-
-  return { spawn: createWindow(slot.row, slot.col, 'board') };
-}
-
-/** The same question for a web page. */
-function browserTargetFor(
-  windows: WindowState[],
-  preferredId: string
-): WindowState | { spawn: WindowState } | null {
-  const preferred = windows.find((window) => window.id === preferredId);
-  if (preferred && (preferred.type === 'browser' || preferred.type === null)) {
-    return preferred;
-  }
-
-  const browser = windows.find((window) => window.type === 'browser');
-  if (browser) return browser;
-
-  const empty = windows.find((window) => window.type === null);
-  if (empty) return empty;
-
-  const slot = firstFreeSlot(windows);
-  if (!slot) return null;
-
-  return { spawn: createWindow(slot.row, slot.col, 'browser') };
-}
-
-/** The same question for a conversation with an agent. */
-function agentTargetFor(
-  windows: WindowState[],
-  preferredId: string
-): WindowState | { spawn: WindowState } | null {
-  const preferred = windows.find((window) => window.id === preferredId);
-  if (preferred && (preferred.type === 'agent' || preferred.type === null)) {
-    return preferred;
-  }
-
-  const agent = windows.find((window) => window.type === 'agent');
-  if (agent) return agent;
-
-  const empty = windows.find((window) => window.type === null);
-  if (empty) return empty;
-
-  const slot = firstFreeSlot(windows);
-  if (!slot) return null;
-
-  return { spawn: createWindow(slot.row, slot.col, 'agent') };
-}
-
-/** The same question for a shell. An editor window cannot host one. */
-function terminalTargetFor(
-  windows: WindowState[],
-  preferredId: string
-): WindowState | { spawn: WindowState } | null {
-  const preferred = windows.find((window) => window.id === preferredId);
-  if (preferred && (preferred.type === 'terminal' || preferred.type === null)) {
-    return preferred;
-  }
-
-  const terminal = windows.find((window) => window.type === 'terminal');
-  if (terminal) return terminal;
-
-  const empty = windows.find((window) => window.type === null);
-  if (empty) return empty;
-
-  const slot = firstFreeSlot(windows);
-  if (!slot) return null;
-
-  return { spawn: createWindow(slot.row, slot.col, 'terminal') };
+  return spawn(type, tree, preferredId);
 }

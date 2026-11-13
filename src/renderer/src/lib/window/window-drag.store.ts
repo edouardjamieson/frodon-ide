@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { DropZone } from './window.def';
+import type { DropTarget } from './window.def';
 
 /**
  * A window being carried across the workbench.
@@ -8,16 +8,16 @@ import type { DropZone } from './window.def';
  * every pointer move during a drag changes `drop` — and the window store has
  * subscribers that do real work on any change, the layout snapshot first
  * among them. Nothing in here is worth saving, and nothing here is a fact
- * about the grid until the window is let go and `move` makes it one.
+ * about the layout until the window is let go and `move` makes it one.
  */
 interface WindowDragStore {
   /** The window under the cursor's grip, or null when nothing is dragged. */
   draggingId: string | null;
   /** Where it would land if let go now, or null over nowhere it fits. */
-  drop: { targetId: string; zone: DropZone } | null;
+  drop: DropTarget | null;
 
   start: (id: string) => void;
-  hover: (drop: { targetId: string; zone: DropZone } | null) => void;
+  hover: (drop: DropTarget | null) => void;
   end: () => void;
 }
 

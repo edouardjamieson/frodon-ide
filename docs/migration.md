@@ -55,6 +55,10 @@ Worth writing down, because the diff is bigger than the table suggests:
   window can also be dragged by its grip onto another — the middle trades
   places, an edge puts it beside, above or below — which is new here and is
   what made the tiles move out of their panels (ADR-0041).
+- **The row/col grid did not survive either.** The TUI's model — every window
+  a `row` and a `col`, every row full width, three of each at most — came
+  over intact and was replaced by a split tree (ADR-0048), because it could
+  not split one window of a row downwards.
 - **The arrangement now outlives the page.** New here, not ported: the TUI
   rebuilt its workbench on every launch and nobody minded, because a terminal
   session was already something you set up by hand. A desktop app that forgets

@@ -126,11 +126,11 @@ export function useCommands(): Record<CommandId, () => void> {
       // on — the chord is for going back to settings, and the places that
       // mean a *particular* setting pass one.
       'settings.open': () => openSettings(),
-      // A no-op when the grid is full in that direction, which is `split`'s
-      // own answer and not something a shortcut should second-guess.
+      // A no-op when the window is too small to halve that way, which is
+      // `split`'s own answer and not something a shortcut should second-guess.
       'window.splitRight': () => split(focusedId, 'right'),
       'window.splitDown': () => split(focusedId, 'down'),
-      // Also no-ops at the edge of the grid.
+      // Also no-ops at the edge of the workbench.
       'window.moveLeft': () => swap(focusedId, 'left'),
       'window.moveRight': () => swap(focusedId, 'right'),
       'window.moveUp': () => swap(focusedId, 'up'),

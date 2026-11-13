@@ -36,13 +36,17 @@ import { isAgentKind, isSessionToken } from '@shared/agent.def';
 import {
   LAYOUTS_FILENAME,
   LAYOUT_VERSION,
+  MAX_LAYOUT_DEPTH,
   MAX_REMEMBERED_LAYOUTS,
+  ROWS_LAYOUT_VERSION,
 } from './layout.constant';
-import type {
-  BrowserTabLayout,
-  LayoutSnapshot,
-  LayoutWindow,
-  ProjectLayout,
+import {
+  layoutWindowsOf,
+  type BrowserTabLayout,
+  type LayoutNode,
+  type LayoutSnapshot,
+  type LayoutWindow,
+  type ProjectLayout,
 } from '@shared/layout.def';
 
 const log = createLogger('layout');
@@ -96,8 +100,6 @@ function isLayoutWindow(value: unknown): value is LayoutWindow {
   if (typeof value !== 'object' || value === null) return false;
   const window = value as Partial<LayoutWindow> & Record<string, unknown>;
 
-  if (!isSlot(window.row) || !isSlot(window.col)) return false;
-
   switch (window.type) {
     case 'editor':
       return (
@@ -148,18 +150,119 @@ function isLayoutWindow(value: unknown): value is LayoutWindow {
   }
 }
 
-function isProjectLayout(value: unknown): value is ProjectLayout {
-  if (typeof value !== 'object' || value === null) return false;
-  const entry = value as Partial<ProjectLayout>;
+/**
+ * A saved tree with whatever is broken in it taken out, or null when nothing
+ * is left.
+ *
+ * Forgiving one node at a time, the way the windows always were: a window
+ * that fails validation is dropped and its siblings stay, and so does a split
+ * with an axis nobody recognises. What is left may have splits of one child,
+ * which the renderer's `normalizeTree` folds away on restore — kept out of
+ * here so there is one definition of a normal tree, not two.
+ */
+function sanitizeNode(value: unknown, depth = 0): LayoutNode | null {
+  if (typeof value !== 'object' || value === null) return null;
+  if (depth > MAX_LAYOUT_DEPTH) return null;
+  const node = value as Record<string, unknown>;
 
-  return (
-    entry.version === LAYOUT_VERSION &&
-    typeof entry.savedAt === 'number' &&
-    Number.isFinite(entry.savedAt) &&
-    Array.isArray(entry.windows) &&
-    typeof entry.focused === 'number' &&
-    Number.isInteger(entry.focused)
+  if (node.kind === 'window') {
+    return isLayoutWindow(node.window)
+      ? { kind: 'window', window: node.window }
+      : null;
+  }
+
+  if (node.kind !== 'split' || !Array.isArray(node.children)) return null;
+  if (node.axis !== 'horizontal' && node.axis !== 'vertical') return null;
+
+  const children = node.children
+    .map((child: unknown) => sanitizeNode(child, depth + 1))
+    .filter((child) => child !== null);
+  return children.length > 0
+    ? { kind: 'split', axis: node.axis, children }
+    : null;
+}
+
+/**
+ * A version 1 entry — windows placed by `row` and `col` — as a tree: a
+ * stack of rows, each a split of its windows left to right. Exact, because
+ * every version 1 layout was a tree of that shape that had not been written
+ * down as one.
+ *
+ * The focus was an index into the old list, and is re-counted against the
+ * tree's order so it lands on the same window.
+ */
+function migrateRows(entry: Record<string, unknown>): LayoutSnapshot | null {
+  if (!Array.isArray(entry.windows)) return null;
+  const all: unknown[] = entry.windows;
+
+  const placed = all.filter(
+    (window): window is LayoutWindow & { row: number; col: number } =>
+      isLayoutWindow(window) &&
+      isSlot((window as { row?: unknown }).row) &&
+      isSlot((window as { col?: unknown }).col)
   );
+  if (placed.length === 0) return null;
+
+  const rows = new Map<number, typeof placed>();
+  for (const window of placed) {
+    rows.set(window.row, [...(rows.get(window.row) ?? []), window]);
+  }
+
+  const focusedWindow =
+    typeof entry.focused === 'number' ? all[entry.focused] : undefined;
+  let focused = -1;
+  let index = 0;
+
+  const tree: LayoutNode = {
+    kind: 'split',
+    axis: 'vertical',
+    children: [...rows.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([, row]) => ({
+        kind: 'split',
+        axis: 'horizontal',
+        children: [...row]
+          .sort((a, b) => a.col - b.col)
+          .map((placedWindow): LayoutNode => {
+            if (placedWindow === focusedWindow) focused = index;
+            index += 1;
+            const { row: _row, col: _col, ...window } = placedWindow;
+            return { kind: 'window', window: window as LayoutWindow };
+          }),
+      })),
+  };
+
+  return { tree, focused };
+}
+
+/**
+ * One entry of the file, current or migrated, or null when it is neither.
+ * Windows and splits that did not survive validation are dropped one by one
+ * (see `sanitizeNode`), so one bad tile does not cost the whole arrangement.
+ */
+function projectLayoutOf(value: unknown): ProjectLayout | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const entry = value as Record<string, unknown>;
+
+  if (typeof entry.savedAt !== 'number' || !Number.isFinite(entry.savedAt))
+    return null;
+
+  let snapshot: LayoutSnapshot | null = null;
+
+  if (entry.version === ROWS_LAYOUT_VERSION) {
+    snapshot = migrateRows(entry);
+  } else if (entry.version === LAYOUT_VERSION) {
+    const tree = sanitizeNode(entry.tree);
+    const focused =
+      typeof entry.focused === 'number' && Number.isInteger(entry.focused)
+        ? entry.focused
+        : -1;
+    snapshot = tree ? { tree, focused } : null;
+  }
+
+  return snapshot
+    ? { ...snapshot, version: LAYOUT_VERSION, savedAt: entry.savedAt }
+    : null;
 }
 
 /* -------------------------------------------------------------------------
@@ -184,13 +287,9 @@ async function read(): Promise<LayoutFile> {
     for (const [root, entry] of Object.entries(parsed)) {
       // An absolute path is the only thing that can be a key here. Anything
       // else came from a hand edit and names no project we could open.
-      if (!path.isAbsolute(root) || !isProjectLayout(entry)) continue;
-      file[root] = {
-        ...entry,
-        // Windows that did not survive validation are dropped individually,
-        // so one bad tile does not cost the whole arrangement.
-        windows: entry.windows.filter(isLayoutWindow),
-      };
+      if (!path.isAbsolute(root)) continue;
+      const layout = projectLayoutOf(entry);
+      if (layout) file[root] = layout;
     }
 
     return file;
@@ -268,67 +367,71 @@ async function prune(
   root: string,
   snapshot: LayoutSnapshot
 ): Promise<LayoutSnapshot> {
-  const needsBoards = snapshot.windows.some(
+  const needsBoards = layoutWindowsOf(snapshot.tree).some(
     (window) => window.type === 'board' && window.boards.length > 0
   );
   const known = needsBoards
     ? new Set((await listBoards(root)).map(boardKey))
     : new Set<string>();
 
-  const windows = await Promise.all(
-    snapshot.windows.map(async (window): Promise<LayoutWindow> => {
-      if (window.type === 'editor') {
-        const files = await presentFiles(window.files);
-        return {
-          ...window,
-          files,
-          activeFile:
-            window.activeFile && files.includes(window.activeFile)
-              ? window.activeFile
-              : (files[0] ?? null),
-        };
-      }
+  const pruneWindow = async (window: LayoutWindow): Promise<LayoutWindow> => {
+    if (window.type === 'editor') {
+      const files = await presentFiles(window.files);
+      return {
+        ...window,
+        files,
+        activeFile:
+          window.activeFile && files.includes(window.activeFile)
+            ? window.activeFile
+            : (files[0] ?? null),
+      };
+    }
 
-      if (window.type === 'browser') {
-        // The scheme list, applied to a file a person can hand-edit. Main
-        // refuses the same thing again in `will-attach-webview`, but a url
-        // dropped here is a tab that never existed, where one dropped there
-        // is a tab whose guest failed to attach.
-        const active = window.tabs[window.activeTab];
-        const tabs = window.tabs.filter((tab) => isAllowedBrowserUrl(tab.url));
+    if (window.type === 'browser') {
+      // The scheme list, applied to a file a person can hand-edit. Main
+      // refuses the same thing again in `will-attach-webview`, but a url
+      // dropped here is a tab that never existed, where one dropped there
+      // is a tab whose guest failed to attach.
+      const active = window.tabs[window.activeTab];
+      const tabs = window.tabs.filter((tab) => isAllowedBrowserUrl(tab.url));
 
-        return {
-          ...window,
-          tabs,
-          // Re-indexed against what survived, because the tab that was on
-          // screen may not be among it. Nothing survived is -1, the same
-          // thing a window with no active tab writes.
-          activeTab:
-            active && tabs.includes(active)
-              ? tabs.indexOf(active)
-              : tabs.length > 0
-                ? 0
-                : -1,
-        };
-      }
+      return {
+        ...window,
+        tabs,
+        // Re-indexed against what survived, because the tab that was on
+        // screen may not be among it. Nothing survived is -1, the same
+        // thing a window with no active tab writes.
+        activeTab:
+          active && tabs.includes(active)
+            ? tabs.indexOf(active)
+            : tabs.length > 0
+              ? 0
+              : -1,
+      };
+    }
 
-      if (window.type === 'board') {
-        const boards = window.boards.filter((key) => known.has(key));
-        return {
-          ...window,
-          boards,
-          activeBoard:
-            window.activeBoard && boards.includes(window.activeBoard)
-              ? window.activeBoard
-              : (boards[0] ?? null),
-        };
-      }
+    if (window.type === 'board') {
+      const boards = window.boards.filter((key) => known.has(key));
+      return {
+        ...window,
+        boards,
+        activeBoard:
+          window.activeBoard && boards.includes(window.activeBoard)
+            ? window.activeBoard
+            : (boards[0] ?? null),
+      };
+    }
 
-      return window;
-    })
-  );
+    return window;
+  };
 
-  return { ...snapshot, windows };
+  // Every window at once, as before; the tree only says where each goes back.
+  const visit = async (node: LayoutNode): Promise<LayoutNode> =>
+    node.kind === 'window'
+      ? { kind: 'window', window: await pruneWindow(node.window) }
+      : { ...node, children: await Promise.all(node.children.map(visit)) };
+
+  return { ...snapshot, tree: await visit(snapshot.tree) };
 }
 
 /* -------------------------------------------------------------------------
@@ -347,11 +450,11 @@ export async function readProjectLayout(
   root: string
 ): Promise<LayoutSnapshot | null> {
   const entry = (await read())[root];
-  if (!entry || entry.windows.length === 0) return null;
+  if (!entry) return null;
 
-  const { windows, focused } = await prune(root, entry);
+  const { tree, focused } = await prune(root, entry);
 
-  return { windows, focused };
+  return { tree, focused };
 }
 
 /** Records a project's arrangement, replacing whatever was saved before. */

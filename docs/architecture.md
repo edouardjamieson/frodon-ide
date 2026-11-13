@@ -181,15 +181,17 @@ contents — is in [features/editor.md](features/editor.md).
 ## The workbench, in one paragraph
 
 **`window` means two things in this codebase, and the distinction is load-
-bearing.** In the renderer it is a tile in the workbench grid
+bearing.** In the renderer it is a tile in the workbench
 (`lib/window/`, `window.splitRight`); in main it is an OS window
 (`main/app/window.service.ts`, `app.newWindow`). Where both are in play, this
 documentation says *tile* and *OS window*.
 
-Next to the sidebar is a grid of tiles, each holding one module: an editor with
-its own tabs, a terminal with its own shells, a view of the repository, a
-board, a browser, or nothing yet. Windows are a flat list carrying their own
-`row`/`col`; the layout is derived from those coordinates, never stored.
+Next to the sidebar is a workbench of tiles, each holding one module: an
+editor with its own tabs, a terminal with its own shells, a view of the
+repository, a board, a browser, or nothing yet. Windows are a flat list of
+contents, and where they sit is a split tree beside it — any tile can be
+split either way without its neighbours changing shape. Sizes are stored
+nowhere.
 A *window* here is a tile — the thing `main/app/` creates is a `BrowserWindow`
 and the two never meet. See [features/workbench.md](features/workbench.md).
 

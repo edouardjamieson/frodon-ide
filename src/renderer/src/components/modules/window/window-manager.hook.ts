@@ -2,7 +2,7 @@
  * The two halves of the workbench that have to touch the DOM: putting each
  * tile over its slot, and carrying a tile from one slot to another.
  *
- * See `window-manager.component.tsx` for why the tiles and the grid are two
+ * See `window-manager.component.tsx` for why the tiles and the tree are two
  * separate layers at all.
  */
 import {
@@ -13,15 +13,19 @@ import {
   type RefObject,
 } from 'react';
 import {
-  moveWindow,
+  planMove,
+  roomOf,
   useWindowDragStore,
   useWindowSizeStore,
   useWindowStore,
+  WORKBENCH_EDGE,
+  type DropEdge,
+  type DropTarget,
   type DropZone,
 } from '~/lib/window';
 
 /**
- * Keeps every tile sitting exactly over its slot in the grid.
+ * Keeps every tile sitting exactly over its slot in the panel tree.
  *
  * Imperative on purpose: the tiles are positioned by writing their style, not
  * by rendering. A splitter drag resizes slots on every frame, and a React
@@ -30,7 +34,7 @@ import {
  * drag still changes no application state at all.
  *
  * Two things move a slot. Its size changing, which a `ResizeObserver` hears —
- * splitters, the sidebar, the OS window. And the grid changing shape, which
+ * splitters, the sidebar, the OS window. And the tree changing shape, which
  * renders the manager again, which is the layout effect. A slot can move
  * without changing size (two equal windows trading places), so the observer
  * alone would miss that.
@@ -52,7 +56,7 @@ export function useTileLayout() {
 
     for (const [id, tile] of tiles.current) {
       const slot = slots.current.get(id);
-      // A tile can briefly exist without a slot while the grid catches up
+      // A tile can briefly exist without a slot while the tree catches up
       // with the store. Hidden rather than left wherever it was, which would
       // draw it on top of somebody else's.
       if (!slot) {
@@ -61,12 +65,18 @@ export function useTileLayout() {
       }
 
       const rect = slot.getBoundingClientRect();
+      const box = {
+        left: rect.left - origin.left,
+        top: rect.top - origin.top,
+        width: rect.width,
+        height: rect.height,
+      };
       tile.style.visibility = '';
-      tile.style.left = `${rect.left - origin.left}px`;
-      tile.style.top = `${rect.top - origin.top}px`;
-      tile.style.width = `${rect.width}px`;
-      tile.style.height = `${rect.height}px`;
-      measure(id, rect.width, rect.height);
+      tile.style.left = `${box.left}px`;
+      tile.style.top = `${box.top}px`;
+      tile.style.width = `${box.width}px`;
+      tile.style.height = `${box.height}px`;
+      measure(id, box);
     }
   }, []);
 
@@ -98,7 +108,7 @@ export function useTileLayout() {
   /**
    * Ref callbacks, one per window id and kept, so that React does not detach
    * and reattach every slot on every render because it was handed a new
-   * function. When a slot changes rows React calls the same callback with
+   * function. When a slot changes parent React calls the same callback with
    * null for the old element before calling it with the new one, so the null
    * branch only forgets the element; the callbacks themselves are pruned once
    * a window is gone for good.
@@ -165,14 +175,33 @@ export function useTileLayout() {
  * about it at the guest's border. Covering every tile for the length of the
  * drag keeps the pointer ours.
  */
-export function useWindowDrag(slots: RefObject<Map<string, HTMLElement>>) {
+export function useWindowDrag(
+  container: RefObject<HTMLElement | null>,
+  slots: RefObject<Map<string, HTMLElement>>
+) {
   const draggingId = useWindowDragStore((state) => state.draggingId);
 
   useEffect(() => {
     if (!draggingId) return;
     const { hover, end } = useWindowDragStore.getState();
 
-    const dropAt = (x: number, y: number) => {
+    // Asked of the same function `move` will run, so a zone lights up
+    // exactly when letting go there would do something.
+    const fits = (target: DropTarget) =>
+      planMove(useWindowStore.getState().tree, draggingId, target, roomOf)
+        ? target
+        : null;
+
+    const dropAt = (x: number, y: number): DropTarget | null => {
+      // A band along the workbench's own edges comes first, and wins over
+      // the window beneath it: it is the only way to reach a strip across
+      // everything, and the window's own edge zone is right beside it.
+      const bounds = container.current?.getBoundingClientRect();
+      if (bounds) {
+        const edge = workbenchEdgeAt(x, y, bounds);
+        if (edge) return fits({ targetId: null, zone: edge });
+      }
+
       for (const [targetId, slot] of slots.current) {
         const rect = slot.getBoundingClientRect();
         if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom)
@@ -182,15 +211,7 @@ export function useWindowDrag(slots: RefObject<Map<string, HTMLElement>>) {
           (x - rect.left) / rect.width,
           (y - rect.top) / rect.height
         );
-        // Asked of the same function `move` will run, so a zone lights up
-        // exactly when letting go there would do something.
-        const fits = moveWindow(
-          useWindowStore.getState().windows,
-          draggingId,
-          targetId,
-          zone
-        );
-        return fits ? { targetId, zone } : null;
+        return fits({ targetId, zone });
       }
       return null;
     };
@@ -200,8 +221,7 @@ export function useWindowDrag(slots: RefObject<Map<string, HTMLElement>>) {
 
     const onUp = (event: PointerEvent) => {
       const drop = dropAt(event.clientX, event.clientY);
-      if (drop)
-        useWindowStore.getState().move(draggingId, drop.targetId, drop.zone);
+      if (drop) useWindowStore.getState().move(draggingId, drop);
       end();
     };
 
@@ -226,7 +246,7 @@ export function useWindowDrag(slots: RefObject<Map<string, HTMLElement>>) {
       window.removeEventListener('keydown', onKey, true);
       window.removeEventListener('blur', end);
     };
-  }, [draggingId, slots]);
+  }, [draggingId, container, slots]);
 
   return draggingId;
 }
@@ -250,4 +270,24 @@ function zoneAt(x: number, y: number): DropZone {
   ];
   distances.sort((a, b) => a[1] - b[1]);
   return distances[0]![0];
+}
+
+/**
+ * Which edge of the workbench a point is against, if it is within
+ * `WORKBENCH_EDGE` of one. The nearest, where it is near two.
+ */
+function workbenchEdgeAt(
+  x: number,
+  y: number,
+  bounds: DOMRect
+): DropEdge | null {
+  const distances: [DropEdge, number][] = [
+    ['left', x - bounds.left],
+    ['right', bounds.right - x],
+    ['top', y - bounds.top],
+    ['bottom', bounds.bottom - y],
+  ];
+  distances.sort((a, b) => a[1] - b[1]);
+  const [edge, distance] = distances[0]!;
+  return distance >= 0 && distance <= WORKBENCH_EDGE ? edge : null;
 }

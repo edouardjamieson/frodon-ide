@@ -1,19 +1,42 @@
 /**
- * How far the grid is allowed to go.
+ * The smallest a window may be, in pixels, along each axis.
  *
- * Same numbers as the TUI, and for the same reason: past three columns a pane
- * is too narrow to hold a line of code, and past three rows there is no room
- * left for a tab bar. The limit is on the *shape*, not the count — nine
- * windows is already more than anyone wants open.
+ * This is what limits splitting now, rather than a cap on rows and columns:
+ * a window can be split when both halves would still be at least this big,
+ * and a splitter stops when the window beside it reaches it. Sized so that a
+ * tile at the minimum still holds a line of code beside a gutter and a tab
+ * bar above a few lines of terminal — the same judgement the old three-by-
+ * three cap made, expressed in the unit it was really about.
+ *
+ * Pixels rather than a share of the group, because the groups nest: fifteen
+ * percent of a column that is itself fifteen percent of the workbench is a
+ * sliver, and a percentage cannot see that.
  */
-export const MAX_COLS = 3;
-export const MAX_ROWS = 3;
+export const MIN_TILE_WIDTH = 320;
+export const MIN_TILE_HEIGHT = 180;
 
 /**
- * The smallest a pane may be dragged to, as a share of its group. Below this a
- * window is a sliver that can neither be read nor grabbed again.
+ * The width of the gap between two windows, which is also the splitter.
+ * Matches `w-2` / `h-2` on the gutter in `window-manager.component.tsx`.
  */
-export const MIN_PANE_SIZE = '15%';
+export const GUTTER_SIZE = 8;
+
+/**
+ * How many windows the workbench will hold, whatever the size of the screen.
+ *
+ * A ceiling, not the thing that shapes a layout — `MIN_TILE_WIDTH` does that.
+ * It exists for the file: a saved layout is JSON in a home directory that a
+ * person can edit, and two hundred tiles in it would be a workbench nobody
+ * can use. Sixteen is four by four on a monitor big enough for it.
+ */
+export const MAX_WINDOWS = 16;
+
+/**
+ * How close to the edge of the workbench a dragged window has to be for the
+ * drop to land against the workbench itself — a full-height column or a
+ * full-width row — rather than beside the window under the pointer.
+ */
+export const WORKBENCH_EDGE = 24;
 
 /**
  * The widths and heights at which a window changes shape, smallest first, as

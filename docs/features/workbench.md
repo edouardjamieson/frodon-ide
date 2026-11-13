@@ -1,6 +1,7 @@
 # Workbench
 
-The area beside the sidebar: a grid of tiles, each holding one module. It is
+The area beside the sidebar: tiles split off one another in any direction,
+each holding one module. It is
 the frame every other feature is shown inside, which makes it the first
 feature to read.
 
@@ -16,18 +17,20 @@ a `BrowserWindow` and lives in the other process; the two never meet.
 
 There can be several of those, each on its own project — see
 [project.md](project.md) — which is why the command that opens one is
-`app.newWindow` while the one that splits this grid is `window.splitRight`.
-Everything below is about the grid inside one of them.
+`app.newWindow` while the one that splits a tile is `window.splitRight`.
+Everything below is about the workbench inside one of them.
 
 ## Where it lives
 
 | Path | What it holds |
 | --- | --- |
-| `renderer/src/lib/window/window.def.ts` | `WindowState`, the discriminated union, and the store's contract |
+| `renderer/src/lib/window/window.def.ts` | `WindowState`, the discriminated union, `WindowTree`, and the store's contract |
 | `renderer/src/lib/window/window.store.ts` | every mutation: split, close, open, route, re-key |
-| `renderer/src/lib/window/window.service.ts` | `rowsOf`, `canSplit`, `moveWindow`, `packWindows` — pure functions over the grid |
+| `renderer/src/lib/window/window-tree.service.ts` | `splitInTree`, `moveInTree`, `planMove`, `heirOf`, `spawnSite`, `normalizeTree`, `minExtent` — pure functions over the tree |
+| `renderer/src/lib/window/window.service.ts` | `createWindow`, ids, and `windowBeside`, the keyboard's neighbour by geometry |
+| `renderer/src/lib/window/window.constant.ts` | `MIN_TILE_WIDTH`/`HEIGHT`, `MAX_WINDOWS`, `WORKBENCH_EDGE`, the breakpoints |
 | `renderer/src/lib/window/window-drag.store.ts` | the window being dragged and where it would land; never saved |
-| `renderer/src/lib/window/window-size.store.ts` | each window's size, in breakpoints; never saved |
+| `renderer/src/lib/window/window-size.store.ts` | each window's size in breakpoints, whether it has room to split, and its box; never saved |
 | `renderer/src/lib/window/window.hook.ts` | narrow selectors, one per thing a component draws |
 | `renderer/src/components/modules/window/` | the frame, and one `window-*.component.tsx` per module |
 | `renderer/src/components/modules/window/window-manager.hook.ts` | placing tiles over their slots, and following a drag |
@@ -37,37 +40,45 @@ Everything below is about the grid inside one of them.
 ## How it works
 
 ```
-windows: [{ id, row, col, …contents }]      flat, each carrying its coordinates
-   ↓ rowsOf()
-rows of windows                              derived, never stored
+windows: [{ id, …contents }]                 flat, in the order they were made
+tree: H(V(w1, w3), w2)                       where they sit; leaves are ids
    ↓
-nested resizable panel groups                the browser sizes them — empty slots
+nested resizable panel groups                one per split — empty slots
    ↓ useTileLayout()
 one flat layer of tiles, in store order      each placed over its slot
 ```
 
-Three rules keep the model small.
+Four rules keep the model small.
 
-**The layout is derived, not stored.** A window knows its row and its column;
-nothing knows a width. Sizing belongs to `react-resizable-panels`, and dragging
-a splitter changes no application state at all. That still holds now that an
-arrangement survives a quit: what is saved is the grid, so a project opens back
+**Where a window sits is a tree, and nothing knows a width.** A leaf names a
+window; a split divides its box among its children, side by side
+(`horizontal`) or stacked (`vertical`). Splitting a window replaces its leaf
+with a split of two, so the windows beside it keep their shape — split the
+left of two windows downwards and the right one stays full height. Sizing
+belongs to `react-resizable-panels`, and dragging a splitter changes no
+application state at all. What is saved is the tree, so a project opens back
 onto the same tiles holding the same things with the splitters at their
-defaults. Remembering a dragged splitter would mean storing a size, which is
-the one thing this model does not do.
+defaults. ADR-0048.
+
+**The tree is always normal.** No split has fewer than two children, and no
+split sits directly inside another of the same axis: three windows side by
+side are one split of three. Every operation produces whatever is natural and
+hands it to `normalizeTree`, so splitting rightwards inside a row is "replace
+the leaf with a horizontal split of two" and the flattening into a third
+child falls out. It is also what lets `sameTree` tell a drop that does
+nothing from one that does.
 
 **A tile never moves in the DOM.** The panels are empty slots; the windows
 are drawn in a flat layer above them, keyed by id, in the order they were made,
 and positioned over their slots by writing their style. A `<webview>` reloads
 when its element is moved, and a terminal whose component remounts kills its
-shell — so a window that could change rows by being rendered inside its row
-would lose both every time. Moving a window rewrites its `row` and `col`, the
-grid re-renders its empty slots, and the tile is told new coordinates before
-paint. ADR-0041.
+shell — so a window rendered inside its panel would lose both every time its
+split changed. Moving a window rewrites the tree, the panels re-render their
+empty slots, and the tile is told new coordinates before paint. ADR-0041.
 
-The same layer fixed something older. Rows are keyed by position, so closing
-the only window in the top row used to remount every row below it — and every
-shell in them.
+That layer is also why `windows` and `tree` are two structures rather than
+one. Putting the windows in the leaves would make every rearrangement a
+reordering of the list the tiles are drawn from.
 
 **A module owns its contents.** `WindowState` is a discriminated union, so an
 editor's tabs live on the editor window and a terminal's sessions on the
@@ -84,18 +95,20 @@ jump to, and the file picker calls it. None of the three has an opinion, and a
 fourth way to open a file means calling it too rather than teaching it about a
 new caller.
 
-Two details of `editorTargetFor` worth knowing. A git window is as wrong a host
-for a file as a terminal is, so neither is ever preferred. And when every
-window is occupied by something else *and* the grid is full, the call is a
-**no-op** — there is nowhere for the file to go and nothing sensible to do but
-leave the layout alone.
+Two details of `targetFor` worth knowing. A git window is as wrong a host for
+a file as a terminal is, so neither is ever preferred. And a window spawned
+for the occasion is split off the focused window if it has room, else the
+first that does, rightwards before downwards (`spawnSite`). When every window
+is occupied by something else *and* none has room, the call is a **no-op** —
+there is nowhere for the file to go and nothing sensible to do but leave the
+layout alone.
 
 Re-opening a file that is already a tab keeps its **position** in the bar and
 only moves the active tab. Reordering the bar because someone clicked a file
 they already had open loses the place they were working in.
 
-`openTerminal`, `openBoard`, `openBrowser` and `openAgent` route the same way, with the
-differences each module earns:
+`openTerminal`, `openBoard`, `openBrowser` and `openAgent` route the same way —
+through the same `targetFor` — with the differences each module earns:
 
 | | Opening the same thing twice |
 | --- | --- |
@@ -124,6 +137,19 @@ The size is the whole tile, header included.
 Pixels are deliberately not offered. Anything that needs the exact size of
 its own box — the browser's stage, the terminal's grid — keeps its own
 `ResizeObserver`, as both already do.
+
+### Splitting is limited by size, not by shape
+
+A window can be split when both halves would be at least `MIN_TILE_WIDTH` by
+`MIN_TILE_HEIGHT` — 320 by 180 pixels — and the workbench holds at most
+`MAX_WINDOWS`, sixteen. `measure` works out `room` alongside the breakpoints
+and writes it only when it flips, so the split buttons appear and vanish as a
+splitter is dragged across the line without re-rendering on every frame.
+
+Each panel's `minSize` is `minExtent` of its whole subtree, in pixels: a
+column holding two windows side by side cannot be squeezed below two minimum
+widths and a gutter. A percentage could not see that — fifteen percent of a
+column that is itself fifteen percent of the workbench is a sliver.
 
 ### `closeActiveTab` belongs to the store
 
@@ -159,18 +185,24 @@ expensive enough to rebuild by hand that losing it is felt.
   in April, and a tab pointing at a file that is gone is worse than no tab. A
   window whose contents all vanished keeps its place as an empty one of its
   kind — the tile was the part worth restoring.
-- The renderer repacks. `rowsOf` assumes rows contiguous from 0 and columns
-  contiguous within each row; a hand-edited file does not, so `packWindows`
-  makes the coordinates legal again.
+- The windows are saved in the leaves of the tree, so a hand-edited file
+  cannot name a window that is not there. Main drops broken nodes one at a
+  time and refuses trees deeper than `MAX_LAYOUT_DEPTH`; the renderer's
+  `restore` normalizes what is left and keeps the first `MAX_WINDOWS`.
+- A version 1 file — windows placed by `row` and `col` — is migrated on read
+  by `migrateRows` in `main/layout/`: rows top to bottom, each a split of its
+  windows left to right. Exact, because every old layout was that tree.
 
 ## User flows
 
 ### Splitting
 
-1. A window's frame shows split buttons when the grid has room — `canSplit` is
-   what the UI asks before drawing one. `mod+shift+right` and
-   `mod+shift+down` do the same thing from the keyboard.
-2. The new window is spawned beside or below, and takes focus.
+1. A window's frame shows split buttons when it has room to be halved that
+   way — `canSplitRight` and `canSplitDown` on `useWindow`.
+   `mod+shift+right` and `mod+shift+down` do the same thing from the
+   keyboard.
+2. The new window takes the right or bottom half of the one split, and takes
+   focus. Nothing else on the workbench changes shape.
 3. It is an `EmptyWindow` until told what it is: the welcome tile offers one
    row per module, in a single column with a line saying what each is for.
    A column rather than a grid, because five choices never fill two columns
@@ -187,25 +219,27 @@ expensive enough to rebuild by hand that losing it is felt.
 2. Pressing it starts the drag. A sheet covers the workbench for the length of
    it, because a pointer over a `<webview>` belongs to the guest and the page
    stops hearing about it.
-3. Over another window, the middle half trades places with it and an edge puts
-   the dragged window beside it, or on a full-width row of its own above or
-   below. The outline shows that shape — a new row is outlined across the
-   whole row, not half a tile.
+3. Over another window, the middle half trades places with it and an edge
+   splits it, putting the dragged window in that half. Within
+   `WORKBENCH_EDGE` of the workbench's own border, the drop is against the
+   workbench instead: a full-height column or a full-width row. The outline
+   shows the shape the window is about to take.
 4. A zone lights up only if letting go there would do something: the drop
-   target asks `moveWindow`, the same function the drop runs, so a full row
-   takes no third window and a drop that lands a window where it already is
-   draws nothing.
+   target asks `planMove`, the same function the drop runs, so a window too
+   small to halve takes nothing at its edge and a drop that lands a window
+   where it already is draws nothing.
 5. Letting go moves it and focuses it. Escape, or leaving the app, cancels.
-6. `mod+alt+arrow` trades the focused window with its neighbour that way.
-   Up and down keep the column where the next row has one, else take its last
-   window. A swap, not a move: an arrow key cannot say "beside" from "instead
-   of".
+6. `mod+alt+arrow` trades the focused window with its neighbour that way —
+   the nearest tile on screen in that direction that shares an edge with it,
+   and the one sharing the longest edge among equals (`windowBeside`). A
+   swap, not a move: an arrow key cannot say "beside" from "instead of".
 
 ### Closing
 
 1. `mod+w`, or the tab's close button, closes what the window is showing.
-2. When nothing is left in it, the same chord closes the window and the grid
-   repacks around the hole.
+2. When nothing is left in it, the same chord closes the window. The
+   neighbour it was split from grows into the space and takes focus
+   (`heirOf`).
 3. Closing the last window leaves a fresh empty one. The workbench is never
    blank — there would be no surface left to spawn from.
 
@@ -234,15 +268,20 @@ expensive enough to rebuild by hand that losing it is felt.
 - **A `<webview>` and an xterm both reload when moved in the DOM.** Anything
   that re-parents a tile is a bug in this module, not in theirs. That is why
   the tile layer renders `windows` in store order and never sorts it, and why
-  `moveWindow` returns the array in the order it was given.
+  `move` changes only `tree` and leaves `windows` alone.
+- **`windows` and the leaves of `tree` are the same set of ids.** Every
+  action that adds or removes a window changes both in one `set`; a leaf
+  with no window draws an empty slot, and a window with no leaf a tile
+  hidden by `useTileLayout`.
 
 ## Not there yet
 
 - Window titles, which came from the TUI and want the command palette rather
   than the layout code.
-- Remembering splitter positions across a move. A moved window takes the size
-  of the slot it lands in, because sizes belong to the panels and the panels
-  are positional.
+- Remembering splitter positions, across a move or a quit. A moved window
+  takes the size of the slot it lands in, because sizes belong to the panels.
+  The tree is where they would go — a `sizes` array on each split — and
+  nothing stores one yet.
 - A dialog before a tab with unsaved work is closed. `dirty` already knows; see
   [editor.md](editor.md).
 

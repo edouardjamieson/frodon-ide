@@ -17,7 +17,8 @@ import type { AgentWorkbenchAsk } from '@shared/agent.def';
 import { useWindowStore } from './window.store';
 import { useWindowDragStore } from './window-drag.store';
 import { useWindowSizeStore } from './window-size.store';
-import { atLeast, canSplit, rowsOf } from './window.service';
+import { atLeast } from './window.service';
+import { MAX_WINDOWS } from './window.constant';
 import type {
   AgentWindow,
   BoardWindow,
@@ -28,21 +29,17 @@ import type {
   TerminalWindow,
   WindowBreakpoint,
   WindowState,
+  WindowTree,
   WindowType,
 } from './window.def';
 
 /**
- * The grid, as rows of windows.
- *
- * Derived rather than stored — see `window.def.ts`. `useMemo` on the windows
- * array is what keeps that free: grouping only reruns when a window is
- * spawned, closed or moved, not when one of them changes a tab.
+ * Where every window sits. A new tree only when a window is spawned, closed
+ * or moved — changing a tab rewrites `windows` and leaves this alone, so the
+ * panel layout does not re-render for it.
  */
-export const useWindowRows = (): WindowState[][] => {
-  const windows = useWindowStore((state) => state.windows);
-
-  return useMemo(() => rowsOf(windows), [windows]);
-};
+export const useWindowTree = (): WindowTree =>
+  useWindowStore((state) => state.tree);
 
 /**
  * Every window, in the order they were made — which is the order the
@@ -57,13 +54,19 @@ export const useWindow = (window: WindowState) => {
   const focused = useWindowStore((state) => state.focusedId === window.id);
   // Selected as booleans rather than by reading `windows` and deriving here:
   // subscribing to the array would re-render every frame in the workbench
-  // whenever any one of them changed a tab.
-  const canSplitRight = useWindowStore((state) =>
-    canSplit(state.windows, window, 'right')
+  // whenever any one of them changed a tab. Whether there is room is the size
+  // store's to say, and it says so only when the answer flips.
+  const belowCeiling = useWindowStore(
+    (state) => state.windows.length < MAX_WINDOWS
   );
-  const canSplitDown = useWindowStore((state) =>
-    canSplit(state.windows, window, 'down')
+  const roomRight = useWindowSizeStore(
+    (state) => state.room[window.id]?.right ?? true
   );
+  const roomDown = useWindowSizeStore(
+    (state) => state.room[window.id]?.down ?? true
+  );
+  const canSplitRight = belowCeiling && roomRight;
+  const canSplitDown = belowCeiling && roomDown;
 
   // A lone window has nowhere to go, so it has no grip to carry it by.
   const canMove = useWindowStore((state) => state.windows.length > 1);

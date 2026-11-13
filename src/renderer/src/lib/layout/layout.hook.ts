@@ -92,7 +92,7 @@ export function applyProjectLayout(
 
   if (!snapshot) return;
 
-  const { windows, focusedId, seeds, resumes } = windowsFrom(snapshot);
+  const { windows, tree, focusedId, seeds, resumes } = windowsFrom(snapshot);
 
   // The browser store first, and not for tidiness: the window store write is
   // what mounts the views, and a view reads the page it opens on out of the
@@ -106,7 +106,7 @@ export function applyProjectLayout(
   // so a launch does not start an agent for every favorite left open.
   for (const [id, tab] of Object.entries(resumes))
     requestResume(id, { ...tab, lazy: true });
-  useWindowStore.getState().restore(windows, focusedId);
+  useWindowStore.getState().restore(windows, tree, focusedId);
 }
 
 /** Each conversation's session, as one string to compare. */
@@ -145,8 +145,8 @@ function tabsDiffer(
  * parked and then consumed by the editor that honors it — and a `saveLayout`
  * for each would be a clone across the boundary and a write to a file in a
  * home directory every time someone clicked on a line of code. So the
- * subscription ignores changes that touched neither the windows nor the
- * focus, and the flush compares what it built against the last thing it sent.
+ * subscription ignores changes that touched none of the windows, the tree and
+ * the focus, and the flush compares what it built against the last thing it sent.
  */
 export const useLayoutSaveEffect = (): void => {
   useEffect(() => {
@@ -165,10 +165,11 @@ export const useLayoutSaveEffect = (): void => {
       // than losing one split from the project that was closed.
       if (!root || root !== openRoot) return;
 
-      const { windows, focusedId } = useWindowStore.getState();
+      const { windows, tree, focusedId } = useWindowStore.getState();
       const { conversations, favorites } = useAgentStore.getState();
       const snapshot = snapshotOf(
         windows,
+        tree,
         focusedId,
         useBrowserStore.getState().tabs,
         keptConversations(conversations, favorites)
@@ -199,6 +200,7 @@ export const useLayoutSaveEffect = (): void => {
     const unsubscribeWindows = useWindowStore.subscribe((state, previous) => {
       if (
         state.windows === previous.windows &&
+        state.tree === previous.tree &&
         state.focusedId === previous.focusedId
       ) {
         return;

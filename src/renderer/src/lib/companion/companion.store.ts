@@ -9,6 +9,6 @@ import type { CompanionStore } from './companion.def';
 export const useCompanionStore = create<CompanionStore>((set) => ({
   mood: 'awake',
   setMood: (mood) => set({ mood }),
-  pocketOpen: false,
-  setPocketOpen: (pocketOpen) => set({ pocketOpen }),
+  panelOpen: false,
+  setPanelOpen: (panelOpen) => set({ panelOpen }),
 }));

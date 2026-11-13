@@ -54,3 +54,6 @@ const HEART = ['.f.f.', 'fffff', '.fff.', '..f..'] as const;
 export const HEART_PATH = pixelPath(gridPixels(HEART, 'f'));
 export const HEART_WIDTH = 5;
 export const HEART_HEIGHT = HEART.length;
+
+/** How long one heart takes to rise and fade — `.companion-heart` in CSS. */
+export const HEART_MS = 1_600;

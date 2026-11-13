@@ -667,6 +667,15 @@ export interface FrodonApi {
   file: {
     read: (path: string) => Promise<Res<'file:read'>>;
     readBytes: (path: string) => Promise<Res<'file:read-bytes'>>;
+    /**
+     * Where a `File` from a drop lives on disk, or `''` for one that was
+     * never a file — an image dragged off a web page. Not a channel: the
+     * path is known in the preload, from the drag itself, and asking main
+     * would mean cloning the `File` across for an answer it cannot give.
+     * Electron took `File.path` away in 32 for this one function. The DOM
+     * `File`, not the tree entry this file imports under the same name.
+     */
+    pathOf: (file: globalThis.File) => string;
     write: (path: string, content: string) => Promise<Res<'file:write'>>;
     create: (parent: string, name: string) => Promise<Res<'file:create'>>;
     createDir: (

@@ -1,17 +1,26 @@
 import { cn } from 'cn';
-import { Check } from 'lucide-react';
+import { Ban, Check } from 'lucide-react';
+import type { ComponentType } from 'react';
 import {
   COMPANIONS,
+  COMPANION_FEATURES,
   DEFAULT_COMPANION,
+  DEFAULT_COMPANION_FEATURE,
+  type CompanionFeature,
   type CompanionKind,
 } from '@shared/config.def';
 import { Switch } from '~/components/ui';
 import { useUserConfig } from '~/lib/config';
-import { COMPANION_SPRITES, CompanionFigure } from '../companion';
+import {
+  COMPANION_FEATURE_VIEWS,
+  COMPANION_SPRITES,
+  CompanionFigure,
+} from '../companion';
 import { Field, FieldGroup } from './settings-field.component';
 
 /**
- * Choosing who sits in the corner of the sidebar, or sending them away.
+ * Choosing who sits in the corner of the sidebar, what a right-click on
+ * them opens, or sending them away.
  *
  * Each tile is the real sprite, awake — blinking and moving on the same CSS
  * the sidebar runs — rather than a picture of it, so the theme and the
@@ -33,6 +42,7 @@ export default function SettingsCompanion() {
   const { config, update } = useUserConfig();
   const selected = config.companion ?? DEFAULT_COMPANION;
   const shown = !config.hideCompanion;
+  const feature = config.companionFeature ?? DEFAULT_COMPANION_FEATURE;
 
   return (
     <div className="flex flex-col gap-7">
@@ -46,9 +56,9 @@ export default function SettingsCompanion() {
               Show a companion
             </label>
             <p className="text-[11px] text-fg-subtle">
-              It sits in the bottom corner of the sidebar, falls asleep when you
-              leave, and is pleased when you click it. Right-click it for a
-              focus timer, or drop text on it to keep for later.
+              It sits at the foot of the sidebar, falls asleep when you leave,
+              and is pleased when you click it. Right-click it for the feature
+              chosen below.
             </p>
           </div>
           <Switch
@@ -87,7 +97,96 @@ export default function SettingsCompanion() {
           </Field>
         ))}
       </FieldGroup>
+
+      <FieldGroup title="Feature">
+        <Field
+          label="On right-click"
+          hint="One at a time, so a right-click goes straight to it. What a feature holds is kept while another is chosen."
+        >
+          <div
+            className={cn('flex flex-col gap-1.5', {
+              'pointer-events-none opacity-40': !shown,
+            })}
+          >
+            {COMPANION_FEATURES.map((name) => (
+              <FeatureOption
+                key={name}
+                {...describe(name)}
+                selected={name === feature}
+                onSelect={() =>
+                  update({
+                    companionFeature:
+                      name === DEFAULT_COMPANION_FEATURE ? undefined : name,
+                  })
+                }
+              />
+            ))}
+          </div>
+        </Field>
+      </FieldGroup>
     </div>
+  );
+}
+
+/**
+ * What the option for a feature says. The features describe themselves, so
+ * one added there turns up here; `none` is the one that is not a feature
+ * and has to be described by the page.
+ */
+function describe(name: CompanionFeature): {
+  label: string;
+  description: string;
+  icon: ComponentType<{ className?: string }>;
+} {
+  if (name === 'none')
+    return {
+      label: 'Nothing',
+      description:
+        'Only a companion. A right-click does what it does anywhere.',
+      icon: Ban,
+    };
+  return COMPANION_FEATURE_VIEWS[name];
+}
+
+function FeatureOption({
+  label,
+  description,
+  icon: Icon,
+  selected,
+  onSelect,
+}: {
+  label: string;
+  description: string;
+  icon: ComponentType<{ className?: string }>;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      className={cn(
+        'flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors',
+        selected
+          ? 'border-project/60 bg-project/10'
+          : 'border-border hover:bg-row-hover'
+      )}
+    >
+      <Icon
+        className={cn(
+          'mt-0.5 size-4 shrink-0',
+          selected ? 'text-project' : 'text-fg-subtle'
+        )}
+      />
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="text-xs font-medium text-fg">{label}</span>
+        <span className="text-[11px] text-fg-subtle">{description}</span>
+      </span>
+      {selected ? (
+        <Check className="mt-0.5 size-3.5 shrink-0 text-project" />
+      ) : null}
+    </button>
   );
 }
 

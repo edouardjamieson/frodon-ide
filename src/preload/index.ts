@@ -18,7 +18,7 @@
  * `removeListener`, so a React effect can clean up without the renderer ever
  * holding a reference to the emitter.
  */
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type { BoardDocument, BoardRef, BoardScope } from '@shared/board.def';
 import type { Bookmark, BookmarkScope } from '@shared/bookmark.def';
 import type { File, FileChange } from '@shared/fs.def';
@@ -53,6 +53,7 @@ const api: FrodonApi = {
   file: {
     read: (path) => ipcRenderer.invoke('file:read', { path }),
     readBytes: (path) => ipcRenderer.invoke('file:read-bytes', { path }),
+    pathOf: (file) => webUtils.getPathForFile(file),
     write: (path, content) =>
       ipcRenderer.invoke('file:write', { path, content }),
     create: (parent, name) =>

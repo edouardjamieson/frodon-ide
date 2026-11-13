@@ -79,7 +79,7 @@ rules, and what is missing.
 | [settings](features/settings.md) | two config files, and "absent means derived" |
 | [app icon](features/app-icon.md) | nine Dock icons, one of them painted from the project's hue |
 | [keybindings](features/keybindings.md) | one capture-phase listener, named commands |
-| [companion](features/companion.md) | the cat — or dog, or alien — in the corner of the sidebar: its moods, its pocket and its focus timer |
+| [companion](features/companion.md) | the cat — or dog, or alien — at the foot of the sidebar: its moods, and the one feature it keeps, a focus timer or a pocket |
 | [updates](features/updates.md) | packaging, releasing from a tag, and restarting into the new version |
 
 ### Logs

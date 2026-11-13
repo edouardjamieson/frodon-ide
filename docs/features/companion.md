@@ -1,9 +1,10 @@
 # Companion
 
-A pixel-art companion in the bottom-right corner of the sidebar panel —
-eight cats (one of them a dog), an alien, a turtle, a fish and a robot. It blinks,
+A pixel-art companion in a strip at the foot of the sidebar panel — eight
+cats (one of them a dog), an alien, a turtle, a fish and a robot. It blinks,
 moves, falls asleep when you leave, and is pleased when you click it.
-Right-click it and it keeps two things for you: a focus timer and a pocket.
+Right-click it for the one feature chosen in settings — a focus timer or a
+pocket — whose state sits in the strip beside it.
 
 ## Goal
 
@@ -18,36 +19,42 @@ without redrawing anything.
 
 | Path | What it holds |
 | --- | --- |
-| `lib/companion/companion.store.ts` | the mood, and whether the pocket is open — renderer-only presentation state |
+| `lib/companion/companion.store.ts` | the mood, and whether the feature's popover is open — renderer-only presentation state |
 | `lib/companion/companion.hook.ts` | the idle clock, and `pet` |
 | `lib/companion/companion.constant.ts` | how long until sleep, how long a purr lasts |
 | `components/modules/companion/companion-cats.constant.ts` | the eight cats, their shared face and tail |
 | `components/modules/companion/companion-creatures.constant.ts` | the four who are not cats |
-| `components/modules/companion/companion.constant.ts` | all twelve by name, each tone's role, the box they fit in |
+| `components/modules/companion/companion.constant.ts` | all twelve by name, each tone's role, the box they fit in, the heart |
 | `components/modules/companion/companion.service.ts` | grids and pixels to one SVG path per tone, built once at load |
-| `components/modules/companion/companion.component.tsx` | the companion, its hearts and its snores, the drop that fills the pocket; `CompanionFigure` for the picker |
-| `components/modules/companion/companion-menu.component.tsx` | the right-click menu: focus sessions and the pocket |
-| `components/modules/companion/companion-pocket.component.tsx` | the pocket's popover — copy a row, drag it out, remove it |
-| `components/modules/companion/companion-focus.component.tsx` | the minutes left over its head |
-| `lib/focus/` | the focus session — its store, the clock that ends it, the minutes left |
-| `lib/pocket/` | what the pocket holds, and how much |
-| `components/ui/popover.tsx` | the popover the pocket opens in |
-| `components/modules/settings/settings-companion.component.tsx` | the picker and the switch that hides it |
-| `shared/config.def.ts` | `COMPANIONS`, and the `companion` and `hideCompanion` fields |
-| `components/modules/workbench/sidebar/sidebar.component.tsx` | the corner layer and its fade |
-| `styles.css` | the motion, blink and float keyframes |
+| `components/modules/companion/companion.component.tsx` | the strip, the companion, its hearts and snores, the right-click and the drop; `CompanionFigure` for the picker |
+| `components/modules/companion/companion.def.ts` | the sprite model, and `CompanionFeatureView` — what a feature has to provide |
+| `components/modules/companion/companion-features.constant.ts` | every feature's views, by the name the settings store |
+| `components/modules/companion/companion-timer.component.tsx` | the timer's status beside the companion and its popover of lengths |
+| `components/modules/companion/companion-pocket.component.tsx` | the pocket's status, its popover — the note and the files — and what it takes from a drop |
+| `lib/focus/` | the focus session — its store, the clock that ends it, the minutes left, the presets |
+| `lib/pocket/` | the note and the files, a dropped `File` to a kept one, quoting a path for a shell |
+| `components/ui/popover.tsx` | the popover a feature opens in |
+| `components/modules/settings/settings-companion.component.tsx` | the picker, the switch that hides it, the feature a right-click opens |
+| `shared/config.def.ts` | `COMPANIONS`, `COMPANION_FEATURES`, and the `companion`, `hideCompanion` and `companionFeature` fields |
+| `preload/index.ts` | `file.pathOf`, where a dropped file is on disk |
+| `components/modules/workbench/sidebar/sidebar.component.tsx` | where the strip goes |
+| `styles.css` | the motion, blink, float, heart and progress keyframes |
 
 ## How it works
 
-### Over the panel, not under it
+### A strip of its own
 
-The companion is an absolute layer over the bottom-right of the sidebar
-panel, whatever module is showing, with a gradient in the panel's color
-fading the rows behind it. A strip of its own below the module would have
-cost every list that much height for good. Instead each module pads the
-bottom of its scroll area (`pb-12`), so its last row can still be scrolled
-clear. The layer is `pointer-events-none`, so rows under the fade stay
-clickable, and only the companion's button opts back in.
+The companion sits in a strip at the foot of the sidebar panel, under
+whichever module is showing: the module is `flex-1`, the strip takes what it
+needs. On its right the companion, on its left whatever the chosen feature
+has to say — minutes left, the first line of the note.
+
+It used to float over the panel's bottom-right corner, with a fade behind
+it and every module padding its scroll area so the last row could be
+scrolled clear. That cost the lists no height, and left nowhere to put
+anything beside it: a timer's minutes fitted over its head, and nothing
+longer did. The strip costs every module about sixty pixels for as long as
+the companion shows, and gives them back when it is hidden.
 
 ### Drawn in code, colored by the theme
 
@@ -65,8 +72,8 @@ project you are in, by the same route as the focus ring.
 A `CompanionSprite` is:
 
 - **a body** — the grid of everything that does not move;
-- **a face** — where the eyes are when open, closed and happy (`^ ^`), and
-  the tone they are painted in;
+- **a face** — where the eyes are when open and when shut, and the tone
+  they are painted in;
 - **a motion** — the one part that moves, as exactly four frames of toned
   pixels and a resting pose for sleep. Four because the CSS plays four equal
   slots: a swing between three positions lists the middle one twice, a wave
@@ -100,13 +107,20 @@ one thing on screen ignoring the theme.
 | Mood | Eyes | Motion | Extra |
 | --- | --- | --- | --- |
 | `awake` | open, blinking every 5s | slow loop, 2.4s | — |
-| `purring` | `^ ^` | fast loop, 0.8s | two hearts in the project color |
+| `purring` | open, blinking every 5s | fast loop, 0.8s | one heart in the project color per click |
 | `asleep` | shut | the resting pose | three `z`s |
 
 The motion is four paths running one keyframe, staggered a quarter period
 each with negative delays, so exactly one is visible at a time. The blink is
 two eye paths cross-fading. React re-renders when the mood changes — a few
-times an hour — and never per frame.
+times an hour — and once per heart, and never per frame.
+
+There was a third face, `^ ^`, for being petted. At three pixels a column it
+read as a squint, and it was a third expression to draw for every companion
+added; the fast tail says pleased on its own. Hearts are one per click,
+each removed by a timer the length of its rise rather than on
+`animationend`, which never fires once reduced motion has taken the
+animation away. Five quick pets are five hearts.
 
 ### The idle clock
 
@@ -118,87 +132,122 @@ These listeners observe and bind nothing, so they are not the kind of
 
 ### What it is for
 
-Two things, both chosen because they are worth having and safe to lose. The
-companion can be switched off, so nothing it offers may be the only way to
-do something — the pocket is a shortcut past the clipboard, the timer a
-convenience over the one on your phone. Both are mounted with the companion
-and go with it: hide it mid-session and the session is not ended by anyone.
+Features chosen for being worth having and safe to lose. The companion can
+be switched off, so nothing it offers may be the only way to do something —
+the pocket is a shortcut past the clipboard, the timer a convenience over
+the one on your phone. Both are mounted with the companion and go with it.
 
-Clicking stays petting. A click on a cat is for the cat, and the features are
-on the right-click, where they have to be asked for on purpose.
+Clicking stays petting. A click on a cat is for the cat; the feature is on
+the right-click, where it has to be asked for on purpose.
 
-### The pocket
+### One feature at a time
 
-A short shelf for things you need again in a minute: a command, a snippet, a
-path. Up to eight, newest first, each up to 100 000 characters. Putting in
-something already there moves it to the top instead of keeping it twice.
+Settings choose what a right-click opens: the timer, the pocket, or
+nothing (`companionFeature`, absent meaning the timer). The right-click
+opens it at once, with no menu between. A menu offering every feature grew
+with each one added, and put everything in front of everybody; one choice
+keeps the right-click one gesture, and a feature added later costs nobody
+who did not ask for it.
 
-**In:** drop text on the companion — a selection dragged out of an editor
-is `text/plain`, which is all it takes. While something is held over it the
-companion makes its happy face, so a 54-pixel drop target says it is the one
-that will take it. A terminal's selection cannot be dragged — xterm draws it
-on a canvas — so the menu's **Pocket what you copied** reads the clipboard
-instead: copy in the terminal, then pocket it.
+A feature is a `CompanionFeatureView`: a label, a sentence and an icon for
+the settings page, a `Status` drawn in the strip beside the companion, a
+`Panel` drawn in the popover, and optionally a `drop` that says what it
+takes from a drop on the strip. `COMPANION_FEATURE_VIEWS` is a `Record`
+over `COMPANION_FEATURES`, so a name added there without views does not
+compile. The companion knows how to show a feature and nothing about what
+one does; each keeps its state in its own `lib/` store.
 
-**Out:** a badge with the count sits on the companion's shoulder while the
-pocket holds anything; it, or **Open pocket** in the menu, opens a popover
-above the corner. Click a row and it is on the clipboard; drag it and it
-lands where it is dropped — CodeMirror takes `text/plain` natively, and a
-terminal pastes it. A row stays after either, since the point of setting
-something down is picking it up more than once. A drag out is marked with
-its own type, which the companion refuses, so dragging an item past the cat
-on the way to an editor does not put it back.
+Choosing another feature unmounts the first's views but not its store: a
+note typed into the pocket is still there when the pocket is chosen again.
 
-The popover does not take focus. The pocket is picked from with the mouse,
-and stealing focus from the editor would make dropping an item back into it
-a second click instead of the first.
-
-**It is per window and gone on reload.** That is the honest size of it: a
-place to set something down for the next few minutes. Carrying a snippet
-between two windows would make it a fact both share, which is main's to
-hold.
+The right-click on the strip is a toggle, read from the store at the moment
+of the click. The popover ignores interactions that start inside the strip,
+or it would close on the pointer-down and the `contextmenu` that follows
+would open it again. Neither popover takes focus when it opens: a timer is
+started with one click and a file dragged out with none, and taking focus
+from the editor would make dropping into it the second click instead of the
+first.
 
 ### The focus timer
 
-**Focus for 25 minutes** or **for 50**, from the menu. Two lengths rather
-than a field to type in: a timer that has to be set up before it starts is
-one nobody starts. While it runs, the minutes left sit over the companion's
-head, and it does not fall asleep — three minutes of reading without
-touching anything is what focusing looks like, not leaving. When time is
-up the label turns to `done` in the project's color and stays until you
-click the companion, because a session that ended while you were looking
-away should still be there when you look back.
+The popover offers 5, 10, 15, 20, 25, 30, 45 and 60 minutes, one click
+each, and a field after them for any other length up to eight hours, started
+with Enter. Presets first: a timer that has to be typed before it starts is
+one nobody starts, and the field is for the length you already know.
 
-One timeout to the end rather than an interval checking on it; the label
-re-renders once a minute, on the session's minute boundaries, in a
-component of its own so the sprite does not.
+While a session runs, the strip says `Focusing` with the minutes left and a
+bar that empties, and the companion does not fall asleep — three minutes of
+reading without touching anything is what focusing looks like, not leaving.
+The popover is then for stopping it. When time is up the strip says `Time's
+up` in the project's color and stays until it, or the companion, is
+clicked, because a session that ended while you were looking away should
+still be there when you look back.
 
-The menu opening the pocket defers it to the menu's close, as the explorer
-defers its actions: the menu returns focus to its trigger as it goes, and a
-popover opened before that would see focus leave it and shut. The menu also
-ignores pointer-ups for 200ms after it opens — see
-[learned](../learned.md#a-radix-context-menu-near-the-bottom-of-the-window-selects-an-item-on-a-trackpad-tap).
+One timeout to the end rather than an interval checking on it. The minutes
+re-render once a minute, on the session's minute boundaries, in the status
+component so the sprite does not. The bar is one CSS animation the length of
+the session, started part-way by a negative delay computed once when it
+mounts — keyed by the session's end, so a new session is a new bar. It is
+left running under reduced motion: a bar moving a pixel every few seconds is
+a reading, not an animation.
+
+### The pocket
+
+A short shelf for things you need again in a minute: a note, and files.
+
+**The note** is a textarea in the popover, up to 100 000 characters. Text
+dropped on the companion goes on the end of it, on a line of its own;
+dropped on the note itself it lands where the cursor does. A terminal's
+selection cannot be dragged — xterm draws it on a canvas — so copy it and
+paste it into the note.
+
+**Files** dropped on the companion, or on the popover, are kept by path —
+up to eight, newest first, the same path twice moved to the top. The pocket
+never holds a file's bytes: what it keeps is where to find it, and the
+point of keeping a file is handing that to something later — a screenshot
+on its way into an agent's prompt, a log to attach to an issue. The path
+comes from `webUtils.getPathForFile` in the preload, since `File.path` is
+gone from Electron. A `File` with no path — an image dragged off a web page
+— is left out. An image gets a thumbnail from a `blob:` URL made while the
+dropped `File` is still in hand, since this page may not load `file://`;
+the URL is revoked when the file leaves the pocket, however it leaves.
+
+**Out:** drag a file into a terminal and it gets the path, quoted for a
+shell when it has to be, so a path with a space stays one word to a shell
+and to an agent alike; the drag also carries a `file://` URI. Click a row
+and the path is on the clipboard. A row stays after either. A drag out is
+marked with its own type, which the companion refuses, so dragging a file
+past the cat does not put it back.
+
+Beside the companion, the strip shows the note's first line and up to three
+image thumbnails with a count; clicking it opens the popover.
+
+**It is per window and gone on reload.** That is the honest size of it: a
+place to set something down for the next few minutes. Carrying a note
+between two windows would make it a fact both share, which is main's to
+hold.
 
 ## User flows
 
 - **Choose one.** `mod+,` → Companion. Cats on one shelf, everybody else on
   the next; each tile is the real sprite, awake, in the current theme and
   project color. Choosing `classic` removes the key.
-- **Send it away.** The switch on the same page. The lists keep their bottom
-  padding either way.
-- **Pet it.** Click it. Happy eyes, fast motion and hearts for 2.4s; clicking
-  again restarts that rather than queueing another.
+- **Choose what it does.** The same page, under Feature: focus timer,
+  pocket, or nothing. Choosing the timer removes the key.
+- **Send it away.** The switch on the same page. The strip goes with it.
+- **Pet it.** Click it. Fast motion for 2.4s and a heart; each click is
+  another heart and restarts the purr rather than queueing another.
 - **Leave.** Three minutes without touching the app and it falls asleep.
   Any key, click, scroll or mouse move wakes it. Not during a focus
   session.
-- **Focus.** Right-click → Focus for 25 (or 50) minutes. `25m` over its
-  head, counting down; `done` when it is over, until you click it.
-  Right-click again to stop early.
-- **Keep something.** Drag a selection onto it, or copy and right-click →
-  Pocket what you copied. The badge shows how many it holds.
-- **Use it.** Click the badge → click a row to copy it, or drag it into an
-  editor or a terminal. Hover a row for the × that removes it; **Empty**
-  clears the lot.
+- **Focus.** Right-click → a length, or type one and press Enter. The
+  minutes left and a bar beside it; `Time's up` when it is over, until you
+  click it. Right-click → Stop to end it early.
+- **Keep something.** With the pocket chosen, right-click and type in the
+  note, or drop files or text on the companion.
+- **Use it.** Right-click, or click the strip beside it → drag a file into
+  a terminal or an editor, or click it to copy its path. Hover a row for the
+  × that removes it; **Empty** clears the note and the files.
 
 ## Rules
 
@@ -207,21 +256,32 @@ ignores pointer-ups for 200ms after it opens — see
 - **A name added to `COMPANIONS` has to be drawn** — `COMPANION_SPRITES` is a
   `Record` over it and will not compile otherwise. Names are written into
   config files, so they are never renamed.
-- **A new sidebar module pads its scroll area** (`pb-12`), or its last rows
-  end up under the companion.
+- **A feature is a `CompanionFeatureView` in `COMPANION_FEATURE_VIEWS`**,
+  with its state in its own `lib/` store. Nothing about a feature goes in
+  `companion.component.tsx`. Feature names are written into config files,
+  so they are never renamed either.
 - **No color values in JS.** Every fill is a theme class.
 - **Nothing per frame through React.** New animation goes in `styles.css`,
   keyed off `data-mood` or a class.
 - **Reduced motion holds it still** — first frame, eyes open, hearts and
-  snores shown where they start.
+  snores shown where they start. The timer's bar is the exception, on
+  purpose.
 
 ## Not there yet
 
 - A pocket shared between windows, and one that survives a reload. Both
   mean main holding it.
+- Dragging a pocket file out of Frodon — into Finder, a chat app — as a
+  file. That is `webContents.startDrag` in main; today a drag out carries a
+  path and a URI, which only Frodon's own terminals and editors make use of.
+- An image pasted into the pocket, or dragged off a web page. Neither has a
+  path, and keeping one would mean main writing it somewhere first.
 - Anything when a session ends and the window is not in front — a system
-  notification, a bounce of the Dock. Today you see `done` when you look.
-- A break after a session, and lengths other than 25 and 50.
+  notification, a bounce of the Dock. Today you see `Time's up` when you
+  look.
+- A break after a session.
+- A session left running when another feature is chosen keeps the
+  companion awake, and is only ended when the timer is chosen again.
 
 - Reacting to what main already knows: a commit, a push, a command that
   exited non-zero.

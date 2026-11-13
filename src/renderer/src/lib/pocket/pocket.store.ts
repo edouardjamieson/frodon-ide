@@ -1,27 +1,51 @@
 import { create } from 'zustand';
 import { POCKET_MAX_CHARS, POCKET_SIZE } from './pocket.constant';
 import type { PocketStore } from './pocket.def';
+import { release } from './pocket.service';
 
 /**
  * Renderer-only, per window, and gone on reload. That is the honest size of
  * the feature for now: a place to set something down for the next few
- * minutes. Carrying a snippet between two windows would put it in main, as
- * a fact both windows share — the clipboard already does that, one item at
- * a time.
+ * minutes. Carrying a note between two windows would put it in main, as a
+ * fact both windows share.
+ *
+ * Every file that leaves — removed, emptied, or pushed out by a newer one —
+ * goes through `release`, so its thumbnail's bytes go with it.
  */
-export const usePocketStore = create<PocketStore>((set) => ({
-  items: [],
-  put: (raw) => {
-    const text = raw.slice(0, POCKET_MAX_CHARS);
+export const usePocketStore = create<PocketStore>((set, get) => ({
+  note: '',
+  setNote: (note) => set({ note: note.slice(0, POCKET_MAX_CHARS) }),
+  append: (text) => {
     if (text.trim() === '') return;
-    set(({ items }) => ({
-      items: [
-        { id: crypto.randomUUID(), text },
-        ...items.filter((item) => item.text !== text),
-      ].slice(0, POCKET_SIZE),
-    }));
+    const { note } = get();
+    const joined = note === '' || note.endsWith('\n') ? note : `${note}\n`;
+    set({ note: (joined + text).slice(0, POCKET_MAX_CHARS) });
+  },
+  files: [],
+  putFiles: (incoming) => {
+    if (incoming.length === 0) return;
+    const paths = new Set(incoming.map((file) => file.path));
+    const kept = [
+      ...incoming,
+      ...get().files.filter((file) => {
+        if (!paths.has(file.path)) return true;
+        release(file);
+        return false;
+      }),
+    ];
+    kept.slice(POCKET_SIZE).forEach(release);
+    set({ files: kept.slice(0, POCKET_SIZE) });
   },
   remove: (id) =>
-    set(({ items }) => ({ items: items.filter((item) => item.id !== id) })),
-  empty: () => set({ items: [] }),
+    set(({ files }) => ({
+      files: files.filter((file) => {
+        if (file.id !== id) return true;
+        release(file);
+        return false;
+      }),
+    })),
+  empty: () => {
+    get().files.forEach(release);
+    set({ note: '', files: [] });
+  },
 }));

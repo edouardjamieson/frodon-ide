@@ -218,6 +218,13 @@ export interface UserConfig {
   companion?: CompanionKind;
   /** Whether anybody sits there at all. Absent: shown. */
   hideCompanion?: boolean;
+  /**
+   * What a right-click on the companion opens. Absent:
+   * `DEFAULT_COMPANION_FEATURE`. One at a time, so the right-click goes
+   * straight to it rather than through a menu that grows with every feature
+   * added — and a feature nobody chose is one nobody has to step around.
+   */
+  companionFeature?: CompanionFeature;
 }
 
 /**
@@ -243,6 +250,18 @@ export const COMPANIONS = [
 export type CompanionKind = (typeof COMPANIONS)[number];
 
 export const DEFAULT_COMPANION: CompanionKind = 'classic';
+
+/**
+ * What the companion can keep for you, as names written into the user's
+ * config — so, like `COMPANIONS`, never renamed. `none` is a choice rather
+ * than the absent key, because absent means the default and the default is
+ * a feature.
+ */
+export const COMPANION_FEATURES = ['timer', 'pocket', 'none'] as const;
+
+export type CompanionFeature = (typeof COMPANION_FEATURES)[number];
+
+export const DEFAULT_COMPANION_FEATURE: CompanionFeature = 'timer';
 
 /**
  * The icons that exist, as keys rather than paths.
@@ -350,6 +369,15 @@ export function isValidAppIcon(value: unknown): value is AppIcon {
   return (
     typeof value === 'string' &&
     (APP_ICONS as readonly string[]).includes(value)
+  );
+}
+
+export function isValidCompanionFeature(
+  value: unknown
+): value is CompanionFeature {
+  return (
+    typeof value === 'string' &&
+    (COMPANION_FEATURES as readonly string[]).includes(value)
   );
 }
 
@@ -504,9 +532,11 @@ export function sanitizeUserConfig(value: unknown): UserConfig {
   const terminalSize = normalizeFontSize(raw.terminalFontSize);
   if (terminalSize !== null) config.terminalFontSize = terminalSize;
 
-  if (isValidCompanion(raw.cat)) config.companion = raw.cat;
+  if (isValidCompanion(raw.companion)) config.companion = raw.companion;
   if (typeof raw.hideCompanion === 'boolean')
     config.hideCompanion = raw.hideCompanion;
+  if (isValidCompanionFeature(raw.companionFeature))
+    config.companionFeature = raw.companionFeature;
 
   return config;
 }

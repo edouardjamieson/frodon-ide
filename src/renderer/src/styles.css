@@ -404,13 +404,41 @@ body {
   }
 }
 
+/* One heart per pet, rising once. The component removes it when the rise is
+   over, by a timer of the same length rather than on `animationend`, which
+   never fires when reduced motion has taken the animation away. */
+.companion-heart {
+  animation: companion-float 1.6s ease-out both;
+}
+
+/* A focus session's time left, as a bar that empties. One linear animation
+   the length of the session, started mid-way by a negative delay when it is
+   drawn late, so the bar costs React nothing between the minutes. Left out
+   of reduced motion on purpose: a bar that moves a pixel every few seconds
+   is a reading, not an animation. */
+.companion-progress {
+  transform-origin: left;
+  animation-name: companion-progress;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+}
+@keyframes companion-progress {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
 /* With motion reduced the companion holds still: first frame, eyes open,
    and the hearts and snores shown where they start rather than rising. */
 @media (prefers-reduced-motion: reduce) {
   .companion-motion-frame,
   .companion-blink-open,
   .companion-blink-closed,
-  .companion-float {
+  .companion-float,
+  .companion-heart {
     animation: none;
   }
   .companion-motion-frame[data-frame='0'] {

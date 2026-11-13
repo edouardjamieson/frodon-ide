@@ -67,14 +67,6 @@ const ALIEN: CompanionSprite = {
       [9, 7],
     ],
     closed: [...run(3, 7, 3), ...run(8, 7, 3)],
-    happy: [
-      [3, 7],
-      [4, 6],
-      [5, 7],
-      [8, 7],
-      [9, 6],
-      [10, 7],
-    ],
   },
   eyes: 'n',
   motion: {
@@ -129,11 +121,6 @@ const TURTLE: CompanionSprite = {
     closed: [
       [14, 9],
       [15, 9],
-    ],
-    happy: [
-      [14, 9],
-      [15, 8],
-      [16, 9],
     ],
   },
   eyes: 'n',
@@ -201,11 +188,6 @@ const FISH: CompanionSprite = {
     closed: [
       [3, 6],
       [4, 6],
-    ],
-    happy: [
-      [3, 6],
-      [4, 5],
-      [5, 6],
     ],
   },
   eyes: 'n',
@@ -285,14 +267,6 @@ const ROBOT: CompanionSprite = {
       [9, 5],
     ],
     closed: [...run(5, 5, 2), ...run(9, 5, 2)],
-    happy: [
-      [5, 5],
-      [6, 4],
-      [7, 5],
-      [8, 5],
-      [9, 4],
-      [10, 5],
-    ],
   },
   eyes: 'c',
   motion: {

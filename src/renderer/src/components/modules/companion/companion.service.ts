@@ -79,7 +79,6 @@ export function buildPaths<K extends string>(
       face: {
         open: pixelPath(sprite.face.open),
         closed: pixelPath(sprite.face.closed),
-        happy: pixelPath(sprite.face.happy),
       },
       frames: sprite.motion.frames.map(tonedLayers),
       resting: tonedLayers(sprite.motion.resting),

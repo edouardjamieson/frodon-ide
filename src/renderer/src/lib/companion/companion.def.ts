@@ -5,14 +5,18 @@
  *
  * - `awake`: blinking, moving slowly.
  * - `asleep`: eyes shut, still. Nobody has touched the app in a while.
- * - `purring`: just petted. Happy eyes, moving fast, hearts.
+ * - `purring`: just petted. Moving fast; the heart is the click's own.
  */
 export type CompanionMood = 'awake' | 'asleep' | 'purring';
 
 export interface CompanionStore {
   mood: CompanionMood;
   setMood: (mood: CompanionMood) => void;
-  /** Whether the pocket's popover is open over the companion. */
-  pocketOpen: boolean;
-  setPocketOpen: (open: boolean) => void;
+  /**
+   * Whether the chosen feature's popover is open over the companion. One
+   * flag rather than one per feature, because only one feature is ever
+   * chosen.
+   */
+  panelOpen: boolean;
+  setPanelOpen: (open: boolean) => void;
 }

@@ -1,3 +1,5 @@
+import type { ComponentType } from 'react';
+
 /** One pixel of a sprite, as `[column, row]` in sprite units. */
 export type Pixel = readonly [x: number, y: number];
 
@@ -24,12 +26,15 @@ export type Tone =
   /** A hole: the panel's own color, for noses, mouths and eyes. */
   | 'n';
 
-/** Where the eyes are in each of the three expressions. */
+/**
+ * Where the eyes are, open and shut. A petted companion keeps its open eyes
+ * and says it is pleased with its tail and a heart: a `^ ^` face read as a
+ * squint at this size, and a third expression was a third thing to draw for
+ * every companion added.
+ */
 export interface Face {
   open: readonly Pixel[];
   closed: readonly Pixel[];
-  /** `^ ^` — the face a petted companion makes. */
-  happy: readonly Pixel[];
 }
 
 /**
@@ -72,7 +77,36 @@ export interface ToneLayer {
 export interface CompanionPaths {
   body: readonly ToneLayer[];
   eyes: Tone;
-  face: { open: string; closed: string; happy: string };
+  face: { open: string; closed: string };
   frames: readonly (readonly ToneLayer[])[];
   resting: readonly ToneLayer[];
+}
+
+/**
+ * One thing the companion can keep for you, as the strip and the popover
+ * see it. A feature is two views and, optionally, a way to take a drop —
+ * everything else about it lives in its own `lib/` store, so the companion
+ * knows how to show a feature and nothing about what one does.
+ */
+export interface CompanionFeatureView {
+  /** What the settings page calls it. */
+  label: string;
+  /** The sentence under it there. */
+  description: string;
+  icon: ComponentType<{ className?: string }>;
+  /**
+   * Beside the companion, in its strip: what the feature has to say right
+   * now, or nothing. Mounted for as long as the feature is chosen, so a
+   * feature with a clock runs it here.
+   */
+  Status: ComponentType<{ openPanel: () => void }>;
+  /** What a right-click on the companion opens. */
+  Panel: ComponentType<{ closePanel: () => void }>;
+  /** The popover's width and padding, which differ by what it holds. */
+  panelClassName: string;
+  /** Something dropped on the companion, if the feature takes drops. */
+  drop?: {
+    accepts: (data: DataTransfer) => boolean;
+    take: (data: DataTransfer) => void;
+  };
 }

@@ -1,5 +1,15 @@
-import { useState, type CSSProperties, type DragEvent } from 'react';
-import { DEFAULT_COMPANION, type CompanionKind } from '@shared/config.def';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type DragEvent,
+} from 'react';
+import {
+  DEFAULT_COMPANION,
+  DEFAULT_COMPANION_FEATURE,
+  type CompanionKind,
+} from '@shared/config.def';
 import {
   Popover,
   PopoverAnchor,
@@ -11,14 +21,12 @@ import {
   type CompanionMood,
 } from '~/lib/companion';
 import { useUserConfig } from '~/lib/config';
-import { useFocusClock, useFocusStore } from '~/lib/focus';
-import { POCKET_DRAG_TYPE, usePocketStore } from '~/lib/pocket';
-import CompanionFocus from './companion-focus.component';
-import CompanionMenu from './companion-menu.component';
-import CompanionPocket from './companion-pocket.component';
+import { useFocusStore } from '~/lib/focus';
+import { COMPANION_FEATURE_VIEWS } from './companion-features.constant';
 import {
   COMPANION_PATHS,
   HEART_HEIGHT,
+  HEART_MS,
   HEART_PATH,
   HEART_WIDTH,
   MOTION_PERIOD,
@@ -30,116 +38,163 @@ import {
 import type { CompanionPaths, ToneLayer } from './companion.def';
 
 /**
- * The companion in the corner of the sidebar, whichever one the settings
- * chose, and the two things it keeps for you: a focus timer and a pocket.
+ * The companion's strip at the foot of the sidebar panel: whichever
+ * companion the settings chose on the right, and on its left whatever the
+ * chosen feature has to say.
  *
  * Every animation is CSS, keyed off `data-mood`. React renders when the mood
- * changes, which is a few times an hour; the blinking and swaying in between
- * cost it nothing.
+ * changes, which is a few times an hour, and once per heart; the blinking
+ * and swaying in between cost it nothing.
  *
- * Both features live here and nowhere else, on purpose. The companion can be
- * turned off, so nothing it offers may be the only way to do something: the
- * pocket is a shortcut past the clipboard, the timer a convenience over the
- * one on your phone. Hide the companion and they go with it.
+ * A right-click opens the chosen feature, straight away — one feature at a
+ * time, chosen in settings, so there is no menu to pick it from. Features
+ * live here and nowhere else, on purpose: the companion can be turned off,
+ * so nothing it offers may be the only way to do something. Hide it and they
+ * go with it.
  */
 export default function Companion() {
   const { mood, pet } = useCompanion();
   const { config } = useUserConfig();
   const kind = config.companion ?? DEFAULT_COMPANION;
-  const pocketOpen = useCompanionStore((state) => state.pocketOpen);
-  const setPocketOpen = useCompanionStore((state) => state.setPocketOpen);
-  const count = usePocketStore((state) => state.items.length);
-  const put = usePocketStore((state) => state.put);
+  const chosen = config.companionFeature ?? DEFAULT_COMPANION_FEATURE;
+  const feature = chosen === 'none' ? null : COMPANION_FEATURE_VIEWS[chosen];
+  const panelOpen = useCompanionStore((state) => state.panelOpen);
+  const setPanelOpen = useCompanionStore((state) => state.setPanelOpen);
   const focus = useFocusStore((state) => state.phase);
   const clearFocus = useFocusStore((state) => state.clear);
+  const strip = useRef<HTMLDivElement>(null);
   // Only while something is being dragged over it — gone the moment the drag
   // is, so not state anything else could ask about.
   const [eager, setEager] = useState(false);
+  const hearts = useHearts();
 
-  useFocusClock();
-
-  // Anything with text in it, except an item on its way out of the pocket.
   const accepts = (event: DragEvent) =>
-    event.dataTransfer.types.includes('text/plain') &&
-    !event.dataTransfer.types.includes(POCKET_DRAG_TYPE);
+    feature?.drop?.accepts(event.dataTransfer) ?? false;
 
-  // Happy eyes and hearts while it is offered something: the drop target is
-  // a 54-pixel cat, and it should be obvious it is the one that will take it.
+  // A fast tail while it is offered something: the drop target is a strip
+  // at the bottom of a list, and it should be obvious it is the one that
+  // will take it.
   const shown: CompanionMood = eager ? 'purring' : mood;
 
+  const petOnce = () => {
+    pet();
+    hearts.add();
+  };
+
   return (
-    <Popover open={pocketOpen} onOpenChange={setPocketOpen}>
-      <CompanionMenu onOpenPocket={() => setPocketOpen(true)}>
-        <PopoverAnchor asChild>
-          <div
-            className="relative pointer-events-auto"
-            onDragOver={(event) => {
-              if (!accepts(event)) return;
-              event.preventDefault();
-              event.dataTransfer.dropEffect = 'copy';
-              setEager(true);
-            }}
-            onDragLeave={(event) => {
-              // Leaving the button for the badge is still being over it.
-              if (event.currentTarget.contains(event.relatedTarget as Node))
-                return;
-              setEager(false);
-            }}
-            onDrop={(event) => {
-              if (!accepts(event)) return;
-              event.preventDefault();
-              setEager(false);
-              put(event.dataTransfer.getData('text/plain'));
-              pet();
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => {
-                // A finished session is put away by noticing it, and
-                // clicking the cat that says `done` is noticing it.
-                if (focus === 'done') clearFocus();
-                pet();
-              }}
-              data-mood={shown}
-              aria-label={`Pet the ${kind}`}
-              className="relative block cursor-pointer"
-            >
-              <CompanionFigure kind={kind} mood={shown} />
-
-              {shown === 'purring' ? <Hearts /> : null}
-              {shown === 'asleep' ? <Snores /> : null}
-            </button>
-
-            <CompanionFocus />
-
-            {count > 0 ? (
-              <button
-                type="button"
-                onClick={() => setPocketOpen(true)}
-                aria-label={`Open the pocket, ${count} kept`}
-                className="absolute -top-2 left-0 flex h-4 min-w-4 cursor-pointer items-center justify-center rounded-full border border-project/40 bg-project/25 px-1 font-mono text-[9px] leading-none text-fg hover:bg-project/40"
-              >
-                {count}
-              </button>
+    <Popover open={panelOpen && feature !== null} onOpenChange={setPanelOpen}>
+      <PopoverAnchor asChild>
+        <div
+          ref={strip}
+          className="flex shrink-0 items-end gap-3 border-t border-project/10 px-3 pt-3 pb-2"
+          onContextMenu={(event) => {
+            if (!feature) return;
+            event.preventDefault();
+            // Read rather than closed over: the toggle has to see the state
+            // as it is now, not as it was when this strip last rendered.
+            setPanelOpen(!useCompanionStore.getState().panelOpen);
+          }}
+          onDragOver={(event) => {
+            if (!accepts(event)) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'copy';
+            setEager(true);
+          }}
+          onDragLeave={(event) => {
+            // Leaving the sprite for the status beside it is still being
+            // over the strip.
+            if (event.currentTarget.contains(event.relatedTarget as Node))
+              return;
+            setEager(false);
+          }}
+          onDrop={(event) => {
+            setEager(false);
+            if (!accepts(event)) return;
+            event.preventDefault();
+            feature?.drop?.take(event.dataTransfer);
+            petOnce();
+          }}
+        >
+          <div className="min-w-0 flex-1 self-center">
+            {feature ? (
+              <feature.Status openPanel={() => setPanelOpen(true)} />
             ) : null}
           </div>
-        </PopoverAnchor>
-      </CompanionMenu>
 
-      <PopoverContent
-        side="top"
-        align="end"
-        className="w-64 p-1"
-        // Focus stays where you were working. The pocket is picked from with
-        // the mouse, and taking focus from the editor would make dragging an
-        // item back into it the second click instead of the first.
-        onOpenAutoFocus={(event) => event.preventDefault()}
-      >
-        <CompanionPocket />
-      </PopoverContent>
+          <button
+            type="button"
+            onClick={() => {
+              // A finished session is put away by noticing it, and clicking
+              // the companion beside `Time's up` is noticing it.
+              if (focus === 'done') clearFocus();
+              petOnce();
+            }}
+            data-mood={shown}
+            aria-label={`Pet the ${kind}`}
+            className="relative block shrink-0 cursor-pointer"
+          >
+            <CompanionFigure kind={kind} mood={shown} />
+
+            {hearts.ids.map((id) => (
+              <Heart key={id} id={id} />
+            ))}
+            {shown === 'asleep' ? <Snores /> : null}
+          </button>
+        </div>
+      </PopoverAnchor>
+
+      {feature ? (
+        <PopoverContent
+          side="top"
+          align="end"
+          className={feature.panelClassName}
+          // Focus stays where you were working. A timer is started with one
+          // click and a file dragged out with none, and taking focus from
+          // the editor would make dropping into it the second click instead
+          // of the first.
+          onOpenAutoFocus={(event) => event.preventDefault()}
+          // A right-click on the strip is the toggle. Without this the
+          // popover would shut on its pointer-down and the right-click
+          // that follows would open it straight back.
+          onInteractOutside={(event) => {
+            if (strip.current?.contains(event.target as Node))
+              event.preventDefault();
+          }}
+        >
+          <feature.Panel closePanel={() => setPanelOpen(false)} />
+        </PopoverContent>
+      ) : null}
     </Popover>
   );
+}
+
+/**
+ * The hearts in the air, one per pet. Each is an id that leaves after the
+ * rise, by a timer rather than on `animationend`, which never fires once
+ * reduced motion has taken the animation away. Five quick pets are five
+ * hearts, which is the point of counting them per click and not per purr.
+ */
+function useHearts() {
+  const [ids, setIds] = useState<readonly number[]>([]);
+  const next = useRef(0);
+  const timers = useRef(new Set<ReturnType<typeof setTimeout>>());
+
+  useEffect(() => {
+    const pending = timers.current;
+    return () => pending.forEach(clearTimeout);
+  }, []);
+
+  const add = () => {
+    const id = next.current++;
+    setIds((current) => [...current, id]);
+    const timer = setTimeout(() => {
+      timers.current.delete(timer);
+      setIds((current) => current.filter((other) => other !== id));
+    }, HEART_MS);
+    timers.current.add(timer);
+  };
+
+  return { ids, add };
 }
 
 /**
@@ -210,8 +265,10 @@ function Eyes({
 }) {
   switch (mood) {
     case 'awake':
+    case 'purring':
       // Both pairs are drawn and the CSS cross-fades them, so a blink is
       // two opacity flips on the compositor rather than a timer in React.
+      // Petted, it keeps blinking: the tail and the heart say it is pleased.
       return (
         <>
           <path d={face.open} className={`companion-blink-open ${className}`} />
@@ -223,8 +280,6 @@ function Eyes({
       );
     case 'asleep':
       return <path d={face.closed} className={className} />;
-    case 'purring':
-      return <path d={face.happy} className={className} />;
   }
 }
 
@@ -264,28 +319,23 @@ function Motion({
   );
 }
 
-/** Two hearts rising from the head, the second a beat behind the first. */
-function Hearts() {
+/**
+ * One heart rising from the head. Where it starts walks across the head
+ * with each pet, so a run of them reads as several and not as one heart
+ * flickering.
+ */
+function Heart({ id }: { id: number }) {
   return (
-    <>
-      {[0, 1].map((i) => (
-        <svg
-          key={i}
-          viewBox={`0 0 ${HEART_WIDTH} ${HEART_HEIGHT}`}
-          width={HEART_WIDTH * 2}
-          height={HEART_HEIGHT * 2}
-          shapeRendering="crispEdges"
-          className="companion-float pointer-events-none absolute fill-project"
-          style={{
-            left: (3 + i * 5) * SPRITE_SCALE,
-            top: -2,
-            animationDelay: `${i * 0.5}s`,
-          }}
-        >
-          <path d={HEART_PATH} />
-        </svg>
-      ))}
-    </>
+    <svg
+      viewBox={`0 0 ${HEART_WIDTH} ${HEART_HEIGHT}`}
+      width={HEART_WIDTH * 2}
+      height={HEART_HEIGHT * 2}
+      shapeRendering="crispEdges"
+      className="companion-heart pointer-events-none absolute fill-project"
+      style={{ left: (2 + (id % 3) * 3) * SPRITE_SCALE, top: -2 }}
+    >
+      <path d={HEART_PATH} />
+    </svg>
   );
 }
 

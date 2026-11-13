@@ -68,20 +68,15 @@ export default function Sidebar() {
 
       {collapsed ? null : (
         <>
-          <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-project/15 bg-sidebar relative">
+          <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-project/15 bg-sidebar">
             <div className="min-h-0 flex-1">{Module}</div>
-            {/* The companion sits over the module's bottom-right corner
-                rather than in a strip of its own, so it costs the list no
-                height. Each module pads its scroll area (`pb-12`) so the
-                last row can still be scrolled clear of it, and the layer is
-                `pointer-events-none` so rows under the fade stay clickable —
-                only the companion itself opts back in. */}
-            {config.hideCompanion ? null : (
-              <div className="absolute right-0 bottom-0 flex aspect-square w-full items-end justify-end overflow-hidden pointer-events-none">
-                <div className="absolute w-full h-1/2 bg-gradient-to-tl from-sidebar via-transparent blur-xl to-transparent bottom-0 right-0 pointer-events-none" />
-                <Companion />
-              </div>
-            )}
+            {/* The companion has a strip of its own at the foot of every
+                module, rather than floating over the list. It used to, to
+                cost the list no height — but then nothing could sit beside
+                it, and what its features have to say (minutes left, what
+                the pocket holds) needs the room. The cost is that strip's
+                height, taken from every module for as long as it shows. */}
+            {config.hideCompanion ? null : <Companion />}
           </div>
           <SidebarResizer />
         </>

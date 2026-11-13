@@ -28,14 +28,6 @@ const CAT_FACE = {
     [8, 5],
     [9, 5],
   ],
-  happy: [
-    [3, 5],
-    [4, 4],
-    [5, 5],
-    [7, 5],
-    [8, 4],
-    [9, 5],
-  ],
 } as const satisfies CompanionSprite['face'];
 
 /**

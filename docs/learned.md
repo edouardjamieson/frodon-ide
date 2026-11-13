@@ -17,6 +17,19 @@ architecture, write the ADR too and link them.
 
 ## The platform
 
+### A dropped `File` has no path in the renderer, and only the preload can ask for one
+`code` · 2026-11-10 · `src/preload/index.ts`
+
+Electron 32 removed the non-standard `File.path`, so a file dragged in from
+Finder reaches a sandboxed page as a name, a type and bytes, with nothing to
+say where it is. `webUtils.getPathForFile` answers, but `webUtils` is an
+Electron module and only the preload can reach it — so the pocket's path
+goes through `window.frodon.file.pathOf`, a function on the bridge rather
+than a channel, since the answer is in the drag and main has nothing to add.
+It returns `''` for a `File` that never was one, such as an image dragged
+off a web page. The `File` crosses `contextBridge` intact; it is one of the
+types the bridge passes by reference rather than cloning.
+
 ### Squirrel.Mac cannot update an ad-hoc signed app
 `code` · 2026-10-24 · `src/main/update/update.service.ts`
 
@@ -313,7 +326,7 @@ Packaging will also need `prebuilds/` unpacked from the asar.
 ## The libraries
 
 ### A Radix context menu near the bottom of the window selects an item on a trackpad tap
-`code` · 2026-11-10 · `components/modules/companion/companion-menu.component.tsx`
+`code` · 2026-11-10 · `components/ui/context-menu.tsx`
 
 Radix menu items select on pointer-up, not on click, so that pressing,
 dragging to an item and releasing works. A context menu opens at the cursor,
@@ -323,8 +336,9 @@ cursor is on. A mouse's right-click has a hundred milliseconds or so between
 a trackpad tap, or Playwright's `click({ button: 'right' })`, sends the
 mouse-up within a few milliseconds, and it lands as a choice. The symptom is
 a menu that flashes and closes, with whatever item slid under the cursor
-quietly run. It showed up on the companion, which is always in the bottom
-corner; the explorer's rows are mostly high enough never to hit it.
+quietly run. It showed up on the companion's menu, which was always in the
+bottom corner and has since been replaced by a popover; the explorer's rows
+are mostly high enough never to hit it.
 
 The fix is to ignore pointer-ups for the first 200ms after opening, in the
 content's capture phase. Any context menu that can open near the bottom

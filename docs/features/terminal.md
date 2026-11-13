@@ -123,12 +123,12 @@ See [ADR-0032](../decisions.md).
 
 ### Dropping text on it
 
-Text dropped on a terminal — a selection dragged out of an editor, an item
-out of the companion's pocket — is typed in with `term.paste`, as
-Terminal.app does. Pasting rather than writing means a shell in
-bracketed-paste mode sees a paste, so a multi-line drop sits at the prompt
-instead of running line by line. A file from Finder carries no `text/plain`
-and is ignored.
+Text dropped on a terminal — a selection dragged out of an editor, a file
+out of the companion's pocket, which arrives as its path quoted for a
+shell — is typed in with `term.paste`, as Terminal.app does. Pasting rather
+than writing means a shell in bracketed-paste mode sees a paste, so a
+multi-line drop sits at the prompt instead of running line by line. A file
+from Finder carries no `text/plain` and is ignored.
 
 ### Reopening a project
 

@@ -64,7 +64,12 @@ import type { Theme } from '~/lib/theme';
 import { useEditorText, type TextPreferences } from '~/lib/config';
 import { useWindowStore } from '~/lib/window';
 import { useIsMissing } from '~/lib/file-watch';
-import { isMarkdownPath, provideSelection, useEditorStore } from '~/lib/editor';
+import {
+  isMarkdownPath,
+  isSvgPath,
+  provideSelection,
+  useEditorStore,
+} from '~/lib/editor';
 import { minimalChange } from './editor.service';
 import { markdownGrammar, markdownPage } from './editor-markdown.service';
 import { findExtension } from './editor-find.service';
@@ -376,6 +381,33 @@ export function useEditor(
    */
   const source = useEditorStore((state) => state.markdownSource.has(windowId));
   const sourceRef = useRef(source);
+  /**
+   * Whether this window shows the SVG on screen as a picture — `mod+e` on an
+   * SVG — and the markup to draw it from.
+   *
+   * The markup is the document's, not the file's, so a picture shows the
+   * edits that have not been saved yet: flipping to look at what you just
+   * typed is most of the reason to flip. It is copied out of the view only
+   * while the picture is up, so code and every other file pay nothing for it.
+   * The view keeps the document the whole time, hidden, which is what lets
+   * `mod+s` still save it and a change on disk still land in it.
+   */
+  const pictured = useEditorStore((state) => state.svgPicture.has(windowId));
+  const picture = pictured && isSvgPath(path);
+  const pictureRef = useRef(picture);
+  const [svg, setSvg] = useState<string | null>(null);
+  /**
+   * Copies the markup out of the view, or clears it. Reads only refs, so it
+   * is stable and the view's dispatch can call it.
+   */
+  const drawPicture = useCallback(() => {
+    const view = viewRef.current;
+    setSvg(
+      pictureRef.current && view && shownRef.current
+        ? view.state.doc.toString()
+        : null
+    );
+  }, []);
   /** A jump waiting to be honored — see `applyReveal`. */
   const reveal = useWindowStore((state) => state.pendingReveal);
   const [error, setError] = useState<string | null>(null);
@@ -472,6 +504,7 @@ export function useEditor(
         view.update(transactions);
         if (transactions.some((transaction) => transaction.docChanged)) {
           refreshDirtyRef.current();
+          drawPicture();
         }
         // The tally moves for both: typing adds and removes matches, and
         // moving the cursor changes which of them you are standing on. It
@@ -511,7 +544,14 @@ export function useEditor(
       // component — so nothing is left that could still be unsaved.
       forgetWindow(windowId);
     };
-  }, [windowId, forgetWindow]);
+  }, [windowId, forgetWindow, drawPicture]);
+
+  // Before the swap below, so a tab switch that turns the picture off is
+  // known to be off by the time the swap redraws it.
+  useEffect(() => {
+    pictureRef.current = picture;
+    drawPicture();
+  }, [picture, drawPicture]);
 
   // Swap documents when the active tab changes.
   useEffect(() => {
@@ -533,6 +573,7 @@ export function useEditor(
         )
       );
       shownRef.current = null;
+      drawPicture();
       return;
     }
 
@@ -540,6 +581,7 @@ export function useEditor(
     if (known) {
       view.setState(known);
       shownRef.current = path;
+      drawPicture();
       setError(null);
       // The query is a field on the state that was just replaced, so it has
       // to be put back — otherwise clicking to the next tab leaves a bar full
@@ -572,6 +614,7 @@ export function useEditor(
         view.setState(state);
         applyTo(view);
         shownRef.current = path;
+        drawPicture();
         // The state's own `Text`, so the first comparison after this is an
         // identity check rather than a walk.
         diskRef.current.set(path, state.doc);
@@ -592,7 +635,7 @@ export function useEditor(
     return () => {
       cancelled = true;
     };
-  }, [path, windowId, setDirty, applyTo]);
+  }, [path, windowId, setDirty, applyTo, drawPicture]);
 
   // Jump into a document that is already on screen — clicking a second match
   // in the file being looked at. A jump into a file that still has to be read
@@ -869,6 +912,11 @@ export function useEditor(
     find,
     /** This window shows markdown as source rather than as a page. */
     source,
+    /**
+     * The SVG on screen's markup, unsaved edits included, when this window
+     * shows it as a picture. Null otherwise.
+     */
+    svg: picture ? svg : null,
     /** This tab's file was rewritten under edits made here. */
     diverged: path !== null && diverged.has(path),
     /** This tab's file is no longer on disk. */

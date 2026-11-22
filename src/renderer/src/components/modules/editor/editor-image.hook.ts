@@ -15,6 +15,12 @@
  *
  * The state is local, the way the find bar's is: two panes on the same picture
  * are two people looking at different corners of it.
+ *
+ * An SVG flipped to a picture arrives as markup rather than as a path to
+ * read: the editor's document, unsaved edits and all. It goes through the
+ * same object URL, which is also what keeps it inert — an SVG drawn by an
+ * `<img>` runs no script and fetches nothing, where one put into the page as
+ * markup would be a document of its own inside ours.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -42,8 +48,10 @@ const NO_SIZE: Size = { width: 0, height: 0 };
  * @param path  the picture on screen. The component is keyed by it, so a new
  *              path is a fresh hook with a fresh view — the zoom you left one
  *              picture at says nothing about the next.
+ * @param svg   markup to draw instead of reading the file. A change to it
+ *              redraws the picture and keeps the view.
  */
-export function useEditorImage(path: string) {
+export function useEditorImage(path: string, svg?: string) {
   const paneRef = useRef<HTMLDivElement>(null);
   const [source, setSource] = useState<Source | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -88,22 +96,25 @@ export function useEditorImage(path: string) {
     apply(fitted(image, paneSizeRef.current), true);
   }, [apply]);
 
-  // Read the bytes, and read them again whenever the file changes.
+  // Read the bytes, and read them again whenever the file changes — or take
+  // the markup, every time it changes.
   useEffect(() => {
     let cancelled = false;
     let url: string | null = null;
 
     void (async () => {
       try {
-        const bytes = await window.frodon.file.readBytes(path);
-        if (cancelled) return;
         // Labelled, so the decoder does not have to sniff — and so `.ico`,
         // which Chromium will not always guess, is drawn rather than refused.
-        const blob = new Blob([bytes], {
-          type: imageTypeFor(path) ?? 'application/octet-stream',
-        });
+        const blob =
+          svg !== undefined
+            ? new Blob([svg], { type: 'image/svg+xml' })
+            : new Blob([await window.frodon.file.readBytes(path)], {
+                type: imageTypeFor(path) ?? 'application/octet-stream',
+              });
+        if (cancelled) return;
         url = URL.createObjectURL(blob);
-        setSource({ url, bytes: bytes.byteLength });
+        setSource({ url, bytes: blob.size });
         setError(null);
       } catch (cause) {
         if (!cancelled) setError(String(cause));
@@ -114,16 +125,21 @@ export function useEditorImage(path: string) {
       cancelled = true;
       if (url) URL.revokeObjectURL(url);
     };
-  }, [path, revision]);
+  }, [path, revision, svg]);
 
   // Something outside Frodon rewrote the picture — an export from a design
   // tool, a build that regenerates an icon. There is nothing to merge in a
   // picture, so the tab takes the new one, keeping the view if it can.
+  //
+  // Not for markup: the editor's document already takes the change, and the
+  // markup it hands over follows.
+  const fromMarkup = svg !== undefined;
   useEffect(() => {
+    if (fromMarkup) return;
     return window.frodon.file.onChanged(({ path: changed, deleted }) => {
       if (changed === path && !deleted) setRevision((value) => value + 1);
     });
-  }, [path]);
+  }, [path, fromMarkup]);
 
   // Keep the picture fitted, or at least on screen, as the tile is resized.
   useEffect(() => {
@@ -149,7 +165,13 @@ export function useEditorImage(path: string) {
   const onLoad = useCallback(
     (event: React.SyntheticEvent<HTMLImageElement>) => {
       const { naturalWidth, naturalHeight } = event.currentTarget;
-      const size = { width: naturalWidth, height: naturalHeight };
+      // An SVG with a viewBox and no width or height has no size of its own.
+      // The size a browser gives an unsized replaced element stands in, so
+      // the fit arithmetic is not dividing by nothing.
+      const size = {
+        width: naturalWidth || 300,
+        height: naturalHeight || 150,
+      };
       naturalRef.current = size;
       setNatural(size);
       if (fitRef.current) refit();
@@ -163,8 +185,12 @@ export function useEditorImage(path: string) {
    * a `.png` that is not one.
    */
   const onError = useCallback(() => {
-    setError('This file could not be decoded as an image.');
-  }, []);
+    setError(
+      fromMarkup
+        ? 'This SVG could not be drawn. Switch back to the code to fix it.'
+        : 'This file could not be decoded as an image.'
+    );
+  }, [fromMarkup]);
 
   /** Where a client coordinate falls in the pane. */
   const local = useCallback((clientX: number, clientY: number) => {

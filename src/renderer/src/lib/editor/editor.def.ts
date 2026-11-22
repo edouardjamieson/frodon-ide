@@ -71,4 +71,14 @@ export interface EditorStore {
    */
   markdownSource: ReadonlySet<string>;
   toggleMarkdownSource: (windowId: string) => void;
+  /**
+   * The windows showing SVG as a picture rather than as code.
+   *
+   * The same switch as `markdownSource` turned the other way round: absent
+   * means code, because an SVG is opened to be edited far more often than to
+   * be looked at, and the picture is the thing asked for. Per window and
+   * never restored, for the same reasons.
+   */
+  svgPicture: ReadonlySet<string>;
+  toggleSvgPicture: (windowId: string) => void;
 }

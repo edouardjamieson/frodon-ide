@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useAppInfo } from '~/lib/app';
-import { isMarkdownPath, useEditorStore } from '~/lib/editor';
+import { isMarkdownPath, isSvgPath, useEditorStore } from '~/lib/editor';
 import { useFilePickerStore } from '~/lib/file-picker';
 import { useSettingsStore } from '~/lib/settings';
 import { useSidebarStore, type SidebarModule } from '~/lib/sidebar';
@@ -30,6 +30,7 @@ export function useCommands(): Record<CommandId, () => void> {
   const toggleMarkdownSource = useEditorStore(
     (state) => state.toggleMarkdownSource
   );
+  const toggleSvgPicture = useEditorStore((state) => state.toggleSvgPicture);
   const setModule = useSidebarStore((state) => state.setModule);
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed);
 
@@ -93,19 +94,20 @@ export function useCommands(): Record<CommandId, () => void> {
   }, [focusedId, requestFind]);
 
   /**
-   * Flips the focused window between a markdown page and its source.
+   * Flips the focused window between a markdown page and its source, or an
+   * SVG's code and its picture.
    *
-   * Only for a window showing markdown. Elsewhere it is a toggle with nothing
-   * to show for it, and the next markdown file opened in that pane would
-   * arrive as source for a reason nobody could see.
+   * Only for a window showing one of those. Elsewhere it is a toggle with
+   * nothing to show for it, and the next markdown file opened in that pane
+   * would arrive as source for a reason nobody could see.
    */
   const toggleMarkdown = useCallback(() => {
     const { windows } = useWindowStore.getState();
     const focused = windows.find((window) => window.id === focusedId);
-    if (focused?.type === 'editor' && isMarkdownPath(focused.activeFile)) {
-      toggleMarkdownSource(focusedId);
-    }
-  }, [focusedId, toggleMarkdownSource]);
+    if (focused?.type !== 'editor') return;
+    if (isMarkdownPath(focused.activeFile)) toggleMarkdownSource(focusedId);
+    else if (isSvgPath(focused.activeFile)) toggleSvgPicture(focusedId);
+  }, [focusedId, toggleMarkdownSource, toggleSvgPicture]);
 
   return useMemo(
     () => ({

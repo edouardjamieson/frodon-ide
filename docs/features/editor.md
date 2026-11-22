@@ -151,6 +151,23 @@ not.
 A picture rewritten on disk is re-read and replaced. There is nothing to merge
 in a picture, so there is no question to ask.
 
+### An SVG is code that can be looked at
+
+An SVG opens as code, and `mod+e` — the markdown toggle — flips its window to
+a picture, through the same `EditorImage`. Unlike a picture file, the view is
+*not* parked: the SVG stays the document on screen, hidden, so `mod+s` saves
+it and a change on disk lands in it as in any code tab. What is drawn is that
+document's text, handed over as `svg` by `useEditor` and redrawn on every
+change, so the picture shows edits that are not saved yet — which is most of
+the reason to flip. The text is copied out of the view only while the
+picture is up.
+
+It is drawn from an object URL by an `<img>`, the way every picture is, and
+never put into the page as markup. An `<img>` runs no script in an SVG and
+fetches nothing it references; inline SVG would be a document of its own
+inside ours, with the bridge one `window` away. The cost is that an SVG that
+pulls in an external image or font draws without it.
+
 ### A markdown file is a page
 
 A `.md`, `.markdown` or `.mkd` file opens drawn as a page — prose type in a
@@ -290,6 +307,14 @@ Backspace that removes a marker.
 6. `mod+e`, or the button, flips the window to plain source with line numbers,
    and back. The choice is per window and holds across its markdown tabs.
 
+### Looking at an SVG
+
+1. Open an `.svg`. It arrives as code, with a Picture button in the top right.
+2. `mod+e`, or the button, shows it as a picture with the zoom and pan of any
+   other picture, drawn from what is in the editor — saved or not.
+3. `mod+e` again, or Code, goes back. The choice is per window and holds
+   across its SVG tabs.
+
 ### Finding in the file
 
 1. `mod+f` opens a bar above the document — not an overlay in the corner, which
@@ -318,8 +343,9 @@ Backspace that removes a marker.
   it — a word selected on the caret's line used to be invisible. The stock
   `highlightActiveLine` is replaced by `caretLine`, which marks only lines
   holding an empty cursor; the gutter still marks the caret's line.
-- **SVG opens as text.** It is a picture, but it is opened to be edited far
-  more often than to be looked at.
+- **SVG opens as code.** It is a picture, but it is opened to be edited far
+  more often than to be looked at, so the picture is the thing asked for with
+  `mod+e`, not the default.
 - **Everything that changes without rebuilding a document lives in one
   compartment.** A compartment can only be reconfigured if it was present when
   the state was created, so it is installed in every state and merely swapped —

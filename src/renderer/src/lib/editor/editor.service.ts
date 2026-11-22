@@ -13,12 +13,24 @@ const MARKDOWN_EXTENSIONS: ReadonlySet<string> = new Set([
   'mkd',
 ]);
 
-export function isMarkdownPath(path: string | null | undefined): boolean {
-  if (!path) return false;
+function extensionOf(path: string | null | undefined): string | null {
+  if (!path) return null;
   const name = path.split(/[/\\]/).pop() ?? '';
   const dot = name.lastIndexOf('.');
-  if (dot <= 0) return false;
-  return MARKDOWN_EXTENSIONS.has(name.slice(dot + 1).toLowerCase());
+  return dot <= 0 ? null : name.slice(dot + 1).toLowerCase();
+}
+
+export function isMarkdownPath(path: string | null | undefined): boolean {
+  const extension = extensionOf(path);
+  return extension !== null && MARKDOWN_EXTENSIONS.has(extension);
+}
+
+/**
+ * Whether a file can be flipped to a picture. Here beside `isMarkdownPath`
+ * for the same reason: `mod+e` asks it too.
+ */
+export function isSvgPath(path: string | null | undefined): boolean {
+  return extensionOf(path) === 'svg';
 }
 
 /** What an editor tile has selected, as `selectionOf` reports it. */

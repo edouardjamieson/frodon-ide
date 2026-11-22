@@ -86,7 +86,8 @@ export const DEFAULT_KEYBINDINGS: Keybinding[] = [
 export const COMMAND_LABELS: Record<CommandId, string> = {
   'file.save': 'Save the file',
   'editor.find': 'Find in this file',
-  'editor.toggleMarkdown': 'Show markdown as a page or as source',
+  'editor.toggleMarkdown':
+    'Show markdown as a page or as source, and SVG as a picture or as code',
   'tab.close': 'Close the tab',
   'picker.open': 'Go to file',
   'sidebar.toggle': 'Show or hide the sidebar',

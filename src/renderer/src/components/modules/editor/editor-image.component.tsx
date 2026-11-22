@@ -38,7 +38,14 @@ function ToolButton({
  * find bar is above rather than floating: in a narrow tile, anything laid over
  * the content covers the part of it you were trying to see.
  */
-export default function EditorImage({ path }: { path: string }) {
+export default function EditorImage({
+  path,
+  svg,
+}: {
+  path: string;
+  /** Markup to draw instead of the file. See `useEditorImage`. */
+  svg?: string;
+}) {
   const {
     paneRef,
     source,
@@ -56,7 +63,7 @@ export default function EditorImage({ path }: { path: string }) {
     zoomOut,
     actualSize,
     refit,
-  } = useEditorImage(path);
+  } = useEditorImage(path, svg);
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col">

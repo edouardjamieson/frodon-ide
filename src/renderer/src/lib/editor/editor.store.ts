@@ -6,6 +6,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   pendingSave: null,
   pendingFind: null,
   markdownSource: new Set<string>(),
+  svgPicture: new Set<string>(),
 
   setDirty: (windowId, path, dirty) => {
     const current = get().dirty;
@@ -63,5 +64,11 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const next = new Set(get().markdownSource);
     if (!next.delete(windowId)) next.add(windowId);
     set({ markdownSource: next });
+  },
+
+  toggleSvgPicture: (windowId) => {
+    const next = new Set(get().svgPicture);
+    if (!next.delete(windowId)) next.add(windowId);
+    set({ svgPicture: next });
   },
 }));

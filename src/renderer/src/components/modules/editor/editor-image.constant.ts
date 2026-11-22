@@ -9,7 +9,9 @@
  *
  * SVG is absent on purpose. It is a picture, but it is also source — it is
  * opened to be edited far more often than to be looked at, and drawing it
- * would take the editor away from the people who opened it for that.
+ * would take the editor away from the people who opened it for that. It is
+ * drawn when asked, with `mod+e`, from the editor's own text — see
+ * `svgPicture` in `lib/editor`.
  */
 export const IMAGE_TYPES: Readonly<Record<string, string>> = {
   png: 'image/png',

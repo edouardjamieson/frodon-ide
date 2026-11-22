@@ -3,11 +3,12 @@ import {
   BookOpen,
   Code,
   FileX,
+  Image,
   RotateCw,
   TriangleAlert,
   X,
 } from 'lucide-react';
-import { isMarkdownPath, useEditorStore } from '~/lib/editor';
+import { isMarkdownPath, isSvgPath, useEditorStore } from '~/lib/editor';
 import { useEditor } from './editor.hook';
 import EditorFind from './editor-find.component';
 import EditorImage from './editor-image.component';
@@ -72,6 +73,33 @@ function Notice({
 }
 
 /**
+ * The corner switch between the two ways a file can be looked at — a
+ * markdown page and its source, an SVG's code and its picture.
+ */
+function ViewToggle({
+  onClick,
+  title,
+  icon,
+  label,
+}: {
+  onClick: () => void;
+  title: string;
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className="absolute top-2 right-4 flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-fg-muted opacity-60 transition-opacity hover:bg-button hover:opacity-100"
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+
+/**
  * CodeMirror, mounted.
  *
  * Thin by design: the component hands over a host element and CodeMirror owns
@@ -85,9 +113,19 @@ export default function Editor({ windowId, path, openPaths }: EditorProps) {
   // and `mod+s` find nothing to act on. The view stays mounted underneath,
   // hidden, because the other tabs' documents and undo histories live in it.
   const image = isImagePath(path) ? path : null;
-  const { hostRef, error, diverged, missing, reload, dismiss, find, source } =
-    useEditor(windowId, image ? null : path, openPaths);
+  const {
+    hostRef,
+    error,
+    diverged,
+    missing,
+    reload,
+    dismiss,
+    find,
+    source,
+    svg,
+  } = useEditor(windowId, image ? null : path, openPaths);
   const toggleSource = useEditorStore((state) => state.toggleMarkdownSource);
+  const togglePicture = useEditorStore((state) => state.toggleSvgPicture);
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col bg-editor">
@@ -124,25 +162,51 @@ export default function Editor({ windowId, path, openPaths }: EditorProps) {
           the zoom the last one was left at. */}
       {image ? <EditorImage key={image} path={image} /> : null}
 
-      <div className={cn('relative min-h-0 flex-1', image && 'hidden')}>
+      {/* An SVG flipped to a picture. Keyed by path like any picture; the
+          markup changing underneath it redraws without losing the zoom. */}
+      {svg !== null && path ? (
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          <EditorImage key={path} path={path} svg={svg} />
+          <ViewToggle
+            onClick={() => togglePicture(windowId)}
+            title="Show the code (⌘E)"
+            icon={<Code className="size-3" />}
+            label="Code"
+          />
+        </div>
+      ) : null}
+
+      <div
+        className={cn(
+          'relative min-h-0 flex-1',
+          (image || svg !== null) && 'hidden'
+        )}
+      >
         <div ref={hostRef} className="h-full overflow-hidden select-text" />
 
         {/* Over the page's top margin, which is empty by design, rather than
             in a strip of its own: a strip would push the page down to say
             something `mod+e` says already. */}
         {isMarkdownPath(path) ? (
-          <button
+          <ViewToggle
             onClick={() => toggleSource(windowId)}
             title={source ? 'Show as a page (⌘E)' : 'Show the source (⌘E)'}
-            className="absolute top-2 right-4 flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-fg-muted opacity-60 transition-opacity hover:bg-button hover:opacity-100"
-          >
-            {source ? (
-              <BookOpen className="size-3" />
-            ) : (
-              <Code className="size-3" />
-            )}
-            {source ? 'Page' : 'Source'}
-          </button>
+            icon={
+              source ? (
+                <BookOpen className="size-3" />
+              ) : (
+                <Code className="size-3" />
+              )
+            }
+            label={source ? 'Page' : 'Source'}
+          />
+        ) : isSvgPath(path) ? (
+          <ViewToggle
+            onClick={() => togglePicture(windowId)}
+            title="Show as a picture (⌘E)"
+            icon={<Image className="size-3" />}
+            label="Picture"
+          />
         ) : null}
       </div>
     </div>

@@ -39,7 +39,6 @@ import {
   EditorView,
   keymap,
   lineNumbers,
-  highlightActiveLine,
   highlightActiveLineGutter,
   drawSelection,
   rectangularSelection,
@@ -71,6 +70,7 @@ import { markdownGrammar, markdownPage } from './editor-markdown.service';
 import { findExtension } from './editor-find.service';
 import { useEditorFind } from './editor-find.hook';
 import { codeMirrorTheme } from './editor.theme';
+import { caretLine } from './editor-active-line.service';
 
 /**
  * Everything that changes without rebuilding a document lives in one
@@ -188,7 +188,7 @@ function appearanceFor(
 /** Line numbers, the active line and folding: how code is drawn. */
 const codeChrome: Extension = [
   lineNumbers(),
-  highlightActiveLine(),
+  caretLine,
   highlightActiveLineGutter(),
   foldGutter({
     markerDOM: (open) => {

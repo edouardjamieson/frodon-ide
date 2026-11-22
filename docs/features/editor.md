@@ -19,6 +19,7 @@ must not silently clobber them either.
 | `components/modules/editor/editor.hook.ts` | lifecycle: the view, one `EditorState` per tab, reads, saves, external changes |
 | `components/modules/editor/editor.service.ts` | `minimalChange` — the diff that keeps a cursor in place |
 | `components/modules/editor/editor.theme.ts` | the resolved `Theme`, and the chosen font and size, handed to CodeMirror's own theme API |
+| `components/modules/editor/editor-active-line.service.ts` | the band behind the caret's line, drawn only when nothing is selected |
 | `components/modules/editor/editor-find.*` | the find bar: state field, view plugin, decorations |
 | `components/modules/editor/editor-image.*` | an image tab: the bytes, the view, zoom and pan |
 | `components/modules/editor/editor-markdown.service.ts` | a markdown page: the grammar, the block that is revealed, the decorations |
@@ -312,6 +313,11 @@ Backspace that removes a marker.
 - **`editor.theme.ts` is one of only two places `useTheme()` is correct.**
   CodeMirror builds its own stylesheets; everything else writes a utility class.
   See [theme.md](../theme.md).
+- **The active-line band goes while something is selected.** CodeMirror paints
+  the selection behind the lines, so a line with a background of its own hides
+  it — a word selected on the caret's line used to be invisible. The stock
+  `highlightActiveLine` is replaced by `caretLine`, which marks only lines
+  holding an empty cursor; the gutter still marks the caret's line.
 - **SVG opens as text.** It is a picture, but it is opened to be edited far
   more often than to be looked at.
 - **Everything that changes without rebuilding a document lives in one

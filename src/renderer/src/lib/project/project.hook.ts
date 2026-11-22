@@ -230,6 +230,28 @@ export const useProjectColorEffect = (): void => {
 };
 
 /**
+ * Names the OS window after the project: `Frodon - <name>`, or `Frodon` on
+ * the launcher. Mount this ONCE near the app root.
+ *
+ * Through `document.title` rather than a channel to `setTitle` in main.
+ * Electron gives a `BrowserWindow` its page's title unless told otherwise,
+ * and the name is a derivation the renderer already resolves — the config's
+ * choice or the folder's — so asking main to set it would mean either
+ * sending a derivation across the boundary or deriving it twice. The title
+ * bar is hidden, so nobody reads it there; it is what the Window menu,
+ * Mission Control and Cmd-backtick show, which is where several windows all
+ * called "Frodon" could not be told apart.
+ */
+export const useProjectTitleEffect = (): void => {
+  const root = useProjectStore((state) => state.root);
+  const { name } = useProjectIdentity();
+
+  useEffect(() => {
+    document.title = root ? `Frodon - ${name}` : 'Frodon';
+  }, [root, name]);
+};
+
+/**
  * Subscribes to tree changes pushed from main, so files created, renamed, or
  * deleted outside Frodon — in a terminal, by an agent — reach the explorer on
  * their own. Mount this ONCE near the app root.

@@ -188,6 +188,10 @@ they do not share is the saved layout — see **Not there yet**.
   config, not its resolved name — sending the fallback would be shipping a
   derivation across a process boundary so the other side could agree with
   itself.
+- **The OS window is titled `Frodon - <name>`,** set by the renderer through
+  `document.title` (`useProjectTitleEffect`), which Electron copies to the
+  window. A title main set itself would need the resolved name sent across,
+  which is the derivation the rule above keeps on this side.
 - **No derivation is stored.** Not in a config file, not in the project store.
   There is deliberately no `name` field on `ProjectStore`.
 - **A worktree is never recorded as a recent.** It is a second view of a

@@ -4,6 +4,7 @@ import {
   useInitialProjectEffect,
   useProject,
   useProjectColorEffect,
+  useProjectTitleEffect,
   useProjectSync,
 } from '~/lib/project';
 import { useGitSync } from '~/lib/git';
@@ -63,6 +64,7 @@ export default function App() {
   useGitSync();
   useFileWatchSync();
   useProjectColorEffect();
+  useProjectTitleEffect();
   useBoardAutosaveEffect();
   useBookmarkSyncEffect();
   useLayoutSaveEffect();

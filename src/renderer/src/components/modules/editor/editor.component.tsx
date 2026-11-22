@@ -91,7 +91,10 @@ function ViewToggle({
     <button
       onClick={onClick}
       title={title}
-      className="absolute top-2 right-4 flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-fg-muted opacity-60 transition-opacity hover:bg-button hover:opacity-100"
+      // A solid chip with a border, not faded text: it sits over code, and a
+      // label drawn in the same weight as the text under it disappears into
+      // a line that happens to run that far.
+      className="absolute top-2 right-4 z-10 flex cursor-pointer items-center gap-1 rounded-md border border-border bg-button px-2 py-1 text-[11px] font-medium text-button-fg shadow-sm transition-colors hover:bg-button-hover"
     >
       {icon}
       {label}

@@ -44,11 +44,16 @@ import {
   readTerminals,
   readWorkbench,
   drawOnBoard,
+  editBoard,
   readBoardElements,
   showFile,
   showGit,
 } from './agent-workbench.service';
-import { elementsFrom } from './agent-board.service';
+import {
+  changedElements,
+  elementsFrom,
+  erasedIds,
+} from './agent-board.service';
 import { createBoard, listBoards } from '@main/board';
 
 const log = createLogger('agent');
@@ -230,6 +235,27 @@ export async function startConversation(
           return typeof elements === 'string'
             ? elements
             : drawOnBoard(senderId, ref, elements);
+        },
+        // Checked against the board as the window has it, then sent back as
+        // ids and replacements rather than a whole new list: the person may
+        // draw between this read and the edit landing.
+        erase: async (ref, ids) => {
+          if (!(await boardExists(cwd, ref))) return noBoard(ref);
+          const elements = await readBoardElements(senderId, ref);
+          if (typeof elements === 'string') return elements;
+          const erased = erasedIds(elements, ids);
+          return typeof erased === 'string'
+            ? erased
+            : editBoard(senderId, ref, erased, []);
+        },
+        change: async (ref, changes) => {
+          if (!(await boardExists(cwd, ref))) return noBoard(ref);
+          const elements = await readBoardElements(senderId, ref);
+          if (typeof elements === 'string') return elements;
+          const changed = changedElements(elements, changes);
+          return typeof changed === 'string'
+            ? changed
+            : editBoard(senderId, ref, [], changed);
         },
         open: (path, line) => showFile(senderId, cwd, path, line),
       },

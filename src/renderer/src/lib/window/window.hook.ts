@@ -12,7 +12,7 @@ import { selectionOf } from '~/lib/editor';
 import { terminalOutputOf } from '~/lib/terminal';
 import { useGitStore } from '~/lib/git';
 import { useBoardStore } from '~/lib/board';
-import { boardKey } from '@shared/board.def';
+import { boardKey, type BoardElement } from '@shared/board.def';
 import type { AgentWorkbenchAsk } from '@shared/agent.def';
 import { useWindowStore } from './window.store';
 import { useWindowDragStore } from './window-drag.store';
@@ -238,7 +238,7 @@ export const useAgentWorkbenchEffect = (): void => {
       const answer = (value: unknown) =>
         void window.frodon.agent.answerWorkbench(requestId, value);
 
-      if (ask.kind === 'board' || ask.kind === 'draw') {
+      if (ask.kind === 'board' || ask.kind === 'draw' || ask.kind === 'edit') {
         void answerBoard(ask).then(answer);
         return;
       }
@@ -309,7 +309,7 @@ export const useAgentWorkbenchEffect = (): void => {
  * shapes from being overwritten by the next autosave — or from the file.
  */
 async function answerBoard(
-  ask: Extract<AgentWorkbenchAsk, { kind: 'board' | 'draw' }>
+  ask: Extract<AgentWorkbenchAsk, { kind: 'board' | 'draw' | 'edit' }>
 ): Promise<unknown> {
   const key = boardKey(ask.ref);
   const session = useBoardStore.getState().sessions[key];
@@ -324,16 +324,29 @@ async function answerBoard(
     }
   }
 
+  // A drawing appends; an edit takes out and swaps by id, leaving whatever
+  // it does not name exactly where it is in the stacking order.
+  const apply = (elements: BoardElement[]): BoardElement[] => {
+    if (ask.kind === 'draw') return [...elements, ...ask.elements];
+    const removed = new Set(ask.remove);
+    const replaced = new Map(
+      ask.replace.map((element) => [element.id, element])
+    );
+    return elements
+      .filter((element) => !removed.has(element.id))
+      .map((element) => replaced.get(element.id) ?? element);
+  };
+
   if (open) {
-    // One commit, so one undo takes the agent's whole drawing back out.
-    useBoardStore.getState().commit(key, [...open.elements, ...ask.elements]);
+    // One commit, so one undo takes the agent's whole change back out.
+    useBoardStore.getState().commit(key, apply(open.elements));
     return { ok: true };
   }
   try {
     const document = await window.frodon.board.read(ask.ref);
     const result = await window.frodon.board.write(ask.ref, {
       ...document,
-      elements: [...document.elements, ...ask.elements],
+      elements: apply(document.elements),
     });
     return result.ok ? { ok: true } : { error: result.error ?? 'Not saved.' };
   } catch {

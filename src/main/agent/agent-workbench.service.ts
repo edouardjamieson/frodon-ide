@@ -290,3 +290,27 @@ export async function drawOnBoard(
   );
   return answer === null ? null : answer;
 }
+
+/**
+ * Takes elements off a board and replaces others, through the window, as
+ * one step. Why not, or null.
+ */
+export async function editBoard(
+  senderId: number,
+  ref: BoardRef,
+  remove: string[],
+  replace: BoardElement[]
+): Promise<string | null> {
+  const answer = await askWindow(
+    senderId,
+    { kind: 'edit', ref, remove, replace },
+    (raw) => {
+      const r = raw as { ok?: unknown; error?: unknown } | null;
+      if (r?.ok === true) return null;
+      return typeof r?.error === 'string'
+        ? r.error
+        : 'The board was not changed.';
+    }
+  );
+  return answer === null ? null : answer;
+}

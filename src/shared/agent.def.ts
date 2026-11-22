@@ -402,7 +402,19 @@ export type AgentWorkbenchAsk =
    * Elements to add to a board: to the open session as one undoable step,
    * or to the file when the board is not open in this window.
    */
-  | { kind: 'draw'; ref: BoardRef; elements: BoardElement[] };
+  | { kind: 'draw'; ref: BoardRef; elements: BoardElement[] }
+  /**
+   * Elements to take off a board, and elements to put in place of the ones
+   * with the same id — one undoable step, like a drawing. By id rather than
+   * as a whole new list, so a stroke the person drew since the agent last
+   * read the board is kept.
+   */
+  | {
+      kind: 'edit';
+      ref: BoardRef;
+      remove: string[];
+      replace: BoardElement[];
+    };
 
 /** One terminal tab, as an agent is shown it. */
 export interface AgentTerminal {

@@ -443,10 +443,11 @@ answered with "not a commit in this repository" rather than an empty pane.
 The window then opens or focuses the git window, picks the history or the
 commit tab, and opens the commit's detail through `openCommitDetail`.
 
-### The agent can make a board, read it and draw on it
+### The agent can make a board, read it, draw on it and fix what is there
 
-`list_boards`, `create_board`, `read_board` and `draw_on_board` let the
-agent sketch a diagram for the person. A board's own format is geometry for a canvas, so
+`list_boards`, `create_board`, `read_board`, `draw_on_board`,
+`change_on_board` and `erase_from_board` let the agent sketch a diagram for
+the person and correct it afterwards. A board's own format is geometry for a canvas, so
 the agent is shown each element as one line — `rectangle at (100, 100), 160×80`, `text at (147, 125): "main"` — and draws in the same terms: text
 and boxes by their corner and size, arrows from one point to another.
 `agent-board.service.ts` turns those into elements, in the canvas's default
@@ -466,11 +467,24 @@ board appears in the sidebar through the tree, like any new file in
 `.frodon/boards`; a private one only when the panel next re-reads, since
 nothing watches the home directory.
 
-Reading and drawing go through the window, not the file: a board open in a
+Changing and erasing name elements by the id `read_board` prints at the
+start of each line, never by position: the person can draw or delete
+between the agent's read and its edit, and every index past that point
+would then name a different shape. A change moves any element by `dx` and
+`dy`, re-seats an arrow's ends, resizes a box, rewords text and recolors
+anything; a field that does not fit the element's kind is refused with the
+reason rather than ignored, and so is a change that changes nothing. Main
+reads the board through the window, works the new elements out in
+`changedElements` or checks the ids in `erasedIds`, and sends back only the
+ids to remove and the elements to swap in. The window applies those to the
+board as it is by then, so a stroke drawn in the meantime survives. Both
+are all or nothing, like a drawing.
+
+Reading, drawing and editing go through the window, not the file: a board open in a
 tile has strokes not yet saved, and its next autosave would overwrite
 anything written behind it. So the window reads the open session, and adds
-the agent's shapes to it in one `commit` — one undo takes the drawing back
-out. A board not open in the window is read and written as a file.
+the agent's shapes, or its edit, to it in one `commit` — one undo takes
+the whole step back out. A board not open in the window is read and written as a file.
 
 ### Work handed off is drawn under the call that started it
 

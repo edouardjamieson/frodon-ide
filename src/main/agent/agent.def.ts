@@ -53,6 +53,13 @@ export interface AgentHost {
      * Adds shapes, in the agent's own terms, to a board. Why not, or null.
      */
     draw: (ref: BoardRef, shapes: unknown) => Promise<string | null>;
+    /** Takes elements off a board by id. Why not, or null. */
+    erase: (ref: BoardRef, ids: unknown) => Promise<string | null>;
+    /**
+     * Moves, resizes, recolors or rewords elements, in the agent's own
+     * terms. Why not, or null.
+     */
+    change: (ref: BoardRef, changes: unknown) => Promise<string | null>;
   };
   /** Reports something that happened. Batched before it crosses. */
   emit: (event: AgentEvent) => void;

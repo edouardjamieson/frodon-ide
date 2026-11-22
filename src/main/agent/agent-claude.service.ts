@@ -1021,6 +1021,8 @@ const WORKBENCH_TOOLS = [
   'create_board',
   'read_board',
   'draw_on_board',
+  'change_on_board',
+  'erase_from_board',
 ] as const;
 /** The same tools by the names Claude calls them. */
 const WORKBENCH_TOOL_NAMES: ReadonlySet<string> = new Set(
@@ -1050,7 +1052,8 @@ function workbenchServer(host: AgentHost) {
       'they ran or something a terminal shows, call terminal_output. To ' +
       'show them a commit or their pending changes, call show_in_git. ' +
       'Frodon has boards for sketching; to draw a diagram for them, use ' +
-      'list_boards, create_board, read_board and draw_on_board.',
+      'list_boards, create_board, read_board and draw_on_board, and ' +
+      'change_on_board or erase_from_board to fix what is there.',
     tools: [
       tool(
         'editor_state',
@@ -1189,10 +1192,11 @@ function workbenchServer(host: AgentHost) {
       ),
       tool(
         'read_board',
-        'What is on one of the boards: each element on a line — text with ' +
-          'its words, boxes, ellipses, diamonds, arrows and lines with ' +
-          'where they are, pen strokes as their bounds. Coordinates are ' +
-          'board units with y pointing down.',
+        'What is on one of the boards: each element on a line, after its ' +
+          '[id] — text with its words, boxes, ellipses, diamonds, arrows ' +
+          'and lines with where they are, pen strokes as their bounds. ' +
+          'Coordinates are board units with y pointing down. The ids are ' +
+          'what change_on_board and erase_from_board take.',
         {
           board: z.string().describe('Its name, as list_boards gives it.'),
           scope: z
@@ -1272,6 +1276,88 @@ function workbenchServer(host: AgentHost) {
               {
                 type: 'text',
                 text: refused ?? `Added ${shapes.length} to ${board}.`,
+              },
+            ],
+            ...(refused ? { isError: true } : {}),
+          };
+        }
+      ),
+      tool(
+        'change_on_board',
+        'Changes elements already on one of the boards, by the ids ' +
+          'read_board gives, as one step the person can undo: moves any ' +
+          'element by (dx, dy), moves an arrow or a line by giving its ' +
+          'ends as (x, y) and (toX, toY), resizes a rectangle, ellipse or ' +
+          'diamond with width and height, rewords text, recolors anything. ' +
+          'Read the board first; to move a box with its label and the ' +
+          'arrows into it, change all of them.',
+        {
+          board: z.string().describe('Its name, as list_boards gives it.'),
+          scope: z.enum(['project', 'local']).optional(),
+          changes: z
+            .array(
+              z.object({
+                id: z.string().describe('As read_board gives it.'),
+                dx: z.number().optional(),
+                dy: z.number().optional(),
+                width: z.number().optional(),
+                height: z.number().optional(),
+                x: z.number().optional(),
+                y: z.number().optional(),
+                toX: z.number().optional(),
+                toY: z.number().optional(),
+                text: z.string().optional(),
+                color: z
+                  .enum([
+                    'default',
+                    'red',
+                    'green',
+                    'yellow',
+                    'blue',
+                    'magenta',
+                    'cyan',
+                  ])
+                  .optional(),
+              })
+            )
+            .describe('One per element; only the fields to change.'),
+        },
+        async ({ board, scope, changes }) => {
+          const ref = boardRefOf(board, scope);
+          const refused = ref
+            ? await host.workbench.change(ref, changes)
+            : `${board} is not a board name.`;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: refused ?? `Changed ${changes.length} on ${board}.`,
+              },
+            ],
+            ...(refused ? { isError: true } : {}),
+          };
+        }
+      ),
+      tool(
+        'erase_from_board',
+        'Takes elements off one of the boards, by the ids read_board ' +
+          'gives, as one step the person can undo. For removing what you ' +
+          'drew wrong, or what the person asks to have gone.',
+        {
+          board: z.string().describe('Its name, as list_boards gives it.'),
+          scope: z.enum(['project', 'local']).optional(),
+          ids: z.array(z.string()).describe('As read_board gives them.'),
+        },
+        async ({ board, scope, ids }) => {
+          const ref = boardRefOf(board, scope);
+          const refused = ref
+            ? await host.workbench.erase(ref, ids)
+            : `${board} is not a board name.`;
+          return {
+            content: [
+              {
+                type: 'text',
+                text: refused ?? `Erased ${ids.length} from ${board}.`,
               },
             ],
             ...(refused ? { isError: true } : {}),
@@ -1618,6 +1704,18 @@ function actionOf(
         id,
         kind: 'change',
         title: `Draw on the board ${str('board') ?? ''}`.trim(),
+      };
+    case `mcp__${WORKBENCH_SERVER}__change_on_board`:
+      return {
+        id,
+        kind: 'change',
+        title: `Change the board ${str('board') ?? ''}`.trim(),
+      };
+    case `mcp__${WORKBENCH_SERVER}__erase_from_board`:
+      return {
+        id,
+        kind: 'change',
+        title: `Erase from the board ${str('board') ?? ''}`.trim(),
       };
     case `mcp__${WORKBENCH_SERVER}__show_in_git`:
       return {

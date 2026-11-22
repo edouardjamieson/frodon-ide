@@ -54,11 +54,17 @@ Four rules keep the model small.
 window; a split divides its box among its children, side by side
 (`horizontal`) or stacked (`vertical`). Splitting a window replaces its leaf
 with a split of two, so the windows beside it keep their shape — split the
-left of two windows downwards and the right one stays full height. Sizing
-belongs to `react-resizable-panels`, and dragging a splitter changes no
-application state at all. What is saved is the tree, so a project opens back
-onto the same tiles holding the same things with the splitters at their
-defaults. ADR-0048.
+left of two windows downwards and the right one stays full height. ADR-0048.
+
+**A split's shares are in the tree too.** Each split carries `sizes`, the
+percent each child holds; absent is equal shares. Splitting a window halves
+that window and nothing else — split the narrow side of a 70/30 pair and the
+70 stays 70 — and closing one gives its share to the sibling before it.
+`react-resizable-panels` draws the shares and reports a finished drag back,
+and a group whose set of panels changed remounts at what the tree says rather
+than letting the library guess, which is what it used to do, at 50/50. What
+is saved is the tree, shares included, so a project opens back onto the same
+tiles with the splitters where they were left. ADR-0049.
 
 **The tree is always normal.** No split has fewer than two children, and no
 split sits directly inside another of the same axis: three windows side by
@@ -278,10 +284,8 @@ expensive enough to rebuild by hand that losing it is felt.
 
 - Window titles, which came from the TUI and want the command palette rather
   than the layout code.
-- Remembering splitter positions, across a move or a quit. A moved window
-  takes the size of the slot it lands in, because sizes belong to the panels.
-  The tree is where they would go — a `sizes` array on each split — and
-  nothing stores one yet.
+- A window keeping its size when it is moved. It takes half of the window it
+  is dropped beside, the way a split would, rather than the share it left.
 - A dialog before a tab with unsaved work is closed. `dirty` already knows; see
   [editor.md](editor.md).
 

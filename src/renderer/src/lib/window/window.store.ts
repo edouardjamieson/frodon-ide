@@ -24,6 +24,7 @@ import {
   leaf,
   planMove,
   removeFromTree,
+  resizeInTree,
   spawnSite,
   splitInTree,
   windowIdsOf,
@@ -119,6 +120,12 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
     if (!neighbour) return;
 
     get().move(id, { targetId: neighbour, zone: 'center' });
+  },
+
+  resize: (split, sizes) => {
+    const { tree } = get();
+    const resized = resizeInTree(tree, split, sizes);
+    if (resized !== tree) set({ tree: resized });
   },
 
   restore: (windows, tree, focusedId) => {

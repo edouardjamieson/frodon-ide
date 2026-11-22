@@ -27,6 +27,7 @@ import type {
   SplitAxis,
   SplitDirection,
   WindowRoom,
+  WindowSplit,
   WindowTree,
 } from './window.def';
 
@@ -58,11 +59,59 @@ export function lastWindowOf(tree: WindowTree): string {
 }
 
 /**
+ * Each child's share of a split, in percent: its `sizes`, or equal shares
+ * when it has none or they no longer match its children.
+ */
+export function sharesOf(split: WindowSplit): number[] {
+  const { children, sizes } = split;
+  if (sizes && sizes.length === children.length) return sizes;
+  return children.map(() => 100 / children.length);
+}
+
+/**
+ * A split's children with the gaps closed: each null's share goes to the
+ * child before it — the one it was split from, when a split put it on the
+ * right or below — or, for a gap at the start, to the first child kept.
+ *
+ * The neighbour rather than everyone in proportion, because that is what
+ * closing a window looks like it should do: the tile beside it grows into the
+ * hole, and the tiles further along stay exactly where they were.
+ */
+export function closeGaps<Node>(
+  children: (Node | null)[],
+  shares: number[]
+): { children: Node[]; sizes: number[] } {
+  const kept: Node[] = [];
+  const sizes: number[] = [];
+  let orphaned = 0;
+
+  children.forEach((child, index) => {
+    const share = shares[index] ?? 0;
+    if (child) {
+      kept.push(child);
+      sizes.push(share + orphaned);
+      orphaned = 0;
+    } else if (sizes.length > 0) {
+      sizes[sizes.length - 1] = (sizes[sizes.length - 1] ?? 0) + share;
+    } else {
+      orphaned += share;
+    }
+  });
+
+  return { children: kept, sizes };
+}
+
+/**
  * The same tree in normal form, or null when nothing is left in it.
  *
  * Three rules, applied bottom-up: an empty split disappears, a split of one
  * is replaced by its child, and a split directly inside another of the same
  * axis gives its children to its parent. See `WindowTree` for why.
+ *
+ * Shares follow the windows. A split flattened into its parent hands its
+ * children the slice of the parent it held, divided as they divided it — so
+ * splitting the right of two windows rightwards halves that window and leaves
+ * the left one alone, rather than making three equal columns.
  *
  * Returns the input itself when it was already normal, so a caller that
  * normalizes defensively does not hand React a new tree for nothing.
@@ -70,25 +119,32 @@ export function lastWindowOf(tree: WindowTree): string {
 export function normalizeTree(tree: WindowTree): WindowTree | null {
   if (tree.kind === 'window') return tree;
 
+  const shares = sharesOf(tree);
   let changed = false;
-  const children: WindowTree[] = [];
+  const flat: (WindowTree | null)[] = [];
+  const flatShares: number[] = [];
 
-  for (const child of tree.children) {
+  tree.children.forEach((child, index) => {
+    const share = shares[index] ?? 0;
     const normal = normalizeTree(child);
     if (normal !== child) changed = true;
-    if (!normal) continue;
 
-    if (normal.kind === 'split' && normal.axis === tree.axis) {
-      children.push(...normal.children);
+    if (normal?.kind === 'split' && normal.axis === tree.axis) {
+      flat.push(...normal.children);
+      flatShares.push(
+        ...sharesOf(normal).map((inner) => (share * inner) / 100)
+      );
       changed = true;
     } else {
-      children.push(normal);
+      flat.push(normal);
+      flatShares.push(share);
     }
-  }
+  });
 
+  const { children, sizes } = closeGaps(flat, flatShares);
   if (children.length === 0) return null;
   if (children.length === 1) return children[0]!;
-  return changed ? { ...tree, children } : tree;
+  return changed ? { ...tree, children, sizes } : tree;
 }
 
 /** The tree with only the windows `keep` accepts, normalized. */
@@ -98,8 +154,11 @@ export function filterTree(
 ): WindowTree | null {
   const visit = (node: WindowTree): WindowTree | null => {
     if (node.kind === 'window') return keep(node.id) ? node : null;
-    const children = node.children.map(visit).filter((child) => child !== null);
-    return { ...node, children };
+    const { children, sizes } = closeGaps(
+      node.children.map(visit),
+      sharesOf(node)
+    );
+    return { ...node, children, sizes };
   };
 
   const filtered = visit(tree);
@@ -139,6 +198,7 @@ export function insertBeside(
         kind: 'split',
         axis: axisOf(edge),
         children: before ? [fresh, node] : [node, fresh],
+        sizes: [50, 50],
       };
     }
     return { ...node, children: node.children.map(visit) };
@@ -158,12 +218,46 @@ export function insertAtEdge(
 ): WindowTree {
   const fresh = leaf(id);
   const before = edge === 'left' || edge === 'top';
+  const axis = axisOf(edge);
+  // Joining a split along the same axis makes one more of its children, at an
+  // equal share — the strip the drop outline drew. Anything else is a new
+  // split of two. See `edgeOutline`.
+  const share =
+    tree.kind === 'split' && tree.axis === axis
+      ? 100 / (tree.children.length + 1)
+      : 50;
   const wrapped: WindowTree = {
     kind: 'split',
-    axis: axisOf(edge),
+    axis,
     children: before ? [fresh, tree] : [tree, fresh],
+    sizes: before ? [share, 100 - share] : [100 - share, share],
   };
   return normalizeTree(wrapped) ?? fresh;
+}
+
+/**
+ * The tree with one split's shares replaced — what a splitter drag ends in.
+ *
+ * Found by identity: the tree is immutable, so the split the panel group was
+ * drawn from is the very object in the store until something else changes
+ * the tree. A split that is no longer there — the tree moved on between the
+ * drag and its report — leaves the tree as it was.
+ */
+export function resizeInTree(
+  tree: WindowTree,
+  target: WindowSplit,
+  sizes: number[]
+): WindowTree {
+  if (tree === target) return { ...target, sizes };
+  if (tree.kind === 'window') return tree;
+
+  let changed = false;
+  const children = tree.children.map((child) => {
+    const next = resizeInTree(child, target, sizes);
+    if (next !== child) changed = true;
+    return next;
+  });
+  return changed ? { ...tree, children } : tree;
 }
 
 /** The tree with a split window's new neighbour in it. */

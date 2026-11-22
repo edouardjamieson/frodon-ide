@@ -18,6 +18,50 @@ their reasoning is the reasoning recorded at the time, not reconstructed.
 
 ---
 
+### ADR-0049 — A split's shares live in the tree, not in the panel library
+
+**When** 2026-11-22 · **Status** active · **Touches** workbench
+
+**What.** Each split in `WindowTree` carries `sizes`, the percentage each
+child holds, and the saved layout carries the same array. Every tree
+operation decides what happens to the shares; `react-resizable-panels` is
+handed them as a `defaultLayout` and reports a finished drag back through
+`resize`. Absent means equal shares, so a layout written before this opens as
+it always did. This revises the sentence of ADR-0048 that left sizing to the
+library.
+
+**Why.** The library keys sizes by panel id, and a panel's id is derived from
+what is in it: a window `w2` is the panel `w2`, and once it is split it is
+`split-w2`. A group that finds a panel set it has never sized gives every
+panel an equal share, so splitting the narrow window of a 70/30 pair put the
+pair back at 50/50. Keeping panel ids stable across a split was the smaller
+fix and only covers half the cases — a window dropped on a left edge makes a
+split whose first window is the new one, and its key changes regardless — and
+it still could not say what a split *should* do to sizes: halve the window
+being split, not rebalance its row. With the shares in the tree, that is
+written once, in `normalizeTree`, where a split flattened into its parent
+hands its children the slice it held. Saving them came free, which closes the
+gap the workbench doc had listed: splitters now survive a quit.
+
+**How.** `WindowSplit.sizes` in `lib/window/window.def.ts`, read through
+`sharesOf`. `normalizeTree` scales a flattened split's shares into its
+parent's; `closeGaps` gives a removed child's share to the sibling before it,
+and is shared by `filterTree` and `snapshotOf`. `insertBeside` makes a
+`[50, 50]` split, `insertAtEdge` gives a window joining a same-axis split an
+equal share, matching the drop outline. `Slots` in
+`window-manager.component.tsx` keys each group by its panels so a changed set
+remounts at the tree's shares, and writes back only `isUserInteraction`
+layouts. `sanitizeSizes` in `main/layout/` keeps shares only when every child
+survived, rescaled to 100.
+
+**Cost.** A splitter drag now changes the store, so it re-renders the slot
+tree once at the end of the drag and triggers a layout save — once per drag,
+not per frame, because `onLayoutChanged` waits for the pointer to lift. Every
+new tree operation has to think about shares, or it falls back to equal ones
+by way of `sharesOf`; nothing fails to compile if it forgets. A group whose
+panel set changes remounts, which is free only because the panels are empty
+(ADR-0041).
+
 ### ADR-0048 — Windows sit in a split tree, and splitting is limited by size
 
 **When** 2026-11-12 · **Status** active · **Touches** workbench, keybindings

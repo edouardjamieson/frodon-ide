@@ -74,9 +74,27 @@ export type SplitAxis = 'horizontal' | 'vertical';
  * Splits carry no id. Their React keys are derived from their first window,
  * and nothing else needs to tell two splits apart.
  */
-export type WindowTree =
-  | { kind: 'window'; id: string }
-  | { kind: 'split'; axis: SplitAxis; children: WindowTree[] };
+export type WindowTree = { kind: 'window'; id: string } | WindowSplit;
+
+export interface WindowSplit {
+  kind: 'split';
+  axis: SplitAxis;
+  children: WindowTree[];
+  /**
+   * Each child's share of the split's box, in percent, one per child and
+   * summing to 100. Absent means equal shares.
+   *
+   * In the tree rather than left to the panel library, which is where it
+   * lived first. The library keys sizes by panel, and a panel's key changes
+   * whenever the window in it is split — `w2` becomes `split-w2` — so the
+   * group saw a set of panels it had never sized and handed out equal shares:
+   * a 70/30 pair split on its right went back to 50/50. Held here, every tree
+   * operation says what happens to the shares — a split halves the window it
+   * splits, a close gives the share to the neighbour — and the library only
+   * draws them. `sharesOf` reads it.
+   */
+  sizes?: number[];
+}
 
 export interface EditorWindow extends WindowBase {
   type: 'editor';
@@ -293,6 +311,11 @@ export interface WindowStore {
    * "beside" from "instead of".
    */
   swap: (id: string, direction: Direction) => void;
+  /**
+   * Records the shares a splitter drag left a split at. Only the tree
+   * changes; see `WindowSplit.sizes`.
+   */
+  resize: (split: WindowSplit, sizes: number[]) => void;
 
   /**
    * Replaces the whole workbench — every window, where each sits, and the

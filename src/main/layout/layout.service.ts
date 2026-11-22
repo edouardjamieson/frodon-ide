@@ -177,8 +177,33 @@ function sanitizeNode(value: unknown, depth = 0): LayoutNode | null {
   const children = node.children
     .map((child: unknown) => sanitizeNode(child, depth + 1))
     .filter((child) => child !== null);
-  return children.length > 0
-    ? { kind: 'split', axis: node.axis, children }
+  if (children.length === 0) return null;
+
+  // Shares survive only whole: one per child, every child kept. A child
+  // dropped above leaves no way to say which share was its, and equal
+  // shares are a better guess than a misattributed one.
+  const sizes =
+    children.length === node.children.length
+      ? sanitizeSizes(node.sizes, children.length)
+      : null;
+  return sizes
+    ? { kind: 'split', axis: node.axis, children, sizes }
+    : { kind: 'split', axis: node.axis, children };
+}
+
+/**
+ * A split's shares, rescaled to sum to 100, or null when they are not a list
+ * of positive numbers as long as the split. A hand-edited `[2, 1]` is a fair
+ * thing to write and means two thirds and one third.
+ */
+function sanitizeSizes(value: unknown, count: number): number[] | null {
+  if (!Array.isArray(value) || value.length !== count) return null;
+  if (!value.every((size) => typeof size === 'number' && size > 0)) return null;
+
+  const sizes = value as number[];
+  const total = sizes.reduce((sum, size) => sum + size, 0);
+  return Number.isFinite(total)
+    ? sizes.map((size) => (size / total) * 100)
     : null;
 }
 

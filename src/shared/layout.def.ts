@@ -163,7 +163,17 @@ export type LayoutAxis = 'horizontal' | 'vertical';
  */
 export type LayoutNode =
   | { kind: 'window'; window: LayoutWindow }
-  | { kind: 'split'; axis: LayoutAxis; children: LayoutNode[] };
+  | {
+      kind: 'split';
+      axis: LayoutAxis;
+      children: LayoutNode[];
+      /**
+       * Each child's share, in percent, summing to 100. Absent — in a file
+       * written before splitters were remembered, or one whose shares did not
+       * survive sanitizing — means equal shares.
+       */
+      sizes?: number[];
+    };
 
 /**
  * What the renderer hands over, and what it gets back.

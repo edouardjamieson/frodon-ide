@@ -24,10 +24,12 @@
  * someone has decided what, if anything, is worth remembering about it.
  */
 import {
+  closeGaps,
   nextConversationId,
   nextSessionId,
   nextTabId,
   nextWindowId,
+  sharesOf,
   type WindowState,
   type WindowTree,
 } from '~/lib/window';
@@ -122,11 +124,13 @@ export function snapshotOf(
       order.push(node.id);
       return { kind: 'window', window: windowSnapshot(window, tabs, kept) };
     }
-    return {
-      kind: 'split',
-      axis: node.axis,
-      children: node.children.map(visit).filter((child) => child !== null),
-    };
+    // Through `closeGaps` rather than a filter, so a leaf left out cannot
+    // shift every share after it onto the wrong child.
+    const { children, sizes } = closeGaps(
+      node.children.map(visit),
+      sharesOf(node)
+    );
+    return { kind: 'split', axis: node.axis, children, sizes };
   };
 
   // A tree whose every leaf was missing cannot happen either, and the empty
@@ -252,6 +256,7 @@ export function windowsFrom(snapshot: LayoutSnapshot): {
       kind: 'split',
       axis: node.axis,
       children: node.children.map(visit),
+      ...(node.sizes ? { sizes: node.sizes } : {}),
     };
   };
 

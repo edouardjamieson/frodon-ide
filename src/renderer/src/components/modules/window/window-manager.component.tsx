@@ -8,8 +8,10 @@ import {
   axisOf,
   firstWindowOf,
   minExtent,
+  sharesOf,
   useWindowDragStore,
   useWindowList,
+  useWindowStore,
   useWindowTree,
   type DropTarget,
   type WindowTree,
@@ -111,6 +113,14 @@ function keyOf(node: WindowTree): string {
  * panel it is shrinking — not only the panel's nearest edge — drops below
  * the minimum. Memoized because a tree that did not change hands down the
  * same nodes, and re-rendering a group re-validates its layout.
+ *
+ * **The shares come from the tree, and go back to it.** A group is drawn at
+ * the split's `sizes` and reports a finished drag to `resize`; the library
+ * only ever holds a copy. A group is keyed by its panels, so one whose set of
+ * panels changed — a window split, closed or dropped in — mounts afresh at
+ * the shares the tree now says, rather than the library working out what a
+ * panel it has never seen should get. Remounting costs what it always has
+ * here: empty slots.
  */
 const Slots = memo(function Slots({
   node,
@@ -123,8 +133,27 @@ const Slots = memo(function Slots({
     return <div ref={slotRef(node.id)} className="h-full w-full" />;
   }
 
+  const keys = node.children.map(keyOf);
+  const shares = sharesOf(node);
+
   return (
-    <ResizablePanelGroup orientation={node.axis}>
+    <ResizablePanelGroup
+      key={keys.join(' ')}
+      orientation={node.axis}
+      defaultLayout={Object.fromEntries(
+        keys.map((key, index) => [key, shares[index] ?? 0])
+      )}
+      // Only a person's drag is written back. The mount, and the library
+      // clamping a panel to its `minSize` in a narrow window, report here too,
+      // and saving those would turn a moment's squeeze into the layout.
+      onLayoutChanged={(layout, { isUserInteraction }) => {
+        if (!isUserInteraction) return;
+        useWindowStore.getState().resize(
+          node,
+          keys.map((key) => layout[key] ?? 0)
+        );
+      }}
+    >
       {node.children.map((child, index) => (
         <Fragment key={keyOf(child)}>
           {index > 0 ? <ResizableHandle className={GUTTER} /> : null}

@@ -1,16 +1,22 @@
 import { cn } from 'cn';
-import { Heart, LoaderCircle, Plus, TriangleAlert, X } from 'lucide-react';
+import { Heart, Plus, TriangleAlert, X } from 'lucide-react';
 import {
   DEFAULT_AGENT,
   useAgentProblem,
-  useConversationKind,
   useConversationStatus,
+  useConversationTitle,
   useConversationWaiting,
   useFavoriteName,
+  useRunningConversations,
 } from '~/lib/agent';
-import { useAgentWindow, type AgentWindow } from '~/lib/window';
+import {
+  useAgentWindow,
+  useShowConversation,
+  useTabbedConversations,
+  type AgentWindow,
+} from '~/lib/window';
 import { useOpenSettings } from '~/lib/settings';
-import Agent, { AgentIcon } from '~/components/modules/agent';
+import Agent, { ConversationIcon } from '~/components/modules/agent';
 
 /**
  * The agent module: a tab per conversation in the window's header, and every
@@ -47,14 +53,11 @@ export function AgentWindowHeader({ window: win }: { window: AgentWindow }) {
 
 /**
  * One tab chip, subscribed to its own conversation's status and nothing
- * else — a reply streaming in one tab must not re-render its neighbours.
+ * else — a reply streaming in one tab must not re-render its neighbours. The
+ * icon is the status; see `ConversationIcon`.
  *
- * The icon is the status. A spinner until the agent is up, then its logo —
- * turning while a turn runs, with an accent dot when it is waiting on a
- * click, faded once it has ended. The dot is the reason the chip reads the
- * store at all: several agents side by side is only workable if a glance at
- * the tab bar says which one is stuck on a question. A dot rather than a
- * recolored icon, because a logo is not the theme's to recolor.
+ * Closing it closes the tab, not the conversation: one that has been talked
+ * to keeps running and is listed in the sidebar's Agents view.
  */
 function ConversationTab({
   id,
@@ -69,9 +72,6 @@ function ConversationTab({
   onActivate: () => void;
   onClose: () => void;
 }) {
-  const kind = useConversationKind(id);
-  const status = useConversationStatus(id);
-  const waiting = useConversationWaiting(id);
   const favoriteName = useFavoriteName(id);
 
   return (
@@ -82,23 +82,7 @@ function ConversationTab({
         active ? 'bg-tab-active text-fg' : 'text-fg-muted hover:bg-tab-inactive'
       )}
     >
-      {status === 'starting' ? (
-        <LoaderCircle className="size-3.5 shrink-0 animate-spin" />
-      ) : (
-        <span className="relative shrink-0">
-          <AgentIcon
-            kind={kind}
-            className={cn('size-3.5', {
-              'animate-[spin_3s_linear_infinite]':
-                status === 'working' && !waiting,
-              'opacity-40 grayscale': status === 'ended',
-            })}
-          />
-          {waiting ? (
-            <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-project" />
-          ) : null}
-        </span>
-      )}
+      <ConversationIcon id={id} />
       {/* Numbered by position, like shells, so closing the first of three
           does not leave "2" and "3" behind — unless it is a favorite, and so
           has a name of its own, with the heart that says why. */}
@@ -129,7 +113,8 @@ function ConversationTab({
 }
 
 export function AgentWindowBody({ window: win }: { window: AgentWindow }) {
-  const { conversations, activeConversation, open } = useAgentWindow(win);
+  const { conversations, activeConversation, open, attach } =
+    useAgentWindow(win);
   const problem = useAgentProblem(DEFAULT_AGENT);
   const openSettings = useOpenSettings();
 
@@ -163,6 +148,7 @@ export function AgentWindowBody({ window: win }: { window: AgentWindow }) {
           >
             New conversation
           </button>
+          <RunningShortcuts onAttach={attach} />
         </div>
       </div>
     );
@@ -182,5 +168,74 @@ export function AgentWindowBody({ window: win }: { window: AgentWindow }) {
         ))}
       </div>
     </div>
+  );
+}
+
+/**
+ * The conversations this window has running, offered on an empty agent tile
+ * — the place a person goes looking for an agent, and the one place that
+ * would otherwise say "no agent running here" while three are. One with no
+ * tab is put in a tab here; one already in a tab elsewhere is shown where it
+ * is, since moving it would take it from a tile someone arranged.
+ */
+function RunningShortcuts({ onAttach }: { onAttach: (id: string) => void }) {
+  const running = useRunningConversations();
+  const tabbed = useTabbedConversations();
+  const showConversation = useShowConversation();
+
+  if (running.length === 0) return null;
+
+  return (
+    <div className="mt-3 flex w-full max-w-72 flex-col gap-1 px-4">
+      <span className="px-2 font-mono text-[10px] tracking-wide text-fg-subtle uppercase">
+        Running
+      </span>
+      {running.map((id) => (
+        <RunningShortcut
+          key={id}
+          id={id}
+          inTab={tabbed.has(id)}
+          onOpen={() => (tabbed.has(id) ? showConversation(id) : onAttach(id))}
+        />
+      ))}
+    </div>
+  );
+}
+
+function RunningShortcut({
+  id,
+  inTab,
+  onOpen,
+}: {
+  id: string;
+  inTab: boolean;
+  onOpen: () => void;
+}) {
+  const title = useConversationTitle(id);
+  const status = useConversationStatus(id);
+  const waiting = useConversationWaiting(id);
+
+  return (
+    <button
+      onClick={onOpen}
+      className="flex cursor-pointer items-center gap-2 rounded-lg border border-pane-border bg-button px-2 py-1.5 text-left text-[12px] text-button-fg transition-colors hover:border-pane-border-focused hover:bg-button-hover"
+    >
+      <ConversationIcon id={id} />
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate">{title ?? 'New conversation'}</span>
+        <span className="truncate text-[10px] text-fg-subtle">
+          {waiting ? (
+            <span className="text-project">Waiting for you</span>
+          ) : status === 'working' ? (
+            'Working'
+          ) : status === 'ended' ? (
+            'Ended'
+          ) : (
+            'Your turn'
+          )}
+          {inTab ? ' · in another tile' : null}
+        </span>
+      </span>
+    </button>
   );
 }

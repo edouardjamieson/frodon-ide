@@ -107,7 +107,7 @@ the app is in the background, which is right for a media key and wrong for
 | `mod+shift+f` | `sidebar.search` | |
 | `mod+shift+b` | `sidebar.boards` | |
 | `mod+shift+w` | `sidebar.worktrees` | free: Close All Windows is `opt+cmd+w` |
-| `mod+shift+h` | `sidebar.favorites` | the heart on the rail; Hide is `cmd+h`, without shift |
+| `mod+shift+h` | `sidebar.agents` | the Agents view; `h` for the heart it wore as Favorites. Hide is `cmd+h`, without shift |
 | `mod+shift+g` | `git.open` | |
 | `mod+shift+i` | `agent.new` | a new conversation tab, routed like a file; on Windows and Linux the View menu's DevTools item takes this chord first |
 | `mod+,` | `settings.open` | no menu claims it |

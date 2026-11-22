@@ -1,10 +1,16 @@
 /**
- * One conversation's lifetime, bound to the component that shows it.
+ * Conversations, their lifetimes, and what the tile and the sidebar read.
  *
- * The same shape as `useTerminal`: mounting starts the agent, unmounting ends
- * it, and closing a tab is therefore all it takes to stop one. That is why the
- * window store's `closeConversation` signals nothing — dropping the id
- * unmounts this, and this is what tells main.
+ * A conversation is no longer bound to the component that shows it. It used
+ * to be — `useTerminal`'s shape, where unmounting a tab ended its agent — and
+ * that made closing a tab the only way to put a conversation out of sight,
+ * and also a way of killing an agent halfway through a refactor. Now a
+ * conversation starts when its id first appears in a tab, keeps running when
+ * the tab closes, and stops when someone says so: `endConversation`, reached
+ * from the sidebar's Stop and from the rules in `useConversationLifetimeEffect`
+ * in `lib/window/`, which is the one place that sees both the tabs and this
+ * store. The transcript stays in this store the whole time, so a tab opened
+ * on a conversation again draws it whole without asking anyone.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { File } from '@shared/fs.def';
@@ -17,6 +23,7 @@ import {
   type AgentKind,
   type AgentReply,
   type AgentRewind,
+  type RecentConversation,
 } from '@shared/agent.def';
 import { useAgentStore } from './agent.store';
 import type { TranscriptEntry } from './agent.def';
@@ -31,111 +38,159 @@ import {
 } from './agent.service';
 
 /**
- * How to start each tab that is drawn but asleep, by conversation id. Outside
- * the store, being a function, and gone once the agent starts.
+ * How to end each conversation this page started, by id. Outside the store,
+ * being functions.
+ */
+const lifetimes = new Map<string, () => void>();
+
+/**
+ * How to start each conversation that is drawn but asleep, by id. Gone once
+ * its agent starts.
  */
 const sleepers = new Map<string, () => Promise<boolean>>();
 
 /**
- * Starts a sleeping tab's agent, if it is asleep. Answers whether it is
- * running — at once, for a tab that never slept.
+ * Starts a sleeping conversation's agent, if it is asleep. Answers whether it
+ * is running — at once, for one that never slept.
  */
 export function wakeConversation(id: string): Promise<boolean> {
   return sleepers.get(id)?.() ?? Promise.resolve(true);
 }
 
-export function useConversationLifetime(id: string): void {
-  useEffect(() => {
-    const { open, update, forget, resumes, dropResume } =
-      useAgentStore.getState();
-    const resume = resumes[id] ?? null;
-    const kind = resume?.kind ?? DEFAULT_AGENT;
-    open(id, kind);
-    // The mode picker starts where main is about to start the agent, so it
-    // shows the settings' mode before the first message — which is the
-    // first time the agent itself would say. Main reads the same file.
-    const startMode =
-      useConfigStore.getState().user.agents?.[kind]?.permissionMode;
-    if (startMode) {
-      update(id, (conversation) => ({ ...conversation, mode: startMode }));
-    }
+/** Whether this page has started a conversation under `id` and not ended it. */
+export function isConversationLive(id: string): boolean {
+  return lifetimes.has(id);
+}
 
-    // Subscribed before the start is asked for, so the `started` event —
-    // which can arrive before the invoke resolves — has somewhere to go.
-    const unsubscribe = window.frodon.agent.onEvents(id, (events) =>
-      update(id, (conversation) => reduce(conversation, events))
-    );
+/** Every conversation this page has started and not ended. */
+export function liveConversations(): string[] {
+  return [...lifetimes.keys()];
+}
 
-    // Set when this run of the effect is cleaned up. StrictMode mounts twice
-    // with one id, and the first mount's start — cancelled by its own stop —
-    // resolves after the second has reopened the id; without this, its
-    // "closed" would end the conversation that replaced it.
-    let disposed = false;
+/**
+ * Starts a conversation under `id`: resuming one if `requestResume` asked for
+ * it, lazily if the request said so, a new one otherwise. Starting an id that
+ * is already live does nothing.
+ */
+export function beginConversation(id: string): void {
+  if (lifetimes.has(id)) return;
 
-    /** Starts the agent. Answers whether it is running now. */
-    const start = (replayed: boolean): Promise<boolean> =>
-      window.frodon.agent
-        .start(id, kind, resume?.session ?? null, replayed)
-        .then((result) => {
-          if (disposed) return false;
-          dropResume(id);
-          if (result.ok) return true;
-          update(id, (conversation) => ({
-            ...withNotice(conversation, result.error, 'danger'),
-            status: 'ended',
-          }));
-          return false;
-        });
+  const { open, update, resumes, dropResume } = useAgentStore.getState();
+  const resume = resumes[id] ?? null;
+  const kind = resume?.kind ?? DEFAULT_AGENT;
+  open(id, kind);
+  // The mode picker starts where main is about to start the agent, so it
+  // shows the settings' mode before the first message — which is the first
+  // time the agent itself would say. Main reads the same file.
+  const startMode =
+    useConfigStore.getState().user.agents?.[kind]?.permissionMode;
+  if (startMode) {
+    update(id, (conversation) => ({ ...conversation, mode: startMode }));
+  }
 
-    if (resume?.lazy) {
-      // Drawn from the agent's record now; started when the tab is used.
-      // A tab restored at launch is often never touched before the app
-      // quits again, and an agent each would be a process each for nothing.
-      void window.frodon.agent
-        .history(resume.kind, resume.session)
-        .then((events) => {
-          if (disposed) return;
-          if (!events) {
-            dropResume(id);
-            update(id, (conversation) => ({
-              ...withNotice(
-                conversation,
-                `${AGENT_LABELS[kind]} no longer has this conversation.`,
-                'danger'
-              ),
-              status: 'ended',
-            }));
-            return;
-          }
-          update(id, (conversation) => ({
-            ...reduce(conversation, events),
-            status: 'asleep',
-          }));
-          sleepers.set(id, () => {
-            // Held while it starts, so a message sent a moment after a
-            // focus woke the tab waits for the same start rather than
-            // racing it to a main that has nowhere to put it yet.
-            const running = start(true).finally(() => sleepers.delete(id));
-            sleepers.set(id, () => running);
-            update(id, (conversation) => ({
-              ...conversation,
-              status: 'starting',
-            }));
-            return running;
-          });
-        });
-    } else {
-      void start(false);
-    }
+  // Subscribed before the start is asked for, so the `started` event — which
+  // can arrive before the invoke resolves — has somewhere to go.
+  const unsubscribe = window.frodon.agent.onEvents(id, (events) =>
+    update(id, (conversation) => reduce(conversation, events))
+  );
 
-    return () => {
-      disposed = true;
-      sleepers.delete(id);
-      unsubscribe();
-      void window.frodon.agent.stop(id);
-      forget(id);
-    };
-  }, [id]);
+  // Set when the conversation is ended. A start still in flight resolves
+  // afterwards, and without this its "closed" would land on whatever has
+  // taken the id since.
+  let disposed = false;
+  lifetimes.set(id, () => {
+    disposed = true;
+    sleepers.delete(id);
+    unsubscribe();
+    void window.frodon.agent.stop(id);
+    useAgentStore.getState().forget(id);
+  });
+
+  /** Starts the agent. Answers whether it is running now. */
+  const start = (replayed: boolean): Promise<boolean> =>
+    window.frodon.agent
+      .start(id, kind, resume?.session ?? null, replayed)
+      .then((result) => {
+        if (disposed) return false;
+        dropResume(id);
+        if (result.ok) return true;
+        update(id, (conversation) => ({
+          ...withNotice(conversation, result.error, 'danger'),
+          status: 'ended',
+        }));
+        return false;
+      });
+
+  if (!resume?.lazy) {
+    void start(false);
+    return;
+  }
+
+  // Drawn from the agent's record now; started when it is used. A tab
+  // restored at launch is often never touched before the app quits again,
+  // and an agent each would be a process each for nothing.
+  void window.frodon.agent
+    .history(resume.kind, resume.session)
+    .then((events) => {
+      if (disposed) return;
+      if (!events) {
+        dropResume(id);
+        update(id, (conversation) => ({
+          ...withNotice(
+            conversation,
+            `${AGENT_LABELS[kind]} no longer has this conversation.`,
+            'danger'
+          ),
+          status: 'ended',
+        }));
+        return;
+      }
+      update(id, (conversation) => ({
+        ...reduce(conversation, events),
+        status: 'asleep',
+      }));
+      sleepers.set(id, () => {
+        // Held while it starts, so a message sent a moment after a focus
+        // woke it waits for the same start rather than racing it to a main
+        // that has nowhere to put it yet.
+        const running = start(true).finally(() => sleepers.delete(id));
+        sleepers.set(id, () => running);
+        update(id, (conversation) => ({
+          ...conversation,
+          status: 'starting',
+        }));
+        return running;
+      });
+    });
+}
+
+/**
+ * Ends a conversation: stops its agent, if one is running, and drops its
+ * transcript. The agent keeps its own record, so a favorite can still be
+ * reopened from it. Taking it out of whatever tab shows it is the caller's —
+ * see `useStopConversation` in `lib/window/`.
+ */
+export function endConversation(id: string): void {
+  const end = lifetimes.get(id);
+  lifetimes.delete(id);
+  end?.();
+}
+
+/**
+ * Whether a conversation is worth keeping when its last tab closes.
+ *
+ * Kept when something has been said and its agent is still there to carry
+ * on. One nothing was said in is a `+` clicked and thought better of; one
+ * asleep has no agent to keep, and is a favorite the sidebar reopens
+ * anyway; one ended has nothing left to do. Ending those with their tab is
+ * what stops the list filling with conversations nobody had.
+ */
+export function worthKeeping(id: string): boolean {
+  const conversation = useAgentStore.getState().conversations[id];
+  if (!conversation) return false;
+  if (conversation.status === 'asleep' || conversation.status === 'ended')
+    return false;
+  return conversation.entries.some((entry) => entry.kind === 'user');
 }
 
 /** Everything the body of a conversation draws, and what it can do. */
@@ -294,6 +349,175 @@ export function useConversationWaiting(id: string): boolean {
   return useAgentStore(
     (state) => (state.conversations[id]?.approvals.length ?? 0) > 0
   );
+}
+
+/**
+ * Whether any conversation in this window is waiting on a click, for the dot
+ * on the sidebar's rail — the one place that shows it with the sidebar shut
+ * and the conversation in no tab.
+ */
+export function useAnyConversationWaiting(): boolean {
+  return useAgentStore((state) =>
+    Object.values(state.conversations).some(
+      (conversation) => conversation.approvals.length > 0
+    )
+  );
+}
+
+/**
+ * Every conversation this window has running, by id, in the order they were
+ * started — the sidebar's list. Asleep ones are left out: no agent is
+ * running behind them, and the favorites below the list already offer them.
+ *
+ * Selected as one joined string, for `useOpenSessions`' reason.
+ */
+export function useRunningConversations(): string[] {
+  const joined = useAgentStore((state) =>
+    Object.entries(state.conversations)
+      .flatMap(([id, conversation]) =>
+        conversation.status === 'asleep' ? [] : [id]
+      )
+      .join('\n')
+  );
+  return useMemo(() => (joined ? joined.split('\n') : []), [joined]);
+}
+
+/** How long a first message can be before the sidebar's title cuts it. */
+const TITLE_LENGTH = 80;
+
+/**
+ * What to call a conversation where its tab's number means nothing: its
+ * favorite name, else the first line of the first thing it was asked, else
+ * null for one nothing has been said in yet. A string out of the selector,
+ * so a row re-renders when this changes and not on every delta of a reply.
+ */
+export function useConversationTitle(id: string): string | null {
+  return useAgentStore((state) => {
+    const conversation = state.conversations[id];
+    if (!conversation) return null;
+    if (conversation.session) {
+      const favorite = state.favorites?.find(
+        (entry) =>
+          entry.kind === conversation.kind &&
+          entry.session === conversation.session
+      );
+      if (favorite) return favorite.name;
+    }
+    const first = conversation.entries.find((entry) => entry.kind === 'user');
+    const line = first?.text.trim().split('\n')[0]?.trim();
+    if (!line) return null;
+    return line.length > TITLE_LENGTH
+      ? `${line.slice(0, TITLE_LENGTH - 1)}…`
+      : line;
+  });
+}
+
+/**
+ * Every running conversation's session and status, as one string: it changes
+ * when a conversation starts, stops, or finishes a turn — the moments the
+ * agent's own record of the project changes too.
+ */
+function useRunningPulse(): string {
+  return useAgentStore((state) =>
+    Object.values(state.conversations)
+      .flatMap((conversation) =>
+        conversation.status === 'asleep'
+          ? []
+          : [`${conversation.session ?? ''}:${conversation.status}`]
+      )
+      .join(',')
+  );
+}
+
+/**
+ * The conversations the agent kept for this project, most recently active
+ * first, or null until the first listing comes back.
+ *
+ * Listed when the Recent tab mounts and again whenever a conversation here
+ * starts, ends a turn or stops, and whenever the favorites change — the
+ * moments the list could have moved. A conversation had in a terminal tile
+ * shows up the next time one of those happens, or the tab is opened again:
+ * nothing watches the agent's folder.
+ */
+export function useRecentConversations(): RecentConversation[] | null {
+  const root = useProjectStore((state) => state.root);
+  const pulse = useRunningPulse();
+  const favorites = useAgentStore((state) => state.favorites);
+  const [recent, setRecent] = useState<RecentConversation[] | null>(null);
+
+  useEffect(() => {
+    if (!root) return;
+    let live = true;
+    void window.frodon.agent.recent().then((list) => {
+      if (live) setRecent(list);
+    });
+    return () => {
+      live = false;
+    };
+  }, [root, pulse, favorites]);
+
+  // No project, no record to ask: derived rather than set, so a launcher
+  // window does not hold a list from the project it came from.
+  return root ? recent : [];
+}
+
+/**
+ * The id of the conversation in this window running on a session, by
+ * `kind:session`, for the Recent list to show the one it already has rather
+ * than resume a second. Joined to a string for `useOpenSessions`' reason.
+ */
+export function useRunningBySession(): Map<string, string> {
+  const joined = useAgentStore((state) =>
+    Object.entries(state.conversations)
+      .flatMap(([id, conversation]) =>
+        conversation.session && conversation.status !== 'asleep'
+          ? [`${conversation.kind}:${conversation.session}=${id}`]
+          : []
+      )
+      .join('\n')
+  );
+  return useMemo(
+    () =>
+      new Map(
+        joined
+          ? joined.split('\n').map((pair) => {
+              const at = pair.lastIndexOf('=');
+              return [pair.slice(0, at), pair.slice(at + 1)] as const;
+            })
+          : []
+      ),
+    [joined]
+  );
+}
+
+/** A subagent or background command still running, as a sidebar row has it. */
+export interface RunningTask {
+  id: string;
+  description: string;
+  activity: string | null;
+}
+
+/**
+ * The tasks a conversation has running — its subagents and background
+ * commands — for the rows nested under it. Finished ones are left to the
+ * transcript, which folds them away the same way.
+ *
+ * Selected as a string and parsed back: a task's steps grow with every call
+ * it makes, and the row draws none of them.
+ */
+export function useRunningTasks(id: string): RunningTask[] {
+  const joined = useAgentStore((state) =>
+    JSON.stringify(
+      Object.values(state.conversations[id]?.tasks ?? {})
+        .filter((task) => task.status === 'running')
+        .map((task): RunningTask => ({
+          id: task.id,
+          description: task.description,
+          activity: task.activity,
+        }))
+    )
+  );
+  return useMemo(() => JSON.parse(joined) as RunningTask[], [joined]);
 }
 
 /** Lists the project's favorites again, into the store. */

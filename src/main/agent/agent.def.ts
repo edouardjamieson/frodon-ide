@@ -19,6 +19,7 @@ import type {
   AgentRewindResult,
   AgentTerminal,
   AgentWorkbench,
+  RecentConversation,
 } from '@shared/agent.def';
 
 /** What a driver can do to the conversation it is running. */
@@ -194,4 +195,10 @@ export interface AgentDriver {
    * there is one rendering path, not two.
    */
   history: (cwd: string, session: string) => Promise<AgentEvent[] | null>;
+  /**
+   * The conversations the agent kept for `cwd`, most recently active first,
+   * at most `limit` of them — the ones `history` would find there and no
+   * others.
+   */
+  recent: (cwd: string, limit: number) => Promise<RecentConversation[]>;
 }

@@ -143,6 +143,7 @@ const api: FrodonApi = {
     setMode: (id, mode) => ipcRenderer.invoke('agent:set-mode', { id, mode }),
     stop: (id) => ipcRenderer.invoke('agent:stop', { id }),
     favorites: () => ipcRenderer.invoke('agent:favorites'),
+    recent: () => ipcRenderer.invoke('agent:recent'),
     addFavorite: (kind, session, name) =>
       ipcRenderer.invoke('agent:add-favorite', { kind, session, name }),
     renameFavorite: (kind, session, name) =>

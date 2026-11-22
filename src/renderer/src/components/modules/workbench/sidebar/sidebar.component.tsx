@@ -19,10 +19,11 @@ import {
 } from '~/lib/sidebar';
 import { useOpenSettings } from '~/lib/settings';
 import { useOpenGit } from '~/lib/window';
+import { useAnyConversationWaiting } from '~/lib/agent';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../../ui';
 import Boards from './boards';
+import Agents from './agents';
 import Explorer from './explorer';
-import Favorites from './favorites';
 import GlobalSearch from './search';
 import Worktrees from './worktrees';
 
@@ -48,8 +49,8 @@ export default function Sidebar() {
         return <Boards />;
       case 'WORKTREES':
         return <Worktrees />;
-      case 'FAVORITES':
-        return <Favorites />;
+      case 'AGENTS':
+        return <Agents />;
       default:
         return null;
     }
@@ -118,6 +119,9 @@ function SidebarMenu({ collapsed }: { collapsed: boolean }) {
   // bottom with the collapse toggle, away from the four things that change
   // what the panel is showing.
   const openSettings = useOpenSettings();
+  // On the rail rather than only in the panel: a conversation with no tab
+  // and the sidebar shut would otherwise wait on a question nobody can see.
+  const agentWaiting = useAnyConversationWaiting();
 
   const toggleModule = (newModule: SidebarModule) => {
     if (module === newModule) {
@@ -167,10 +171,17 @@ function SidebarMenu({ collapsed }: { collapsed: boolean }) {
       shortcut: ['mod', 'shift', 'w'],
     },
     {
-      icon: <Bot className="size-5" />,
-      onClick: () => toggleModule('FAVORITES'),
-      label: 'Favorite conversations',
-      focused: module === 'FAVORITES' && !collapsed,
+      icon: (
+        <span className="relative">
+          <Bot className="size-5" />
+          {agentWaiting ? (
+            <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-project" />
+          ) : null}
+        </span>
+      ),
+      onClick: () => toggleModule('AGENTS'),
+      label: agentWaiting ? 'Agents — one is waiting for you' : 'Agents',
+      focused: module === 'AGENTS' && !collapsed,
       shortcut: ['mod', 'shift', 'h'],
     },
   ];

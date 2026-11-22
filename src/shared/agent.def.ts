@@ -536,6 +536,25 @@ export interface FavoriteEntry extends FavoriteConversation {
   expiresAt: number | null;
 }
 
+/**
+ * A conversation the agent kept for this project, as the Agents view's Recent
+ * list shows it. Asked of the agent on every listing: it is the agent's own
+ * record, and Frodon keeps no list of its own.
+ */
+export interface RecentConversation {
+  kind: AgentKind;
+  session: string;
+  /**
+   * What the agent calls it — a title set with `/rename`, its own summary,
+   * or the first thing it was asked.
+   */
+  title: string;
+  /** When the agent last wrote to it, in milliseconds since the epoch. */
+  lastActive: number;
+  /** The branch it ended on, when the agent recorded one. */
+  branch: string | null;
+}
+
 /** The longest name a favorite can carry. */
 export const FAVORITE_NAME_LIMIT = 80;
 

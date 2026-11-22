@@ -32,6 +32,7 @@ import type {
   AgentWorkbenchAsk,
   AgentStartResult,
   FavoriteEntry,
+  RecentConversation,
 } from './agent.def';
 import type { ProjectConfig, UserConfig } from './config.def';
 import type {
@@ -517,6 +518,11 @@ export interface IpcContract {
   'agent:stop': { req: { id: string }; res: void };
   /** The asking window's project's favorite conversations. */
   'agent:favorites': { req: void; res: FavoriteEntry[] };
+  /**
+   * The conversations every agent kept for the asking window's project, most
+   * recently active first — Frodon's and the terminal's alike.
+   */
+  'agent:recent': { req: void; res: RecentConversation[] };
   /** Marks a conversation a favorite. One already marked keeps its name. */
   'agent:add-favorite': {
     req: { kind: AgentKind; session: string; name: string };
@@ -926,6 +932,7 @@ export interface FrodonApi {
     setMode: (id: string, mode: string) => Promise<void>;
     stop: (id: string) => Promise<void>;
     favorites: () => Promise<Res<'agent:favorites'>>;
+    recent: () => Promise<Res<'agent:recent'>>;
     addFavorite: (
       kind: AgentKind,
       session: string,

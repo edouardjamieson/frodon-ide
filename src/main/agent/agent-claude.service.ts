@@ -23,6 +23,7 @@ import {
   createSdkMcpServer,
   getSessionInfo,
   getSessionMessages,
+  listSessions,
   query,
   tool,
   type PermissionMode,
@@ -150,6 +151,32 @@ export const claudeDriver: AgentDriver = {
       if (value !== undefined) days = value;
     }
     return days;
+  },
+
+  async recent(cwd, limit) {
+    try {
+      // `includeWorktrees` off, because a session had in another checkout is
+      // filed under that checkout's folder and `history` — which looks only
+      // in `cwd` — would not find it to reopen. Programmatic sessions stay
+      // in, which is the default: Frodon's own conversations are SDK ones.
+      const sessions = await listSessions({
+        dir: cwd,
+        limit,
+        includeWorktrees: false,
+      });
+      return sessions
+        .filter((info) => SESSION_ID.test(info.sessionId))
+        .map((info) => ({
+          kind: 'claude' as const,
+          session: info.sessionId,
+          title: info.customTitle ?? info.summary,
+          lastActive: info.lastModified,
+          branch: info.gitBranch ?? null,
+        }));
+    } catch (error) {
+      log.error('could not list claude sessions', error);
+      return [];
+    }
   },
 
   async history(cwd, session) {

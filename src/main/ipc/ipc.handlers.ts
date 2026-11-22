@@ -100,6 +100,7 @@ import {
   interruptConversation,
   isAgentKind,
   listFavorites,
+  listRecent,
   removeFavorite,
   renameFavorite,
   revealConversation,
@@ -594,18 +595,30 @@ export function registerIpcHandlers(): void {
     conversationHistory(kind, session, askingRoot(event))
   );
 
+  // Every channel naming a conversation is answered for the asking window's
+  // conversations only: the id is the window's own, and another window's
+  // `c1` is a different conversation.
   handle('agent:send', ({ id, text, attachments, messageId }, event) =>
-    sendMessage(id, text, attachments, askingRoot(event), messageId)
+    sendMessage(
+      event.sender.id,
+      id,
+      text,
+      attachments,
+      askingRoot(event),
+      messageId
+    )
   );
 
-  handle('agent:rewind', ({ id, messageId, restore }) =>
-    rewindConversation(id, messageId, restore)
+  handle('agent:rewind', ({ id, messageId, restore }, event) =>
+    rewindConversation(event.sender.id, id, messageId, restore)
   );
 
-  handle('agent:shell', ({ id, command }) => runShellCommand(id, command));
+  handle('agent:shell', ({ id, command }, event) =>
+    runShellCommand(event.sender.id, id, command)
+  );
 
-  handle('agent:respond', ({ id, requestId, reply }) =>
-    respondTo(id, requestId, reply)
+  handle('agent:respond', ({ id, requestId, reply }, event) =>
+    respondTo(event.sender.id, id, requestId, reply)
   );
 
   // Accepted only from the window that was asked — `answerWorkbench` checks
@@ -614,17 +627,27 @@ export function registerIpcHandlers(): void {
     answerWorkbench(event.sender.id, requestId, answer)
   );
 
-  handle('agent:interrupt', ({ id }) => interruptConversation(id));
+  handle('agent:interrupt', ({ id }, event) =>
+    interruptConversation(event.sender.id, id)
+  );
 
-  handle('agent:set-model', ({ id, model }) => setConversationModel(id, model));
+  handle('agent:set-model', ({ id, model }, event) =>
+    setConversationModel(event.sender.id, id, model)
+  );
 
-  handle('agent:set-mode', ({ id, mode }) => setConversationMode(id, mode));
+  handle('agent:set-mode', ({ id, mode }, event) =>
+    setConversationMode(event.sender.id, id, mode)
+  );
 
-  handle('agent:stop', ({ id }) => stopConversation(id));
+  handle('agent:stop', ({ id }, event) =>
+    stopConversation(event.sender.id, id)
+  );
 
   // Favorites, filed under the asking window's project like everything
   // else here — a window cannot mark or list another project's.
   handle('agent:favorites', (_req, event) => listFavorites(askingRoot(event)));
+
+  handle('agent:recent', (_req, event) => listRecent(askingRoot(event)));
 
   handle('agent:add-favorite', ({ kind, session, name }, event) =>
     addFavorite(askingRoot(event), kind, session, name)

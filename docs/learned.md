@@ -17,6 +17,20 @@ architecture, write the ADR too and link them.
 
 ## The platform
 
+### An id unique within a page is not unique in main
+`code` · 2026-11-22 · `main/agent/agent.service.ts`
+
+`nextConversationId` and `nextSessionId` count from `c1` and `s1` in every
+renderer page, which was true and enough while one window was the whole app.
+ADR-0032 made main hold several windows at once, and the agent and terminal
+registries kept keying by the renderer's id alone — so a second window's
+`c1` arrived as a re-start of the first window's `c1`, and replaced it: the
+same id, a different conversation, the first one stopped. The agent registry
+is keyed by `${senderId}:${id}` now. **The terminal registry still is not**,
+and has the same collision between two windows' `s1`. The general form: when
+a process starts serving more than one page, every id a page minted has to
+be re-read as a name that only means something with the page attached.
+
 ### Option as Meta takes half the keyboard away from a non-US Mac layout
 `code` · 2026-11-10 · `src/renderer/src/components/modules/terminal/terminal.hook.ts`
 
@@ -378,7 +392,7 @@ session's id rather than forking a new one, which is what lets a favorite
 survive a rewind.
 
 ### Radix's ScrollArea wraps its content in a table
-`code` · 2026-11-09 · `components/modules/workbench/sidebar/favorites/`
+`code` · 2026-11-09 · `components/modules/workbench/sidebar/agents/`
 
 Radix's ScrollArea puts a `div` between its viewport and the content,
 styled `display: table; min-width: 100%` inline, to measure what it holds.
@@ -392,7 +406,7 @@ bundles, which slots the style onto the child instead. Rendering the real
 component to HTML showed the wrapper. The fix is an `!important` rule on the
 wrapper, since nothing else beats an inline style: the vendored
 `ScrollArea` takes `fitWidth` for it. Any ScrollArea whose rows should
-truncate needs it — Favorites, Boards and Worktrees use it.
+truncate needs it — Agents, Boards and Worktrees use it.
 
 ### A subagent's call returns before the subagent has done anything
 `code` · 2026-11-08 · `src/main/agent/agent-claude.service.ts`

@@ -13,4 +13,4 @@ export interface SidebarStore {
 }
 
 export type SidebarModule =
-  'EXPLORER' | 'SEARCH' | 'BOARDS' | 'WORKTREES' | 'FAVORITES';
+  'EXPLORER' | 'SEARCH' | 'BOARDS' | 'WORKTREES' | 'AGENTS';

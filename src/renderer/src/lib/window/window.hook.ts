@@ -7,7 +7,15 @@
  */
 import { useCallback, useEffect, useMemo } from 'react';
 import type { AgentKind } from '@shared/agent.def';
-import { useAgentStore } from '~/lib/agent';
+import {
+  beginConversation,
+  endConversation,
+  isConversationLive,
+  liveConversations,
+  useAgentStore,
+  worthKeeping,
+} from '~/lib/agent';
+import { useProjectStore } from '~/lib/project';
 import { selectionOf } from '~/lib/editor';
 import { terminalOutputOf } from '~/lib/terminal';
 import { useGitStore } from '~/lib/git';
@@ -172,12 +180,15 @@ export const useAgentWindow = (window: AgentWindow) => {
     activate: (id: string) => setActive(window.id, id),
     close: (id: string) => closeConversation(window.id, id),
     open: () => openAgent(window.id),
+    /** Puts a conversation running with no tab into a tab here. */
+    attach: (id: string) => openAgent(window.id, id),
   };
 };
 
 /**
- * Opens a favorite conversation: the tab already on it, in whichever OS
- * window holds it, or else a new tab resuming it.
+ * Opens a conversation the agent kept — a favorite, or one from the Recent
+ * list: the tab already on it, in whichever OS window holds it, or else a
+ * new tab resuming it.
  *
  * Main is asked first because only main sees every window's conversations.
  * Two tabs on one session would be two agents writing one conversation —
@@ -191,9 +202,9 @@ export const useOpenFavorite = () => {
     async (kind: AgentKind, session: string) => {
       if (await window.frodon.agent.reveal(kind, session)) return;
 
-      // Asked for before the tab mounts: `openAgent` only adds an id to a
-      // window, and the tab reads this when it starts. Both happen in this
-      // tick, ahead of the render that mounts it.
+      // Asked for before the conversation starts: `openAgent` only adds an id
+      // to a window, and `useConversationLifetimeEffect` starts it at the end
+      // of this tick, reading this as it does.
       const id = openAgent();
       if (id) useAgentStore.getState().requestResume(id, { kind, session });
     },
@@ -202,25 +213,131 @@ export const useOpenFavorite = () => {
 };
 
 /**
- * Shows the tab main was asked to bring forward, by `useOpenFavorite` in
- * this window or in another. Mounted once, in `App`.
+ * Puts one of this window's conversations on screen: the tab already showing
+ * it, focused, or else a new tab on it — for one running with no tab, whose
+ * transcript is still in the agent store and is drawn whole the moment the
+ * tab mounts.
+ */
+function showConversation(id: string): void {
+  const { windows, setActiveConversation, focus, openAgent } =
+    useWindowStore.getState();
+  const holder = windows.find(
+    (candidate) =>
+      candidate.type === 'agent' && candidate.conversations.includes(id)
+  );
+  if (holder) {
+    setActiveConversation(holder.id, id);
+    focus(holder.id);
+    return;
+  }
+  if (useAgentStore.getState().conversations[id]) openAgent(undefined, id);
+}
+
+/**
+ * Every conversation a tab in this window shows, for the sidebar to say which
+ * of its running ones have none. One joined string, so the list re-renders
+ * when a tab opens or closes and not when one is clicked.
+ */
+export const useTabbedConversations = (): Set<string> => {
+  const joined = useWindowStore((state) =>
+    [...conversationsInTabs(state.windows)].sort().join('\n')
+  );
+  return useMemo(() => new Set(joined ? joined.split('\n') : []), [joined]);
+};
+
+/** `showConversation`, for the sidebar's rows. */
+export const useShowConversation = () => showConversation;
+
+/**
+ * Ends a conversation and takes it out of whatever tab shows it — the
+ * sidebar's Stop. Ended first, so the tab leaving is a conversation that is
+ * already gone rather than one the lifetime effect has to decide about.
+ */
+export const useStopConversation = () =>
+  useCallback((id: string) => {
+    endConversation(id);
+    const { windows, closeConversation } = useWindowStore.getState();
+    for (const holder of windows) {
+      if (holder.type === 'agent' && holder.conversations.includes(id))
+        closeConversation(holder.id, id);
+    }
+  }, []);
+
+/**
+ * Shows the conversation main was asked to bring forward, by
+ * `useOpenFavorite` in this window or in another — opening a tab on it if it
+ * is running in none. Mounted once, in `App`.
  */
 export const useConversationRevealEffect = (): void => {
-  useEffect(
-    () =>
-      window.frodon.agent.onReveal((id) => {
-        const { windows, setActiveConversation, focus } =
-          useWindowStore.getState();
-        const holder = windows.find(
-          (candidate) =>
-            candidate.type === 'agent' && candidate.conversations.includes(id)
-        );
-        if (!holder) return;
-        setActiveConversation(holder.id, id);
-        focus(holder.id);
-      }),
-    []
+  useEffect(() => window.frodon.agent.onReveal(showConversation), []);
+};
+
+/** Every conversation id held by a tab. */
+function conversationsInTabs(windows: WindowState[]): Set<string> {
+  return new Set(
+    windows.flatMap((window) =>
+      window.type === 'agent' ? window.conversations : []
+    )
   );
+}
+
+/**
+ * Starts and ends this window's conversations. Mounted once, in `App`.
+ *
+ * The rules, all in one place because tabs leave in more ways than one —
+ * closed, a tile closed with several in it, a saved layout put down over the
+ * arrangement:
+ *
+ * - An id that appears in a tab and is not running starts.
+ * - An id that leaves its last tab keeps running if `worthKeeping` says so,
+ *   and ends otherwise. Only one that *just* left is judged: a conversation
+ *   already running with no tab is never ended from here, only by a Stop.
+ * - A different project ends them all. A conversation runs in the directory
+ *   it was started in, and one left running against the last project, in a
+ *   window now showing another, would be an agent editing files nothing on
+ *   screen is about.
+ *
+ * Judged at the end of the tick rather than inside the store write, because
+ * the callers that open a tab to resume something — `useOpenFavorite`, the
+ * layout restore — add the id first and say what to resume second.
+ */
+export const useConversationLifetimeEffect = (): void => {
+  useEffect(() => {
+    let tabbed = new Set<string>();
+    let scheduled = false;
+
+    const settle = () => {
+      scheduled = false;
+      const now = conversationsInTabs(useWindowStore.getState().windows);
+      for (const id of now) if (!isConversationLive(id)) beginConversation(id);
+      for (const id of tabbed) {
+        if (!now.has(id) && !worthKeeping(id)) endConversation(id);
+      }
+      tabbed = now;
+    };
+    const schedule = () => {
+      if (scheduled) return;
+      scheduled = true;
+      queueMicrotask(settle);
+    };
+
+    schedule();
+    const unwindows = useWindowStore.subscribe((state, previous) => {
+      if (state.windows !== previous.windows) schedule();
+    });
+    const unroot = useProjectStore.subscribe((state, previous) => {
+      if (state.root === previous.root || !previous.root) return;
+      for (const id of liveConversations()) endConversation(id);
+      // A project with no saved layout keeps the tiles that were up, tabs
+      // included, and those tabs now name nothing. Settling again starts a
+      // fresh conversation in each, in the new project.
+      schedule();
+    });
+    return () => {
+      unwindows();
+      unroot();
+    };
+  }, []);
 };
 
 /**

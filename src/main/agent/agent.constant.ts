@@ -48,6 +48,13 @@ export const SELECTION_LIMIT = 20_000;
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * How many conversations the Recent list shows. Every `claude` run in the
+ * project's terminals is in the agent's record too, and most of them are
+ * throwaway; the last few dozen are the ones anyone goes back to.
+ */
+export const RECENT_LIMIT = 30;
+
 /** How long Claude Code keeps a conversation when its settings do not say. */
 export const CLAUDE_DEFAULT_KEEP_DAYS = 30;
 

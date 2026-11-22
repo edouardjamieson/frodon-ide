@@ -27,7 +27,6 @@ import {
   resolvePath,
   runningBackground,
   useConversation,
-  useConversationLifetime,
   useFavoriteName,
   wakeConversation,
 } from '~/lib/agent';
@@ -76,16 +75,16 @@ interface AgentProps {
  * A conversation, on screen: the transcript, and a box to type into.
  *
  * Every conversation in a window stays mounted and an inactive one is
- * hidden, for the terminal's reason — unmounting ends the agent, and one
- * that is halfway through a refactor in the tab you clicked away from has to
- * keep going.
+ * hidden. Unmounting no longer ends the agent — the conversation's lifetime
+ * is the agent store's, see `useConversationLifetimeEffect` — but a hidden
+ * tab keeps its draft, its scroll and whatever menu was open, which a remount
+ * would lose.
  */
 export default function Agent({
   conversationId,
   active,
   windowId,
 }: AgentProps) {
-  useConversationLifetime(conversationId);
   const {
     conversation,
     send,

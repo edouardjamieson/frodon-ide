@@ -121,7 +121,7 @@ export function useCommands(): Record<CommandId, () => void> {
       'sidebar.search': () => showModule('SEARCH'),
       'sidebar.boards': () => showModule('BOARDS'),
       'sidebar.worktrees': () => showModule('WORKTREES'),
-      'sidebar.favorites': () => showModule('FAVORITES'),
+      'sidebar.agents': () => showModule('AGENTS'),
       'git.open': () => openGit(),
       'agent.new': () => void openAgent(),
       // No section named, so the dialog reopens on the page it was last left

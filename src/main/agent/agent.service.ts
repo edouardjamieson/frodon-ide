@@ -3,7 +3,8 @@
  *
  * The terminal's registry, with an agent where the shell was: the renderer
  * names a conversation, main starts it, and its events go back to the window
- * that asked and to no other. A conversation dies with its tile, and every
+ * that asked and to no other. A conversation outlives the tab that showed it
+ * — the window decides when one is stopped, and asks — but every
  * conversation a window holds dies with the window.
  *
  * Nothing here knows which agent it is running. That is the drivers' job —
@@ -24,6 +25,7 @@ import type {
   AgentRewindResult,
   AgentStartResult,
   FavoriteEntry,
+  RecentConversation,
 } from '@shared/agent.def';
 import type { AgentSettings } from '@shared/config.def';
 import type { BoardRef } from '@shared/board.def';
@@ -33,6 +35,7 @@ import {
   FLUSH_MS,
   NOTE_OUTPUT_LIMIT,
   OUTPUT_LIMIT,
+  RECENT_LIMIT,
 } from './agent.constant';
 import type { AgentDriver, AgentRun } from './agent.def';
 import { claudeDriver, shellAction } from './agent-claude.service';
@@ -81,7 +84,25 @@ interface Conversation {
   pending: Map<string, (reply: AgentReply) => void>;
 }
 
+/**
+ * Every live conversation, by `keyOf` its window and its id.
+ *
+ * Not by the id alone. The renderer mints ids with a counter that starts at
+ * `c1` in every page, which was enough while a window was the whole app; with
+ * two windows open, the second window's `c1` arrived here as a re-start of
+ * the first's and replaced it — the same id, a different conversation. The
+ * window is part of the name because it is part of what the id means.
+ */
 const conversations = new Map<string, Conversation>();
+
+function keyOf(senderId: number, id: string): string {
+  return `${senderId}:${id}`;
+}
+
+/** A window's conversation, by the id that window gave it. */
+function find(senderId: number, id: string): Conversation | undefined {
+  return conversations.get(keyOf(senderId, id));
+}
 
 /**
  * Starts still finding their agent, by id, with the window that asked.
@@ -141,13 +162,14 @@ export async function startConversation(
   if (resume !== null && !isSessionToken(resume))
     return { ok: false, error: 'That conversation cannot be reopened.' };
 
-  if (conversations.has(id) || starting.has(id)) {
-    log.info(`replacing conversation ${id}`);
-    stopConversation(id);
+  const key = keyOf(senderId, id);
+  if (conversations.has(key) || starting.has(key)) {
+    log.info(`replacing conversation ${key}`);
+    stopConversation(senderId, id);
   }
 
-  const token = Symbol(id);
-  starting.set(id, { token, senderId });
+  const token = Symbol(key);
+  starting.set(key, { token, senderId });
 
   const env = await loginEnvironment();
   const settings = await settingsOf(kind);
@@ -156,10 +178,10 @@ export async function startConversation(
 
   // Stopped or replaced while we were looking. Whoever did that owns the id
   // now, and this start has nothing left to do.
-  if (starting.get(id)?.token !== token) {
+  if (starting.get(key)?.token !== token) {
     return { ok: false, error: 'The conversation was closed.' };
   }
-  starting.delete(id);
+  starting.delete(key);
   if (found.status === 'missing') return { ok: false, error: found.reason };
   if (!history) {
     return {
@@ -196,7 +218,7 @@ export async function startConversation(
     timer: null,
     pending: new Map(),
   };
-  conversations.set(id, conversation);
+  conversations.set(key, conversation);
 
   conversation.run = DRIVERS[kind].start({
     cwd,
@@ -283,7 +305,7 @@ export async function startConversation(
     session: conversation.run.session,
   });
 
-  log.info(`conversation ${id} with ${kind} ${found.version} in ${cwd}`);
+  log.info(`conversation ${key} with ${kind} ${found.version} in ${cwd}`);
   return { ok: true };
 }
 
@@ -307,13 +329,14 @@ export async function conversationHistory(
  * an attached path has to resolve inside.
  */
 export async function sendMessage(
+  senderId: number,
   id: string,
   text: string,
   attachments: unknown,
   cwd: string | null,
   messageId: unknown
 ): Promise<void> {
-  const conversation = conversations.get(id);
+  const conversation = find(senderId, id);
   if (!conversation) return;
   const cleaned = await cleanAttachments(attachments, cwd);
   const message = typeof text === 'string' ? text : '';
@@ -331,11 +354,12 @@ export async function sendMessage(
  * agent knows it is the agent's to say.
  */
 export async function rewindConversation(
+  senderId: number,
   id: string,
   messageId: unknown,
   restore: unknown
 ): Promise<AgentRewindResult> {
-  const conversation = conversations.get(id);
+  const conversation = find(senderId, id);
   if (!conversation) return { ok: false, error: 'The conversation has ended.' };
   if (!isMessageId(messageId))
     return { ok: false, error: 'That message cannot be rewound to.' };
@@ -369,10 +393,11 @@ function isMessageId(value: unknown): value is string {
  * would run — so nothing asks first.
  */
 export async function runShellCommand(
+  senderId: number,
   id: string,
   command: unknown
 ): Promise<void> {
-  const conversation = conversations.get(id);
+  const conversation = find(senderId, id);
   if (!conversation || typeof command !== 'string' || !command.trim()) return;
   const line = command.trim();
 
@@ -429,11 +454,12 @@ const DECLINED: AgentReply = { allow: false };
  * driver was promised — a boolean, and strings.
  */
 export function respondTo(
+  senderId: number,
   id: string,
   requestId: string,
   reply: AgentReply
 ): void {
-  const settle = conversations.get(id)?.pending.get(requestId);
+  const settle = find(senderId, id)?.pending.get(requestId);
   if (!settle) return;
   if (reply.allow !== true) {
     settle(DECLINED);
@@ -445,8 +471,11 @@ export function respondTo(
   settle({ allow: true, answers, always: reply.always === true });
 }
 
-export async function interruptConversation(id: string): Promise<void> {
-  const conversation = conversations.get(id);
+export async function interruptConversation(
+  senderId: number,
+  id: string
+): Promise<void> {
+  const conversation = find(senderId, id);
   if (!conversation) return;
   // Every open question is answered no first. An interrupted turn would
   // otherwise leave its approval cards on screen, waiting on a turn that is
@@ -456,17 +485,19 @@ export async function interruptConversation(id: string): Promise<void> {
 }
 
 export async function setConversationModel(
+  senderId: number,
   id: string,
   model: string
 ): Promise<void> {
-  await conversations.get(id)?.run.setModel(model);
+  await find(senderId, id)?.run.setModel(model);
 }
 
 export async function setConversationMode(
+  senderId: number,
   id: string,
   mode: string
 ): Promise<void> {
-  await conversations.get(id)?.run.setMode(mode);
+  await find(senderId, id)?.run.setMode(mode);
 }
 
 /**
@@ -506,6 +537,24 @@ export async function listFavorites(
   );
 }
 
+/**
+ * The conversations every agent kept for a project, most recently active
+ * first. Each driver is asked for the whole limit, since which agent's are
+ * the most recent is only known once all of them have answered.
+ */
+export async function listRecent(
+  cwd: string | null
+): Promise<RecentConversation[]> {
+  if (!cwd) return [];
+  const lists = await Promise.all(
+    Object.values(DRIVERS).map((driver) => driver.recent(cwd, RECENT_LIMIT))
+  );
+  return lists
+    .flat()
+    .sort((a, b) => b.lastActive - a.lastActive)
+    .slice(0, RECENT_LIMIT);
+}
+
 /** The live conversation on a session, in any window, if there is one. */
 function holderOf(kind: AgentKind, session: string): Conversation | null {
   for (const conversation of conversations.values()) {
@@ -538,12 +587,13 @@ export function revealConversation(
 }
 
 /** Ends a conversation and the process behind it. */
-export function stopConversation(id: string): void {
-  starting.delete(id);
-  const conversation = conversations.get(id);
+export function stopConversation(senderId: number, id: string): void {
+  const key = keyOf(senderId, id);
+  starting.delete(key);
+  const conversation = conversations.get(key);
   if (!conversation) return;
 
-  conversations.delete(id);
+  conversations.delete(key);
   if (conversation.timer) clearTimeout(conversation.timer);
   for (const settle of [...conversation.pending.values()]) settle(DECLINED);
   conversation.run.close();
@@ -551,18 +601,20 @@ export function stopConversation(id: string): void {
 
 /** Ends every conversation one window holds. See `killSessionsOf`. */
 export function stopConversationsOf(senderId: number): void {
-  for (const [id, start] of [...starting]) {
-    if (start.senderId === senderId) starting.delete(id);
+  for (const [key, start] of [...starting]) {
+    if (start.senderId === senderId) starting.delete(key);
   }
   for (const conversation of [...conversations.values()]) {
-    if (conversation.senderId === senderId) stopConversation(conversation.id);
+    if (conversation.senderId === senderId)
+      stopConversation(senderId, conversation.id);
   }
 }
 
 /** Ends every conversation. What quitting does. */
 export function disposeAgents(): void {
   starting.clear();
-  for (const id of [...conversations.keys()]) stopConversation(id);
+  for (const conversation of [...conversations.values()])
+    stopConversation(conversation.senderId, conversation.id);
 }
 
 function ask(
@@ -604,7 +656,8 @@ function ask(
  * report its exit after its successor has taken the id.
  */
 function emit(conversation: Conversation, event: AgentEvent): void {
-  if (conversations.get(conversation.id) !== conversation) return;
+  const key = keyOf(conversation.senderId, conversation.id);
+  if (conversations.get(key) !== conversation) return;
 
   conversation.buffer.push(event);
 
@@ -617,7 +670,7 @@ function emit(conversation: Conversation, event: AgentEvent): void {
 
   if (event.type === 'exited') {
     flush(conversation);
-    conversations.delete(conversation.id);
+    conversations.delete(key);
     return;
   }
   conversation.timer ??= setTimeout(() => flush(conversation), FLUSH_MS);

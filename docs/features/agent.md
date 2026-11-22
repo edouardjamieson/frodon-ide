@@ -32,8 +32,9 @@ and a member on `AgentKind`. ADR-0042.
 | `renderer/src/lib/agent/` | the transcript store, `reduce`, and `useConversationLifetime` |
 | `components/modules/agent/` | the transcript and composer, one row per entry, the pickers for model and permission mode, the `/` menu, a reply drawn as markdown, the favorite button, attachment chips and the project picker, and each agent's logo |
 | `components/modules/window/window-agent.component.tsx` | the tab bar and the tile body |
-| `components/modules/workbench/sidebar/favorites/` | the Favorites view: open, rename, remove |
-| `renderer/src/lib/window/window.hook.ts` | `useOpenFavorite` and `useConversationRevealEffect`: the tab already on a favorite, in any window, or a new one |
+| `components/modules/workbench/sidebar/agents/` | the Agents view: what is running, with its subagents, and the favorites that are not |
+| `components/modules/agent/agent-status.component.tsx` | `ConversationIcon`, the status a tab and a sidebar row both draw |
+| `renderer/src/lib/window/window.hook.ts` | `useConversationLifetimeEffect`, which starts and ends conversations; `useOpenFavorite`, `useShowConversation` and `useConversationRevealEffect`: the tab already on a conversation, in any window, or a new one |
 
 ## How it works
 
@@ -191,21 +192,90 @@ had to be free text unlike the field beside it. It was taken out rather
 than kept as the odd one. Claude's own `model` setting still decides what a
 new conversation runs, and the picker changes it per conversation.
 
-### The conversation is a process, like a shell
+### The conversation is a process, and it outlives its tab
 
-The same ownership as the terminal, for the same reasons. The renderer names
-the conversation (`nextConversationId`), main keys its registry by that name,
-events go back to the window that asked and to no other, and a conversation
-dies when its tab unmounts, when its window closes (`stopConversationsOf`),
-or when the app quits (`disposeAgents`). Every conversation in a window stays
-mounted and the inactive ones are hidden, so an agent halfway through a
-change in the tab you clicked away from keeps going.
+The terminal's ownership, mostly. The renderer names the conversation
+(`nextConversationId`), main keys its registry by the window and that name
+together — `keyOf(senderId, id)`, since every page counts from `c1` — and
+events go back to the window that asked and to no other. A conversation dies
+when its window closes (`stopConversationsOf`) or the app quits
+(`disposeAgents`).
+
+**What it does not die with is its tab.** It used to: the tab's mount started
+the agent and its unmount stopped it, the shape `useTerminal` has. That made
+closing a tab the only way to put a conversation out of sight, and also a way
+of killing an agent halfway through a change. Now `beginConversation` and
+`endConversation` in `lib/agent/` are the lifetime, and
+`useConversationLifetimeEffect` in `lib/window/` — the one place that sees
+both the tabs and the agent store — applies the rules, at the end of each
+tick in which the tabs changed:
+
+- An id that appears in a tab and is not running starts.
+- An id that leaves its last tab keeps running if `worthKeeping` says so:
+  something has been said in it, and its agent is neither asleep nor ended.
+  Otherwise it ends with the tab — a `+` clicked and thought better of
+  should not leave an idle agent behind. Only an id that *just* left is
+  judged; one already running with no tab is ended by a Stop and nothing
+  else.
+- A different project ends them all. An agent runs in the directory it was
+  started in, and one left running against the last project, in a window now
+  showing another, is an agent editing files nothing on screen is about.
+
+The end of the tick rather than inside the store write, because the callers
+that open a tab to resume something — `useOpenFavorite`, the layout restore —
+add the id first and say what to resume second.
+
+The transcript stays in the agent store the whole time, so a tab opened on a
+conversation again draws it whole without asking main, which still keeps no
+copy. Every conversation that has a tab stays mounted and the inactive ones
+are hidden, which is no longer about the agent — it is the draft, the scroll
+and whatever menu was open. ADR-0050.
 
 One difference matters: **no directory crosses.** `agent:start` takes an id
 and a kind, and main starts the agent in the asking window's project,
 resolved from the sender. A shell's `cwd` comes from the renderer; an agent
 edits files where it runs, which makes its directory the most consequential
 thing the channel could have been told.
+
+### The Agents view: running, recent, favorites
+
+The sidebar's **Agents** view (`mod+shift+h`) is three tabs, switched in the
+panel's own state the way Boards switches scope.
+
+**Running** is every conversation in the agent store that is not asleep, in
+the order they started: its status in the words the tile would use —
+Working, Waiting for you, Your turn, Ended — whether a tab shows it, and the
+subagents and background commands it has out (`useRunningTasks`), nested
+under it. Each row has a stop button of its own, always drawn, rather than a
+Stop in a menu: stopping is the one thing this list exists for that a tab
+cannot do.
+
+**Recent** is the agent's own record of the project, newest first —
+`agent:recent`, answered by each driver's `recent(cwd, limit)` and merged by
+`listRecent`. Claude's driver asks the SDK's `listSessions` with
+`includeWorktrees` off, because a session had in another checkout is filed
+under that checkout and `history` would not find it from here, and with
+programmatic sessions left in, because Frodon's own conversations are SDK
+ones. The list is asked again whenever a conversation here starts, ends a
+turn or stops, and whenever the favorites change (`useRecentConversations`);
+nothing watches Claude's folder. A row opens the conversation — the one this
+window already has running, if it has it, or a new tab resuming it — and its
+menu makes it a favorite, under the title the agent gave it.
+
+**Favorites** is every favorite, running or not, with renaming and removal.
+
+Every row reads its own conversation through selectors that answer strings —
+a title, a status, the running tasks serialized — so a reply streaming into
+one conversation re-renders its row and nothing else. A running row's title
+is its favorite name, or else the first line of the first thing it was
+asked.
+
+The rail's button, and the Running tab, carry a dot whenever any
+conversation is waiting on a click (`useAnyConversationWaiting`), because a
+conversation with no tab and the sidebar shut would otherwise wait on a
+question nobody can see. An agent tile with no tabs lists the running
+conversations too (`RunningShortcuts`): it is where a person goes looking for
+an agent, and would otherwise say "no agent running here" while three are.
 
 ### Approvals are a promise held in main
 
@@ -339,12 +409,13 @@ pointer — the agent's kind and its `session` token — in
 directory and not the project, because the token points into this
 machine's `~/.claude` and would point a teammate at nothing. ADR-0044.
 
-Nothing is a favorite until somebody says so, and nothing else is offered.
-The agent's own list of past conversations was tried as a "Recent" half of
-the menu and dropped: it is long and mostly throwaway — every terminal
-`claude` in the project is on it — and listing it is the clutter favorites
-exist to avoid. A conversation never marked can still be reached with
-`claude --resume` in a terminal.
+Nothing is a favorite until somebody says so. The agent's own list of past
+conversations was first tried as a "Recent" half of the favorites menu and
+dropped: it is long and mostly throwaway — every terminal `claude` in the
+project is on it — and mixed in with the favorites it was the clutter they
+exist to avoid. It came back as a tab of its own in the Agents view, out of
+the way until it is wanted, once a conversation could be stopped without
+being made a favorite and needed a way back. ADR-0051.
 
 The token is the driver's and opaque to everyone else. Claude's driver
 **picks it before spawning** — `sessionId` on a new conversation, `resume` on
@@ -695,8 +766,9 @@ arrives.
 
 ### Reopening one
 
-1. The heart in the sidebar's rail, or `mod+shift+h`, opens **Favorites**:
-   each conversation by name, with when it was last active and when Claude
+1. The robot in the sidebar's rail, or `mod+shift+h`, opens **Agents**;
+   its **Favorites** tab lists each by name, with when it was last active
+   and when Claude
    Code will delete it — "deleted in 27 days", in red for the last week.
    The tooltip gives the date and names the setting that decides it.
 2. Clicking one brings forward the tab already on it — in this window or
@@ -723,6 +795,42 @@ arrives.
    logo turns while the agent works, carries an accent dot while it waits
    for you, and fades once the conversation has ended.
 
+### Closing a tab, and coming back to it
+
+1. Close the tab of a conversation that has been talked to. The agent keeps
+   working; the tab is gone.
+2. **Agents** in the sidebar lists it under Running, with "no tab" beside its
+   status. While it works its logo turns, its subagents are listed under it,
+   and when it stops to ask, the row says "Waiting for you" and the rail's
+   robot gets a dot — with the sidebar on another view, or shut.
+3. Click the row and it opens in a tab with everything it said drawn, and
+   any question it is waiting on ready to answer. An agent tile with no tabs
+   lists the running conversations under **New conversation**, and a click
+   there puts one in that tile — or, if it is in another tile already,
+   shows it there.
+4. A tab closed before anything was said ends its agent with it, as does
+   one whose conversation had already ended, or one restored asleep and
+   never used.
+
+### Stopping one
+
+1. In **Agents** → **Running**, the square button on the row. The agent
+   stops at once, with no confirmation: Claude keeps the conversation, so
+   it can be reopened from Recent, and what a stop interrupts is a turn, not
+   the work already on disk.
+2. Its tab, if it has one, closes with it.
+3. An ended conversation's button is an × that dismisses it from the list.
+
+### Going back to an earlier conversation
+
+1. **Agents** → **Recent** lists what Claude kept for this project, newest
+   first — from Frodon and from terminals alike — with when each was last
+   active and the branch it ended on.
+2. Click one and it opens in a tab, drawn as it was, and carries on from
+   there. One running in this window is shown rather than opened twice.
+3. Its `…` menu → **Add to favorites** keeps it at hand under the title
+   Claude gave it; it can be renamed in **Favorites**.
+
 ## Rules
 
 - **A logo keeps its own color.** `MARKS` in `agent-icon.component.tsx` is
@@ -747,6 +855,13 @@ arrives.
   to `dependencies` would package 276 MB per architecture.
 - **Frodon stores no transcript.** A favorite is a token; a copy of what was
   said would be a second store disagreeing with the agent's.
+- **Closing a tab never stops a conversation that has been talked to.**
+  Only `endConversation` does, reached from Stop, from a window closing, and
+  from the rules in `useConversationLifetimeEffect`. A component that stopped
+  an agent on unmount would bring back the bug this replaced.
+- **Main's registry is keyed by window and id.** The id is unique within a
+  page and nowhere else; a lookup by id alone finds another window's
+  conversation. See [learned.md](../learned.md).
 - **Ask main before opening a favorite.** `useOpenFavorite` reveals first;
   a tab opened without asking can put a second agent on a session another
   window is using.
@@ -794,6 +909,21 @@ arrives.
 - **A board open in another window.** A drawing goes into the board open in
   the conversation's own window, or to the file; the same board open in a
   second window does not see it until reopened, and could save over it.
+- **A conversation outliving its window.** It does not: closing an OS window
+  stops every conversation in it, tab or no tab, because the transcript is
+  in that page's store. Switching worktrees inside one window would make
+  this matter less; moving the transcript to main would make it go away.
+- **Agents in other windows.** The Running tab lists this window's
+  conversations only. A favorite running in another window is still brought
+  forward by clicking it, through `agent:reveal`.
+- **Grouping by worktree.** Every conversation in a window runs in that
+  window's root, so there is one group today. It becomes worth drawing
+  when a window can hold more than one checkout.
+- **Recent noticing a terminal.** A `claude` run in a terminal tile
+  reaches the Recent tab the next time a conversation here moves, or the
+  tab is opened again; nothing watches Claude's folder for it.
+- **A Dock badge.** The rail's dot says a conversation is waiting only while
+  Frodon is the app in front.
 - **A subagent's approvals in its own card.** What a subagent asks to do is
   asked on an ordinary card in the transcript, not under the task it
   belongs to.

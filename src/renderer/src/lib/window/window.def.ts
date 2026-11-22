@@ -185,10 +185,12 @@ export interface BrowserWindow extends WindowBase {
  * terminal holds shells.
  *
  * The ids name live conversations in main's registry, as session ids name
- * shells — and like a shell, a conversation is a process: closing its tab
- * ends it, and nothing about it survives a quit. Which agent each one talks
- * to, and everything it has said, lives in `lib/agent/`; the window only
- * knows which tabs it has.
+ * shells — but unlike a shell, a conversation outlives its tab. Closing one
+ * takes it off screen and leaves it running, listed in the sidebar's Agents
+ * view, where it can be opened into a tab again or stopped; see
+ * `useConversationLifetimeEffect`. Nothing about it survives a quit except a
+ * favorite. Which agent each one talks to, and everything it has said, lives
+ * in `lib/agent/`; the window only knows which tabs it has.
  */
 export interface AgentWindow extends WindowBase {
   type: 'agent';
@@ -435,16 +437,19 @@ export interface WindowStore {
   setActiveBrowserTab: (windowId: string, tabId: string) => void;
 
   /**
-   * Opens a conversation with an agent, routing the way `openTerminal` does
-   * — the window asked for, else the focused one, else any agent window,
-   * else a newly spawned one. Always a *new* conversation: two tabs on one
-   * conversation would be two people typing into the same agent.
+   * Opens a conversation with an agent in a tab, routing the way
+   * `openTerminal` does — the window asked for, else the focused one, else
+   * any agent window, else a newly spawned one.
    *
-   * Returns the new conversation's id, so a caller that came to resume one
-   * can say so before the tab mounts — or null when there was nowhere to
-   * put it.
+   * A new conversation, unless `existing` names one this window is already
+   * running with no tab on it — the sidebar opening it again. Never a second
+   * tab on a conversation that has one: two tabs on one conversation would
+   * be two people typing into the same agent, so the caller checks first.
+   *
+   * Returns the conversation's id, so a caller that came to resume one can
+   * say so before it starts — or null when there was nowhere to put it.
    */
-  openAgent: (windowId?: string) => string | null;
+  openAgent: (windowId?: string, existing?: string) => string | null;
   closeConversation: (windowId: string, conversationId: string) => void;
   setActiveConversation: (windowId: string, conversationId: string) => void;
 

@@ -19,6 +19,7 @@ import { useUpdateSync } from '~/lib/update';
 import { useFavoritesSyncEffect } from '~/lib/agent';
 import {
   useAgentWorkbenchEffect,
+  useConversationLifetimeEffect,
   useConversationRevealEffect,
 } from '~/lib/window';
 import { Header, Sidebar, Welcome } from '~/components/modules/workbench';
@@ -46,6 +47,8 @@ import Backdrop from './components/ui/backdrop';
  * `useConfigSaveEffect` (writes a changed setting down once it settles),
  * `useFavoritesSyncEffect` (lists the project's favorite conversations, and
  * again whenever any window changes them),
+ * `useConversationLifetimeEffect` (starts a conversation when a tab first
+ * shows it, and ends the ones nobody will miss when their tab closes),
  * `useConversationRevealEffect` (shows a conversation's tab when another
  * window, or the sidebar, asks for it),
  * `useAgentWorkbenchEffect` (tells an agent what the editors show, and opens
@@ -73,6 +76,7 @@ export default function App() {
   useConfigSaveEffect();
   useUpdateSync();
   useFavoritesSyncEffect();
+  useConversationLifetimeEffect();
   useConversationRevealEffect();
   useAgentWorkbenchEffect();
   useKeybindingEffect();

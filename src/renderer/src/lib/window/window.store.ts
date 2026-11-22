@@ -496,7 +496,7 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
     }));
   },
 
-  openAgent: (windowId) => {
+  openAgent: (windowId, existing) => {
     const { windows, tree, focusedId } = get();
     const target = targetFor('agent', windows, tree, windowId ?? focusedId);
 
@@ -505,17 +505,25 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
     if (!target) return null;
 
     if ('spawn' in target) {
+      // A spawned agent window arrives with a fresh conversation of its own,
+      // which is swapped for the one asked for before anything has seen it.
+      const spawn =
+        existing && target.spawn.type === 'agent'
+          ? {
+              ...target.spawn,
+              conversations: [existing],
+              activeConversation: existing,
+            }
+          : target.spawn;
       set({
-        windows: [...windows, target.spawn],
+        windows: [...windows, spawn],
         tree: target.tree,
-        focusedId: target.spawn.id,
+        focusedId: spawn.id,
       });
-      return target.spawn.type === 'agent'
-        ? target.spawn.activeConversation
-        : null;
+      return spawn.type === 'agent' ? spawn.activeConversation : null;
     }
 
-    const conversation = nextConversationId();
+    const conversation = existing ?? nextConversationId();
 
     set({
       windows: windows.map((window) => {
@@ -545,8 +553,9 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
   },
 
   closeConversation: (windowId, conversationId) => {
-    // Dropping the id unmounts the conversation, and unmounting is what ends
-    // the agent — see `useConversation`. Nothing to stop from here.
+    // Only the tab. Whether the conversation goes with it is decided by
+    // `useConversationLifetimeEffect`, which sees every way a tab can leave —
+    // this, a tile closed whole, a layout replaced — and not just this one.
     set((state) => ({
       windows: state.windows.map((window) => {
         if (window.id !== windowId || window.type !== 'agent') return window;

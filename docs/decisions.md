@@ -18,6 +18,80 @@ their reasoning is the reasoning recorded at the time, not reconstructed.
 
 ---
 
+### ADR-0051 — The agent's own list of conversations is offered, in a tab of its own
+
+**When** 2026-11-22 · **Status** active · **Touches** agent, sidebar
+
+**What.** The Agents view has a Recent tab listing the conversations the
+agent kept for the project, newest first, asked of the agent on every
+listing through `agent:recent`. Frodon still keeps no list of its own. Any
+row can be reopened, and made a favorite from its menu.
+
+**Why.** [ADR-0044](#adr-0044--a-favorite-conversation-is-a-pointer-into-the-agents-own-store)
+built this list under the favorites and dropped it: every terminal `claude`
+in the project is on it, and mixed in with the favorites it was the clutter
+they exist to avoid. Two things changed. ADR-0050 made Stop a normal act,
+and a conversation stopped without being marked first had no way back but
+`claude --resume`. And the view gained tabs, so the list can sit behind its
+own instead of between the favorites. Keeping a list of Frodon's own
+conversations in `~/.frodon/` was the other way, and was rejected for
+ADR-0044's reason: it would be a second record disagreeing with the agent's,
+and would leave out what was had in a terminal.
+
+**How.** `AgentDriver.recent(cwd, limit)`; Claude's calls the SDK's
+`listSessions` with `includeWorktrees: false`, since `history` looks in
+`cwd` only and could not reopen what another checkout filed. `listRecent` in
+`main/agent/agent.service.ts` merges the drivers and cuts to `RECENT_LIMIT`.
+The renderer's `useRecentConversations` asks again when a conversation here
+starts, ends a turn or stops, or the favorites change.
+
+**Cost.** Every listing reads the agent's folder for the project, which
+grows with every session ever had there; `listSessions` is bounded by the
+limit but not by how much it reads to sort. The list is as throwaway as
+ADR-0044 said — it is behind a tab, not cleaned up. A conversation had in a
+terminal appears only when something here prompts a new listing.
+
+### ADR-0050 — A conversation outlives its tab; the window decides when it ends
+
+**When** 2026-11-22 · **Status** active · **Touches** agent, workbench, sidebar
+
+**What.** Closing an agent tab hides the conversation and leaves its agent
+running. A conversation starts when its id first appears in a tab and ends on
+a Stop, on its window closing, on the window changing project, or — when
+nothing was said in it, or it was asleep or already ended — with the last tab
+that showed it. The transcript stays in the renderer's agent store
+throughout, and the sidebar's Agents view lists every running conversation.
+
+**Why.** A tab's mount was the conversation's lifetime, `useTerminal`'s shape,
+which made closing a tab the only way to put an agent out of sight and also a
+way of killing one halfway through a change. Several agents at once only
+works if one can be set aside without being lost. Two places for the
+lifetime were considered. **Main**, keeping each live conversation's events
+so any window could draw it, would also let a conversation outlive its
+window — and would reverse "Frodon stores no transcript" for a second copy of
+everything every agent said, held in the process that does the file IO. **The
+renderer's store**, which already held the transcript of every tab, needed
+only the decision moved out of a component: no new channel, no copy. Chosen
+for now, because the next step planned — switching worktrees inside one
+window — makes outliving the window matter less.
+
+**How.** `beginConversation`, `endConversation` and `worthKeeping` in
+`renderer/src/lib/agent/agent.hook.ts`; `useConversationLifetimeEffect`,
+`useShowConversation` and `useStopConversation` in
+`renderer/src/lib/window/window.hook.ts`, which is where both stores are in
+reach. `openAgent` takes an existing id, to put a running conversation back in
+a tab. The Agents view is `components/modules/workbench/sidebar/agents/`.
+Main's registry is keyed by `keyOf(senderId, id)`, because the lifetime
+change made a collision between two windows' `c1` easier to reach — see
+[learned.md](learned.md).
+
+**Cost.** A conversation still dies with its OS window, tab or no tab, and
+the Agents view shows only its own window's. A running conversation with no
+tab is a process nobody is looking at: the rail's dot is the only signal it
+is waiting, and only while Frodon is in front. An agent that was not a
+favorite and is stopped is reachable again only through the Recent list —
+see [ADR-0051](#adr-0051--the-agents-own-list-of-conversations-is-offered-in-a-tab-of-its-own).
+
 ### ADR-0049 — A split's shares live in the tree, not in the panel library
 
 **When** 2026-11-22 · **Status** active · **Touches** workbench
@@ -242,7 +316,7 @@ are held in the transcript store for the life of the tab.
 
 ### ADR-0044 — A favorite conversation is a pointer into the agent's own store
 
-**When** 2026-10-31 · **Status** active · **Touches** agent, workbench
+**When** 2026-10-31 · **Status** active, its refusal of a recent list revised by [ADR-0051](#adr-0051--the-agents-own-list-of-conversations-is-offered-in-a-tab-of-its-own) · **Touches** agent, workbench
 
 **What.** Frodon stores no transcripts. A conversation the person marks a
 favorite is recorded as `{ kind, session, name, addedAt }` in

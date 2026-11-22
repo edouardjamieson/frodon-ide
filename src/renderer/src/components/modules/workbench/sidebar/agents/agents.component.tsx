@@ -8,7 +8,7 @@ import {
   Square,
   X,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   AGENT_LABELS,
   FAVORITE_NAME_LIMIT,
@@ -84,7 +84,6 @@ export default function Agents() {
   const [tab, setTab] = useState<AgentsTab>('running');
   const running = useRunningConversations();
   const waiting = useAnyConversationWaiting();
-  const { favorites } = useFavorites();
 
   return (
     <div className="flex h-full w-full flex-col">
@@ -92,38 +91,35 @@ export default function Agents() {
         <Tabs
           value={tab}
           onValueChange={(value) => setTab(value as AgentsTab)}
-          className="w-full shrink-0"
+          className="@container w-full shrink-0"
         >
           <TabsList className="w-full flex-1 gap-1">
-            <TabsTrigger
-              className="flex-1 cursor-pointer gap-1.5 text-xs"
+            <AgentsTabTrigger
               value="running"
-            >
-              <span className="relative">
-                <Play className="size-3" />
-                {waiting ? (
-                  <span className="absolute -top-0.5 -right-1 size-1.5 rounded-full bg-project" />
-                ) : null}
-              </span>
-              Running
-              {running.length > 0 ? (
-                <span className="text-fg-subtle">{running.length}</span>
-              ) : null}
-            </TabsTrigger>
-            <TabsTrigger
-              className="flex-1 cursor-pointer gap-1.5 text-xs"
-              value="recent"
-            >
-              <Clock className="size-3" />
-              Recent
-            </TabsTrigger>
-            <TabsTrigger
-              className="flex-1 cursor-pointer gap-1.5 text-xs"
+              active={tab === 'running'}
+              label="Running"
+              count={running.length}
+              icon={
+                <span className="relative">
+                  <Play className="size-3" />
+                  {waiting ? (
+                    <span className="absolute -top-0.5 -right-1 size-1.5 rounded-full bg-project" />
+                  ) : null}
+                </span>
+              }
+            />
+            <AgentsTabTrigger
               value="favorites"
-            >
-              <Heart className="size-3" />
-              Favorites
-            </TabsTrigger>
+              active={tab === 'favorites'}
+              label="Favorites"
+              icon={<Heart className="size-3" />}
+            />
+            <AgentsTabTrigger
+              value="recent"
+              active={tab === 'recent'}
+              label="Recent"
+              icon={<Clock className="size-3" />}
+            />
           </TabsList>
         </Tabs>
       </header>
@@ -136,6 +132,53 @@ export default function Agents() {
         </div>
       </ScrollArea>
     </div>
+  );
+}
+
+/**
+ * One of the view's tabs, sized to the panel it is in.
+ *
+ * Three labels and a count do not fit a sidebar at its default width, let
+ * alone its narrowest, and a tab bar that scrolls hides the tab you were
+ * looking for. So below 20rem of panel only the active tab keeps its label —
+ * truncated if it has to be — and the others shrink to their icon, named by
+ * a tooltip. Measured on the panel with a container query rather than on the
+ * window, because the sidebar is dragged to its width independently of it.
+ */
+function AgentsTabTrigger({
+  value,
+  active,
+  label,
+  icon,
+  count = 0,
+}: {
+  value: AgentsTab;
+  active: boolean;
+  label: string;
+  icon: ReactNode;
+  count?: number;
+}) {
+  return (
+    <TabsTrigger
+      value={value}
+      title={label}
+      aria-label={label}
+      className={cn(
+        'min-w-0 cursor-pointer gap-1.5 text-xs',
+        active ? 'flex-1' : 'flex-none px-2.5 @[20rem]:flex-1'
+      )}
+    >
+      {icon}
+      <span
+        className={cn(
+          'min-w-0 truncate',
+          active ? 'inline' : 'hidden @[20rem]:inline'
+        )}
+      >
+        {label}
+        {count > 0 ? <span className="text-fg-subtle"> {count}</span> : null}
+      </span>
+    </TabsTrigger>
   );
 }
 

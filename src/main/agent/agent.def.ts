@@ -42,6 +42,11 @@ export interface AgentHost {
     showGit: (commit: string | null) => Promise<string | null>;
     /** The project's boards, both scopes. */
     boards: () => Promise<BoardSummary[]>;
+    /**
+     * Makes an empty board. The ref it was made under — the name taken
+     * already gets a number after it — or why not.
+     */
+    createBoard: (ref: BoardRef) => Promise<BoardRef | string>;
     /** A board's elements, or why not. */
     readBoard: (ref: BoardRef) => Promise<BoardElement[] | string>;
     /**

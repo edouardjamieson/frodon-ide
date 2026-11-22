@@ -1018,6 +1018,7 @@ const WORKBENCH_TOOLS = [
   'terminal_output',
   'show_in_git',
   'list_boards',
+  'create_board',
   'read_board',
   'draw_on_board',
 ] as const;
@@ -1049,7 +1050,7 @@ function workbenchServer(host: AgentHost) {
       'they ran or something a terminal shows, call terminal_output. To ' +
       'show them a commit or their pending changes, call show_in_git. ' +
       'Frodon has boards for sketching; to draw a diagram for them, use ' +
-      'list_boards, read_board and draw_on_board.',
+      'list_boards, create_board, read_board and draw_on_board.',
     tools: [
       tool(
         'editor_state',
@@ -1146,6 +1147,43 @@ function workbenchServer(host: AgentHost) {
                         .join('\n'),
               },
             ],
+          };
+        }
+      ),
+      tool(
+        'create_board',
+        'Makes a new, empty board, for when the person asks for a diagram ' +
+          'and there is no board to draw it on, or asks for a new one. ' +
+          'Answers with the name it was made under — a name already taken ' +
+          'gets a number after it — which is the one to draw on.',
+        {
+          name: z
+            .string()
+            .describe(
+              'Letters, numbers, spaces, dots, dashes and underscores.'
+            ),
+          scope: z
+            .enum(['project', 'local'])
+            .optional()
+            .describe(
+              'project (the default), saved with the project, or local, ' +
+                'kept privately on this machine.'
+            ),
+        },
+        async ({ name, scope }) => {
+          const ref = boardRefOf(name.trim(), scope);
+          const made = ref
+            ? await host.workbench.createBoard(ref)
+            : `${name} is not a board name.`;
+          const refused = typeof made === 'string';
+          return {
+            content: [
+              {
+                type: 'text',
+                text: refused ? made : `Created the board ${made.name}.`,
+              },
+            ],
+            ...(refused ? { isError: true } : {}),
           };
         }
       ),
@@ -1563,6 +1601,12 @@ function actionOf(
       return { id, kind: 'read', title: 'Look at the terminals' };
     case `mcp__${WORKBENCH_SERVER}__list_boards`:
       return { id, kind: 'read', title: 'List the boards' };
+    case `mcp__${WORKBENCH_SERVER}__create_board`:
+      return {
+        id,
+        kind: 'change',
+        title: `Create the board ${str('name') ?? ''}`.trim(),
+      };
     case `mcp__${WORKBENCH_SERVER}__read_board`:
       return {
         id,

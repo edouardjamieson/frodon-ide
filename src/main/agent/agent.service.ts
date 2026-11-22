@@ -49,7 +49,7 @@ import {
   showGit,
 } from './agent-workbench.service';
 import { elementsFrom } from './agent-board.service';
-import { listBoards } from '@main/board';
+import { createBoard, listBoards } from '@main/board';
 
 const log = createLogger('agent');
 
@@ -207,6 +207,16 @@ export async function startConversation(
         terminals: () => readTerminals(senderId),
         showGit: (commit) => showGit(senderId, cwd, commit),
         boards: () => listBoards(cwd),
+        // Straight to the file, unlike drawing: a board that does not exist
+        // yet is open in no window, so there is no session to go through.
+        // A project board then turns up in the sidebar the way any new file
+        // in `.frodon/boards` does, through the tree.
+        createBoard: async (ref) => {
+          const result = await createBoard(cwd, ref.scope, ref.name);
+          return result.ok && result.ref
+            ? result.ref
+            : (result.error ?? 'The board could not be created.');
+        },
         // Both checked against the list first: a board that is not there
         // reads as an empty one, by design, and drawing on a misspelled name
         // would quietly create a new board.

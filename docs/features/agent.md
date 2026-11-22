@@ -443,10 +443,10 @@ answered with "not a commit in this repository" rather than an empty pane.
 The window then opens or focuses the git window, picks the history or the
 commit tab, and opens the commit's detail through `openCommitDetail`.
 
-### The agent can read a board and draw on it
+### The agent can make a board, read it and draw on it
 
-`list_boards`, `read_board` and `draw_on_board` let the agent sketch a
-diagram for the person. A board's own format is geometry for a canvas, so
+`list_boards`, `create_board`, `read_board` and `draw_on_board` let the
+agent sketch a diagram for the person. A board's own format is geometry for a canvas, so
 the agent is shown each element as one line — `rectangle at (100, 100), 160×80`, `text at (147, 125): "main"` — and draws in the same terms: text
 and boxes by their corner and size, arrows from one point to another.
 `agent-board.service.ts` turns those into elements, in the canvas's default
@@ -454,6 +454,17 @@ brush and with an arrow seated the way `normalizeElement` seats a drawn
 one, and refuses the whole drawing if one shape is wrong. Main checks the
 board exists first, since a missing board reads as an empty one and a
 drawing would quietly create it.
+
+Which is why making one is a tool of its own rather than a side effect of
+drawing. Without it, "draw me a diagram" in a project with no boards
+dead-ended: every board the agent named was refused as missing, and the
+only way out was the person clicking New board for it. `create_board`
+writes the file directly through `createBoard`, uniquifying the name the
+way the sidebar's button does, and answers with the name it landed on so
+the agent draws on that rather than on the one it asked for. A project
+board appears in the sidebar through the tree, like any new file in
+`.frodon/boards`; a private one only when the panel next re-reads, since
+nothing watches the home directory.
 
 Reading and drawing go through the window, not the file: a board open in a
 tile has strokes not yet saved, and its next autosave would overwrite

@@ -8,12 +8,15 @@ import { useGitFileStatus } from '~/lib/git';
 import { useActiveFilePath, useOpenFile, useOpenFilePaths } from '~/lib/window';
 import type { File } from '@shared/fs.def';
 import type { GitFileStatus } from '@shared/git.def';
+import type { Platform } from '@shared/ipc.def';
+import { useAppStore } from '~/lib/app';
 import {
   ChevronRight,
   ChevronsDownUp,
   ChevronsUpDown,
   FilePlusCorner,
   FileStack,
+  FolderOpen,
   FolderPlus,
   Pencil,
   Trash,
@@ -36,6 +39,23 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '~/components/ui/context-menu';
+
+/** What each platform calls its file manager, the way its own apps word it. */
+const REVEAL_LABEL: Record<Platform, string> = {
+  darwin: 'Reveal in Finder',
+  win32: 'Reveal in File Explorer',
+  linux: 'Open containing folder',
+};
+
+/**
+ * The reveal item's label. A component of its own so the platform is read
+ * when a menu opens — menu content mounts only then — rather than by a
+ * subscription on every row of the tree.
+ */
+function RevealLabel() {
+  const platform = useAppStore((state) => state.info?.platform ?? 'darwin');
+  return <span>{REVEAL_LABEL[platform]}</span>;
+}
 
 /**
  * How a file's git state colors its name. Roles, not colors: a theme decides
@@ -113,8 +133,14 @@ function Node({
   const toggleExpanded = useProjectStore((state) => state.toggleExpanded);
   const select = useProjectStore((state) => state.select);
   const openFile = useOpenFile();
-  const { startEntry, startRename, commitRename, cancelRename, removeEntry } =
-    actions;
+  const {
+    startEntry,
+    startRename,
+    commitRename,
+    cancelRename,
+    removeEntry,
+    revealEntry,
+  } = actions;
 
   const gitStatus = gitByPath.get(file.path);
   const isExpanded = expanded.has(file.path);
@@ -263,6 +289,14 @@ function Node({
             >
               <Pencil />
               <span>Rename</span>
+            </ContextMenuItem>
+            <ContextMenuItem
+              // Not deferred: it moves no focus inside this window, and the
+              // file manager coming forward is the point.
+              onSelect={() => revealEntry(file.path)}
+            >
+              <FolderOpen />
+              <RevealLabel />
             </ContextMenuItem>
             <ContextMenuItem
               // The variant colors the label and the icon from the theme's

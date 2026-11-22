@@ -62,6 +62,7 @@ const api: FrodonApi = {
       ipcRenderer.invoke('file:create-dir', { parent, name }),
     rename: (path, name) => ipcRenderer.invoke('file:rename', { path, name }),
     remove: (path) => ipcRenderer.invoke('file:delete', { path }),
+    reveal: (path) => ipcRenderer.invoke('file:reveal', { path }),
     watch: (paths) => ipcRenderer.invoke('file:watch', { paths }),
     // Unfiltered, unlike a terminal's output: main already sends this only to
     // the windows showing that file, and the one page they live in holds a

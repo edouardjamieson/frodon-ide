@@ -472,3 +472,27 @@ export function watchDirectory(
     watcher?.close();
   };
 }
+
+/**
+ * Shows an entry in the system's file manager, selected in its folder.
+ *
+ * `showItemInFolder` rather than `openPath`: opening a file would launch
+ * whatever the system associates with it, which is not what "show me where
+ * this is" asks for, and opening a folder would show its contents without
+ * the folder itself. The root is allowed here, unlike in `deleteEntry` —
+ * showing the project folder is harmless and a reasonable thing to want.
+ */
+export function revealEntry(root: string | null, target: string): FsResult {
+  if (!root) return { ok: false, error: 'No project is open.' };
+
+  const projectRoot = path.resolve(root);
+  const entry = path.resolve(target);
+
+  if (entry !== projectRoot && !entry.startsWith(projectRoot + path.sep)) {
+    log.warn(`refused a reveal outside the project: ${target}`);
+    return { ok: false, error: 'That is outside the project.' };
+  }
+
+  shell.showItemInFolder(entry);
+  return { ok: true };
+}

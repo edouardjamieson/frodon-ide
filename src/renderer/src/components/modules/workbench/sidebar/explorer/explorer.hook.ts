@@ -128,6 +128,14 @@ export function useExplorerActions(): ExplorerActions {
     [closeFileTabs, select, selected]
   );
 
+  /**
+   * Shows an entry in the system's file manager. Fire and forget: the only
+   * refusal is a path outside the project, which a row in this tree is not.
+   */
+  const revealEntry = useCallback((path: string) => {
+    void window.frodon.file.reveal(path);
+  }, []);
+
   // One identity for the whole set, so threading it down a few thousand rows
   // costs one prop comparison each rather than seven.
   return useMemo(
@@ -139,6 +147,7 @@ export function useExplorerActions(): ExplorerActions {
       commitRename,
       cancelRename,
       removeEntry,
+      revealEntry,
     }),
     [
       startEntry,
@@ -148,6 +157,7 @@ export function useExplorerActions(): ExplorerActions {
       commitRename,
       cancelRename,
       removeEntry,
+      revealEntry,
     ]
   );
 }

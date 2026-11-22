@@ -242,6 +242,16 @@ export interface IpcContract {
    * unrecoverable.
    */
   'file:delete': { req: { path: string }; res: FsDeleteResult };
+  /**
+   * Shows an entry in the system's file manager — Finder, Explorer, whatever
+   * Linux has — selected inside its parent folder.
+   *
+   * Held to the open project like every other path the explorer hands over:
+   * it reads nothing and writes nothing, but it is still main acting on a
+   * path the renderer named, and a bridge method that opened any path on the
+   * disk would be one more thing to reason about for no use the explorer has.
+   */
+  'file:reveal': { req: { path: string }; res: FsResult };
 
   /**
    * The files this window is showing, so main can say when one of them moves
@@ -834,6 +844,8 @@ export interface FrodonApi {
     rename: (path: string, name: string) => Promise<Res<'file:rename'>>;
     /** `remove`, not `delete`: the latter is a reserved word. See `board`. */
     remove: (path: string) => Promise<Res<'file:delete'>>;
+    /** Shows an entry in Finder, or the platform's equivalent. */
+    reveal: (path: string) => Promise<Res<'file:reveal'>>;
     /** Registers the paths this window is showing. See `file:watch`. */
     watch: (paths: string[]) => Promise<Res<'file:watch'>>;
     /**

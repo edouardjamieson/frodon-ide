@@ -75,6 +75,7 @@ import {
   readFileText,
   readFileBytes,
   renameEntry,
+  revealEntry,
   writeFileText,
 } from '@main/fs';
 import { replaceInProject, searchProject } from '@main/search';
@@ -427,6 +428,10 @@ export function registerIpcHandlers(): void {
 
     return result;
   });
+
+  handle('file:reveal', ({ path }, event) =>
+    revealEntry(askingRoot(event), path)
+  );
 
   // The sender is what the subscription belongs to, the way it is for a
   // terminal: a change to a file is sent back to the windows that said they

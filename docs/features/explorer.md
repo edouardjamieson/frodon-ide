@@ -132,6 +132,15 @@ a name main trimmed is the name everything is re-keyed to.
    closes, and a selection pointing into the hole is dropped so a New file in
    the meantime does not aim at it.
 
+### Revealing in Finder
+
+1. Right-click → Reveal in Finder — Reveal in File Explorer on Windows, Open
+   containing folder on Linux.
+2. Main checks the path is inside the project and hands it to
+   `shell.showItemInFolder`, which opens the parent with the entry selected.
+   `openPath` would have launched the file's default app instead, which is
+   not what "where is this" asks.
+
 ## Rules
 
 - **The renderer never scans.** If the explorer needs to know something about

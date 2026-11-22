@@ -17,4 +17,6 @@ export interface ExplorerActions {
   cancelRename: () => void;
   /** Asks, then moves to the Trash, then closes whatever was showing it. */
   removeEntry: (path: string) => Promise<void>;
+  /** Shows the entry in Finder, or the platform's equivalent. */
+  revealEntry: (path: string) => void;
 }
